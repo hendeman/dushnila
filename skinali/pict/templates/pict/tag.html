@@ -1,0 +1,18 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<h1>Изображения по тегу: {{ title }}</h1>
+
+<div class="container">
+  {% for p in page_obj %}
+    <div class="item-block">
+      <a data-fancybox href="{{p.photo.url}}" data-caption='Номер изображения: "{{ p.name }}"&lt;br /&gt; Краткое описание: "{{ p.alt }}" '>
+        <img class="item-photo" src="{{p.photo.url}}" alt="{{ p.alt }}" >
+      </a>
+    </div>
+  {% endfor %}
+</div>
+
+{% include  'pict/includes/paginator.html' %}
+
+{% endblock %}

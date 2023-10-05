@@ -1,0 +1,92 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+{% if col_ru %}
+  <p>{{cat_name}}, {{col_ru}} оттенок</p>
+{% else %}
+  <p>{{cat_name}}</p>
+{% endif %}
+
+<nav class="list-pages">
+  <ul>
+        {% for p in list_cat %}
+          {% if p.cat == cat_name.cat %}
+          <li class="page-num page-num-selected">{{ p.cat }}</li>
+          {% else %}
+            <li class="page-num">
+                <a href="{{ p.get_absolute_url }}">{{ p.cat }}</a>
+            </li>
+          {% endif %}
+        {% endfor %}
+  </ul>
+</nav>
+<nav class="list-pages-color">
+  <ul>
+        {% for p in color_list %}
+          {% if p.slug_color == col %}
+            <li class="page-num page-num-selected" style="background-color: {{ p.slug_color }};">
+                <p class="color-description">{{ p.color }}</p>
+            </li>
+
+          {% else %}
+            <li class="page-num">
+                <a href="?color={{ p.slug_color }}" style="background-color: {{ p.slug_color }};"></a>
+                <p class="color-description">{{ p.color }}</p>
+            </li>
+
+          {% endif %}
+        {% endfor %}
+        {% if not col %}
+            <li class="list-all">сброс цветов</li>
+        {% else %}
+            {% if cat_name == title %}
+                <li class="list-all"><a href="{% url 'skinali' %}">сброс цветов</a></li>
+            {% else %}
+                <li class="list-all"><a href="{{ cat_name.get_absolute_url }}">сброс цветов</a></li>
+            {% endif %}
+        {% endif %}
+  </ul>
+</nav>
+
+<nav class="list-pages-tags">
+  <ul>
+        {% for p in list_tag %}
+            <li class="page-num">
+                <a href="{{ p.get_absolute_url }}">{{ p.tag }} ({{ p.total }})</a>
+            </li>
+        {% endfor %}
+  </ul>
+</nav>
+
+<!--<nav class="list-pages">-->
+<!--  <ul>-->
+<!--        {% for p in color_list %}-->
+<!--          {% if p.slug_color == col %}-->
+<!--            <li class="page-num page-num-selected">{{ p.color }}</li>-->
+<!--          {% else %}-->
+<!--            <li class="page-num">-->
+<!--                <a href="?color={{ p.slug_color }}">{{ p.color }}</a>-->
+<!--            </li>-->
+<!--          {% endif %}-->
+<!--        {% endfor %}-->
+
+<!--  </ul>-->
+<!--</nav>-->
+
+
+<div class="container">
+  {% for p in page_obj %}
+    <div class="item-block">
+      <a data-fancybox href="{{p.photo.url}}" data-caption='Номер изображения: "{{ p.name }}"&lt;br /&gt; Краткое описание: "{{ p.alt }}" '>
+        <img class="item-photo" src="{{p.photo.url}}" alt="{{ p.alt }}" >
+      </a>
+    </div>
+  {% endfor %}
+</div>
+
+
+{% include  'pict/includes/paginator.html' %}
+
+{% endblock %}

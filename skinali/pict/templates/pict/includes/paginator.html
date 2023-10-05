@@ -1,0 +1,39 @@
+{% if page_obj.has_other_pages %}
+  <nav class="list-pages">
+    <ul>
+      {% if page_obj.number > 3 %}
+      <li class="page-num">
+			<a href="?page=1{{ col_tag }}">Первая страница</a>
+      </li>
+      {% endif %}
+
+      {% if page_obj.has_previous %}
+      <li class="page-num">
+        <a href="?page={{ page_obj.previous_page_number }}{{ col_tag }}">&lt;</a>
+      </li>
+      {% endif %}
+
+      {% for p in page_obj.paginator.page_range %}
+        {% if page_obj.number == p %}
+          <li class="page-num page-num-selected">{{ p }}</li>
+        {% elif p >= page_obj.number|add:-2 and p <= page_obj.number|add:2 %}
+          <li class="page-num">
+            <a href="?page={{ p }}{{ col_tag }}">{{ p }}</a>
+          </li>
+        {% endif %}
+      {% endfor %}
+
+      {% if page_obj.has_next %}
+      <li>
+        <a href="?page={{ page_obj.next_page_number }}{{ col_tag }}">&gt;</a>
+      </li>
+      {% endif %}
+
+      {% if page_obj.number < page_obj.paginator.num_pages|add:-2 %}
+      <li class="page-num">
+			<a href="?page={{ page_obj.paginator.num_pages }}{{ col_tag }}">Последняя страница</a>
+      </li>
+      {% endif %}
+    </ul>
+  </nav>
+{% endif %}

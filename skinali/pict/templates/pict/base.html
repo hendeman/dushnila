@@ -1,0 +1,43 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}" rel="stylesheet" />
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
+    <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
+<!--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css"/>-->
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+{% block mainmenu %}
+
+<ul class="mainmenu">
+{% for m in menu %}
+    <li><a href="{% url m.url_name %}">{{ m.title }}</a></li>
+{% endfor %}
+</ul>
+
+<form action="/">
+   <p><input type="search" name="product-number" placeholder="Поиск">
+   <input type="submit" value="Найти"></p>
+   <p>Введите номер изображения или ключевое слово</p>
+</form>
+<br>
+
+{% endblock mainmenu %}
+
+{% block content %}
+{% endblock %}
+
+<!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
+    <script src="{% static 'skinali/js/fancybox.js' %}"></script>
+    <script>
+      Fancybox.bind('[data-fancybox]', {
+        //
+      });
+    </script>
+</body>
+</html>

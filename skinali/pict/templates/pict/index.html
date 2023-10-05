@@ -1,0 +1,25 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+<div class="container">
+{% if list_pict == 0 %}
+  <p>По запросу "{{ get_find }}" ничего не найдено</p>
+{% else %}
+  {% if get_find %}
+    <p>Результат поиска: "{{ get_find }}"</p>
+  {% endif %}
+  {% for p in page_obj %}
+    <div class="item-block">
+      <a data-fancybox href="{{p.photo.url}}" data-caption='Номер изображения: "{{ p.name }}"&lt;br /&gt; Краткое описание: "{{ p.alt }}" '>
+        <img class="item-photo" src="{{p.photo.url}}" alt="{{ p.alt }}" >
+      </a>
+    </div>
+  {% endfor %}
+
+{% endif %}
+
+</div>
+{% include  'pict/includes/paginator.html' %}
+
+{% endblock %}
