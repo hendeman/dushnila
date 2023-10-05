@@ -1,0 +1,166 @@
+ul.mainmenu {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	height: 60px;
+	color: #fdc073;
+	font-size: 20px;
+	height: 100%;
+}
+ul.mainmenu li {
+	display: inline-block;
+	margin: 18px 40px 0 30px;
+}
+ul.mainmenu li.logo {margin: 0;}
+
+ul.mainmenu li a {
+	color: #fdc073;
+	text-decoration: none;
+}
+ul.mainmenu li a:hover {
+	color: #FDA83D;
+}
+.container {
+    text-align: center;
+}
+.item-block {
+    display: inline-block;
+    margin: 10px;
+}
+
+.item-photo {
+    width: 400px;
+    height: 70px;
+}
+
+.list-pages {
+    clear: both;
+	text-align: center;
+	margin: 0 0 20px 0;
+}
+.list-pages ul {
+	margin: 20px 0 0 0;
+	padding: 0;
+	list-style: none;
+}
+.list-pages ul li {
+	display: inline-block;
+	margin: 0 20px 0 0;
+	font-size: 24px;
+}
+.list-pages a {
+	color: #000;
+	text-decoration: none;
+}
+.list-pages .page-num, .page-num-selected {
+	display: inline-block;
+}
+
+.list-pages .page-num-selected {
+	color: #FFF;
+	font-size: 24px;
+	color: #c3c3c3;
+}
+.list-pages .page-num-selected:hover {
+	box-shadow: none;
+}
+.color{
+width:50px;
+height:50px;
+background-color: coral;
+}
+
+.list-pages-color {
+    clear: both;
+	text-align: center;
+	margin: 0 0 20px 0;
+}
+.list-pages-color ul {
+	margin: 20px 0 0 0;
+	padding: 0;
+	list-style: none;
+}
+.list-all {
+    display: inline-block;
+	font-size: 35px;
+    height: 30px;
+	vertical-align: 40%;
+	font-size: 20px;
+	color: #C0C0C0;
+}
+
+.list-pages-color ul .page-num {
+	display: inline-block;
+	margin: 0 20px 0 0;
+	font-size: 24px;
+	height: 30px;
+	width: 30px;
+	border: 1px solid gray;
+    position: relative;
+}
+.list-pages-color a {
+	color: #000;
+	text-decoration: none;
+    display:block;
+    width: 100%;
+    height: 100%;
+}
+.color-description {
+    position: absolute;
+    display:none;
+    top: -25px;
+    left: 25px;
+    z-index: 1; /* Отображаем подсказку поверх других элементов */
+    background: rgba(255,255,230,0.9); /* Полупрозрачный цвет фона */
+    font-family: Arial, sans-serif; /* Гарнитура шрифта */
+    font-size: 11px; /* Размер текста подсказки */
+    padding: 5px 10px; /* Поля */
+    border: 1px solid #333; /* Параметры рамки */
+   }
+
+.list-pages-color .page-num:hover .color-description {
+  display: block;
+}
+
+}
+.list-pages-color .page-num, .page-num-selected {
+	display: inline-block;
+}
+
+.list-pages-color .page-num-selected {
+	color: #FFF;
+	font-size: 24px;
+	color: #c3c3c3;
+}
+.list-pages-color .page-num-selected:hover {
+	box-shadow: none;
+}
+.list-pages-tags {
+    clear: both;
+	text-align: center;
+	margin: 0 0 20px 0;
+}
+.list-pages-tags ul {
+	margin: 20px 0 0 0;
+	padding: 0;
+	list-style: none;
+}
+.list-pages-tags ul .page-num {
+	display: inline-block;
+	font-size: 18px;
+    margin: 5px 10px;
+}
+.list-pages-tags a {
+	color: #686868;
+	text-decoration: none;
+    display:block;
+    width: 100%;
+    height: 100%;
+    border: 1px solid gray;
+    padding: 2px 5px;
+
+}
+.list-pages-tags a:hover{
+    color: black;
+    border: 1px solid white;
+}
