@@ -45,7 +45,8 @@ class Category(models.Model):
 
 
 class Pict(models.Model):
-    name = models.CharField(max_length=10, unique=True, db_index=True, verbose_name='Имя файла')
+    name = models.IntegerField(unique=True, db_index=True, verbose_name='Имя файла')
+    # name = models.CharField(max_length=10, unique=True, db_index=True, verbose_name='Имя файла')
     alt = models.CharField(max_length=250, blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to="photos/", verbose_name='Изображение')
     time_update = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
@@ -54,13 +55,10 @@ class Pict(models.Model):
     color = models.ForeignKey(Color, on_delete=models.SET_NULL, null=True, verbose_name="Цвет")
 
     def __str__(self):
-        return self.name
+        return str(self.name)
 
     def __add__(self, other):
-        try:
-            return int(Pict.objects.first().name) + other
-        except TypeError:
-            return ""
+        return Pict.objects.first().name + other
 
     class Meta:
         verbose_name = 'Изображения'
