@@ -4,7 +4,7 @@ from django.urls import reverse
 
 class Color(models.Model):
     color = models.CharField(max_length=100, verbose_name='Цвет')
-    slug_color = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='SlugURL')
+    slug_color = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
 
     def __str__(self):
         return self.color
@@ -16,7 +16,7 @@ class Color(models.Model):
 
 class TagPict(models.Model):
     tag = models.CharField(max_length=100, db_index=True, verbose_name='Ключевое слово')
-    slug = models.SlugField(max_length=100, db_index=True, unique=True)
+    slug = models.SlugField(max_length=100, db_index=True, unique=True, verbose_name="Slug")
 
     def __str__(self):
         return self.tag
@@ -31,7 +31,7 @@ class TagPict(models.Model):
 
 class Category(models.Model):
     cat = models.CharField(max_length=100, verbose_name='Категория')
-    slug = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='SlugURL')
+    slug = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
 
     def __str__(self):
         return self.cat
@@ -49,12 +49,18 @@ class Pict(models.Model):
     alt = models.CharField(max_length=250, blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to="photos/", verbose_name='Изображение')
     time_update = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
-    cat = models.ManyToManyField(Category)
-    tags = models.ManyToManyField(TagPict, blank=True, related_name="tags")
+    cat = models.ManyToManyField(Category, verbose_name="Категории")
+    tags = models.ManyToManyField(TagPict, blank=True, related_name="tags", verbose_name="Теги")
     color = models.ForeignKey(Color, on_delete=models.SET_NULL, null=True, verbose_name="Цвет")
 
     def __str__(self):
         return self.name
+
+    def __add__(self, other):
+        try:
+            return int(Pict.objects.first().name) + other
+        except TypeError:
+            return ""
 
     class Meta:
         verbose_name = 'Изображения'

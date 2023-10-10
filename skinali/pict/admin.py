@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
 
+from pict.forms import PictAdminForm
 from pict.models import Pict, Category, Color, TagPict
 
 
@@ -14,6 +15,8 @@ class PictAdmin(admin.ModelAdmin):
     fields = ['name', 'alt', 'color', 'photo', 'get_html_photo_fields', 'time_update', 'cat', 'tags']
     readonly_fields = ['time_update', 'get_html_photo_fields']
     filter_horizontal = ['cat', 'tags']
+    ordering = ["-id"]
+    form = PictAdminForm
 
 
     def get_html_photo(self, object):
