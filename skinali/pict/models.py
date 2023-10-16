@@ -52,13 +52,13 @@ class Pict(models.Model):
     time_update = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
     cat = models.ManyToManyField(Category, verbose_name="Категории")
     tags = models.ManyToManyField(TagPict, blank=True, related_name="tags", verbose_name="Теги")
-    color = models.ForeignKey(Color, on_delete=models.SET_NULL, null=True, verbose_name="Цвет")
+    color = models.ManyToManyField(Color, verbose_name="Цвет")
 
     def __str__(self):
         return str(self.name)
 
     def __add__(self, other):
-        return Pict.objects.first().name + other
+        return int(Pict.objects.first().name) + other
 
     class Meta:
         verbose_name = 'Изображения'

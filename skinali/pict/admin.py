@@ -7,14 +7,14 @@ from pict.models import Pict, Category, Color, TagPict
 
 class PictAdmin(admin.ModelAdmin):
     list_per_page = 20
-    list_display = ['name', 'color', 'get_html_photo', 'get_list_category']
+    list_display = ['name', 'get_html_photo', 'get_list_category']
     # list_editable = ['color']
     list_display_links = ['name']
     search_fields = ['name', 'tags__tag']
-    list_filter = ['time_update']
-    fields = ['name', 'alt', 'color', 'photo', 'get_html_photo_fields', 'time_update', 'cat', 'tags']
+    list_filter = ['time_update', 'cat__cat', 'color__color']
+    fields = ['name', 'alt', 'photo', 'get_html_photo_fields', 'time_update', 'color', 'cat', 'tags']
     readonly_fields = ['time_update', 'get_html_photo_fields']
-    filter_horizontal = ['cat', 'tags']
+    filter_horizontal = ['color', 'cat', 'tags']
     ordering = ["-id"]
     form = PictAdminForm
 
