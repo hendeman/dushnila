@@ -7,7 +7,7 @@ from pict.models import Pict, Category, Color, TagPict
 
 class PictAdmin(admin.ModelAdmin):
     list_per_page = 20
-    list_display = ['name', 'get_html_photo', 'get_list_category']
+    list_display = ['name', 'get_html_photo', 'get_list_category', 'get_list_color']
     # list_editable = ['color']
     list_display_links = ['name']
     search_fields = ['name', 'tags__tag']
@@ -30,12 +30,15 @@ class PictAdmin(admin.ModelAdmin):
                 f"<a href = '{object.photo.url}' target=_blank><img src='{object.photo.url}' width=400></a>")
 
     def get_list_category(self, object):
-        a = Pict.objects.get(name=object.name)
-        return ", ".join([x.cat for x in a.cat.all()])
+        return ", ".join([x.cat for x in object.cat.all()])
+
+    def get_list_color(self, object):
+        return ", ".join([x.color for x in object.color.all()])
 
     get_html_photo.short_description = 'Миниатюра'
     get_html_photo_fields.short_description = 'Миниатюра'
     get_list_category.short_description = 'Категории'
+    get_list_color.short_description = 'Цвета'
 
 
 class CategoryAdmin(admin.ModelAdmin):
