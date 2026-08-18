@@ -6,9 +6,7 @@
 <div class="container">
   {% for p in page_obj %}
     <div class="item-block">
-      <a data-fancybox href="{{p.photo.url}}" data-caption='Номер изображения: "{{ p.name }}"&lt;br /&gt; Краткое описание: "{{ p.alt }}" '>
-        <img class="item-photo" src="{{p.photo.url}}" alt="{{ p.alt }}" >
-      </a>
+      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
     </div>
   {% endfor %}
 </div>

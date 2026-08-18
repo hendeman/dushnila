@@ -85,6 +85,8 @@ DATABASES = {
     }
 }
 
+# Store session data in a signed browser cookie instead of writing it to SQLite.
+SESSION_ENGINE = 'django.contrib.sessions.backends.signed_cookies'
 
 # Password validation
 # https://docs.djangoproject.com/en/4.1/ref/settings/#auth-password-validators

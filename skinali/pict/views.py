@@ -1,7 +1,8 @@
 from django.core.paginator import Paginator
-from django.db.models import Count
-from django.http import HttpResponse, HttpResponseNotFound
-from django.shortcuts import render
+from django.db.models import Count, Q
+from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
+from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_POST
 from django.views.generic import ListView
 
 from .models import *
@@ -13,7 +14,40 @@ menu = [{'title': "Главная страница", 'url_name': 'home'},
         {'title': "Связаться с нами", 'url_name': 'about'}]
 
 
-class PictHome(ListView):
+FAVORITES_SESSION_KEY = 'favorite_pict_ids'
+
+
+def get_favorite_ids(request):
+    raw_ids = request.session.get(FAVORITES_SESSION_KEY, [])
+    if not isinstance(raw_ids, (list, tuple)):
+        raw_ids = []
+
+    favorite_ids = []
+    for raw_id in raw_ids:
+        try:
+            pict_id = int(raw_id)
+        except (TypeError, ValueError):
+            continue
+
+        if pict_id > 0 and pict_id not in favorite_ids:
+            favorite_ids.append(pict_id)
+
+    if favorite_ids != raw_ids:
+        request.session[FAVORITES_SESSION_KEY] = favorite_ids
+
+    return favorite_ids
+
+
+class FavoritesContextMixin:
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        favorite_ids = get_favorite_ids(self.request)
+        context['favorite_ids'] = favorite_ids
+        context['favorites_count'] = len(favorite_ids)
+        return context
+
+
+class PictHome(FavoritesContextMixin, ListView):
     # model = Pict
     template_name = 'pict/index.html'
     paginate_by = 6
@@ -58,9 +92,17 @@ class PictHome(ListView):
 #         return render(request, 'pict/index.html', {'menu': menu, 'title': 'Главная страница', 'list_cat': list_cat})
 #     return render(request, 'pict/index.html', {'menu': menu, 'title': 'Главная страница'})
 
-class SkinaliMix(ListView):
+class SkinaliMix(FavoritesContextMixin, ListView):
     template_name = 'pict/skinali.html'
     paginate_by = 6
+
+    def get_popular_tags(self):
+        category_slug = self.kwargs.get('slug_cat')
+        category_filter = Q(tags__cat__slug=category_slug) if category_slug else Q()
+
+        return TagPict.objects.annotate(
+            total=Count('tags', filter=category_filter, distinct=True)
+        ).filter(total__gt=0).order_by('-total', 'tag')[:10]
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -73,7 +115,7 @@ class SkinaliMix(ListView):
         context['col_tag'] = f"&color={get_color}" if get_color else ""
         context['color_list'] = Color.objects.all()
         context['list_cat'] = Category.objects.all()
-        context['list_tag'] = TagPict.objects.annotate(total=Count("tags")).filter(total__gte=3).order_by("-total")
+        context['list_tag'] = self.get_popular_tags()
         try:
             context['col_ru'] = Color.objects.get(slug_color=context['col'])
         except:
@@ -131,7 +173,7 @@ class SkinaliSlug(SkinaliMix):
             return Pict.objects.filter(cat__slug=self.kwargs['slug_cat'])
 
 
-class PictTag(ListView):
+class PictTag(FavoritesContextMixin, ListView):
     template_name = 'pict/tag.html'
     paginate_by = 6
 
@@ -143,6 +185,44 @@ class PictTag(ListView):
 
     def get_queryset(self):
         return Pict.objects.filter(tags__slug=self.kwargs['tag_slug'])
+
+
+def favorites(request):
+    favorite_ids = get_favorite_ids(request)
+    pictures_by_id = Pict.objects.in_bulk(favorite_ids)
+    valid_ids = [pict_id for pict_id in favorite_ids if pict_id in pictures_by_id]
+
+    if valid_ids != favorite_ids:
+        request.session[FAVORITES_SESSION_KEY] = valid_ids
+
+    favorite_pictures = [pictures_by_id[pict_id] for pict_id in reversed(valid_ids)]
+    return render(request, 'pict/favorites.html', {
+        'menu': menu,
+        'title': 'Избранное',
+        'favorite_pictures': favorite_pictures,
+        'favorite_ids': valid_ids,
+        'favorites_count': len(valid_ids),
+    })
+
+
+@require_POST
+def toggle_favorite(request, pict_id):
+    get_object_or_404(Pict, pk=pict_id)
+    favorite_ids = get_favorite_ids(request)
+
+    if pict_id in favorite_ids:
+        favorite_ids.remove(pict_id)
+        is_favorite = False
+    else:
+        favorite_ids.append(pict_id)
+        is_favorite = True
+
+    request.session[FAVORITES_SESSION_KEY] = favorite_ids
+    return JsonResponse({
+        'pict_id': pict_id,
+        'is_favorite': is_favorite,
+        'favorites_count': len(favorite_ids),
+    })
 
 # def skinali(request, slug_cat):
 #     cat_name = Category.objects.get(slug=slug_cat)
@@ -183,7 +263,12 @@ def about(request):
     #     'menu': menu,
     #     'title': 'Связаться с нами'
     # }
-    return render(request, 'pict/about.html', {'menu': menu, 'title': 'Связаться с нами'})
+    favorite_ids = get_favorite_ids(request)
+    return render(request, 'pict/about.html', {
+        'menu': menu,
+        'title': 'Связаться с нами',
+        'favorites_count': len(favorite_ids),
+    })
 
 
 def designer(request):
@@ -191,7 +276,12 @@ def designer(request):
     #     'menu': menu,
     #     'title': 'Услуги дизайнера'
     # }
-    return render(request, 'pict/designer.html', {'menu': menu, 'title': 'Услуги дизайнера'})
+    favorite_ids = get_favorite_ids(request)
+    return render(request, 'pict/designer.html', {
+        'menu': menu,
+        'title': 'Услуги дизайнера',
+        'favorites_count': len(favorite_ids),
+    })
 
 
 def pageNotFound(request, exception):

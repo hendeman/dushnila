@@ -4,7 +4,8 @@
 <head>
     <meta charset="UTF-8">
     <title>{{ title }}</title>
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}" rel="stylesheet" />
+	<meta name="csrf-token" content="{{ csrf_token }}">
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=15" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -18,6 +19,12 @@
 {% for m in menu %}
     <li><a href="{% url m.url_name %}">{{ m.title }}</a></li>
 {% endfor %}
+    <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
+        <a href="{% url 'favorites' %}">
+            Избранное
+            <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
+        </a>
+    </li>
 </ul>
 
 <form action="/">
@@ -35,8 +42,126 @@
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
-      Fancybox.bind('[data-fancybox]', {
-        //
+      Fancybox.bind('[data-fancybox="gallery"]', {
+        mainClass: 'gallery-modal',
+        idle: false,
+        closeButton: true,
+        Toolbar: false,
+        Thumbs: false,
+        contentClick: false,
+        Carousel: {
+          infinite: true
+        },
+        on: {
+          'Carousel.selectSlide': (fancybox, carousel, slide) => {
+            window.queueMicrotask(() => prepareGallerySlide(fancybox, slide));
+          },
+          resize: (fancybox) => prepareGallerySlide(fancybox, fancybox.getSlide()),
+          reveal: (fancybox, slide) => prepareGallerySlide(fancybox, slide),
+          done: (fancybox, slide) => prepareGallerySlide(fancybox, slide)
+        },
+        l10n: {
+          CLOSE: 'Закрыть',
+          NEXT: 'Следующее изображение',
+          PREV: 'Предыдущее изображение'
+        }
+      });
+
+      function prepareGallerySlide(fancybox, slide) {
+        const hasSlideCaption = Boolean(slide.captionEl);
+        if (!hasSlideCaption && !fancybox.isCurrentSlide(slide)) {
+          return;
+        }
+
+        const caption = slide.captionEl || fancybox.caption;
+        if (!slide.contentEl || !caption) {
+          return;
+        }
+
+        if (caption.parentElement !== slide.contentEl) {
+          slide.contentEl.appendChild(caption);
+        }
+
+        const button = slide.contentEl.querySelector('[data-favorite-toggle]');
+        const trigger = slide.triggerEl;
+        if (button && trigger && trigger.dataset.isFavorite) {
+          updateFavoriteButtons(
+            button.dataset.pictId,
+            trigger.dataset.isFavorite === 'true'
+          );
+        }
+      }
+
+      function updateFavoriteButtons(pictId, isFavorite) {
+        document.querySelectorAll(`[data-favorite-item][data-pict-id="${pictId}"]`).forEach((item) => {
+          item.dataset.isFavorite = isFavorite ? 'true' : 'false';
+        });
+        document.querySelectorAll(`[data-favorite-toggle][data-pict-id="${pictId}"]`).forEach((button) => {
+          button.classList.toggle('is-active', isFavorite);
+          button.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+          button.classList.remove('has-error');
+        });
+      }
+
+      function updateFavoritesMenu(favoritesCount) {
+        const menuItem = document.querySelector('[data-favorites-menu]');
+        const countBadge = document.querySelector('[data-favorites-count]');
+        if (!menuItem || !countBadge) {
+          return;
+        }
+
+        const count = Number(favoritesCount) || 0;
+        countBadge.textContent = count;
+        menuItem.hidden = count === 0;
+      }
+
+      document.addEventListener('click', async (event) => {
+        const button = event.target.closest('[data-favorite-toggle]');
+        if (!button || button.disabled) {
+          return;
+        }
+
+        event.preventDefault();
+        button.disabled = true;
+
+        try {
+          const response = await fetch(button.dataset.favoriteUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+              'X-Requested-With': 'XMLHttpRequest'
+            }
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const result = await response.json();
+          updateFavoriteButtons(result.pict_id, result.is_favorite);
+          updateFavoritesMenu(result.favorites_count);
+
+          if (!result.is_favorite) {
+            const row = document.querySelector(`[data-favorite-row][data-pict-id="${result.pict_id}"]`);
+            if (row) {
+              row.remove();
+              if (!document.querySelector('[data-favorite-row]')) {
+                document.querySelector('[data-favorites-empty]').hidden = false;
+              }
+            }
+          }
+        } catch (error) {
+          const label = button.querySelector('[data-favorite-label]');
+          if (label) {
+            button.classList.add('has-error');
+            window.setTimeout(() => {
+              button.classList.remove('has-error');
+            }, 1800);
+          }
+        } finally {
+          button.disabled = false;
+        }
       });
     </script>
 </body>
