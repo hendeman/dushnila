@@ -1,0 +1,45 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="favorites-list" data-favorites-list>
+  {% for p in favorite_pictures %}
+    <article class="favorite-card" data-favorite-row data-pict-id="{{ p.pk }}">
+      <a class="favorite-card__preview"
+         data-fancybox="gallery"
+         data-favorite-item
+         data-pict-id="{{ p.pk }}"
+         data-is-favorite="true"
+         href="{{ p.photo.url }}"
+         data-caption='<div class="gallery-modal__meta"><span class="gallery-modal__description">{{ p.alt }}</span><span class="gallery-modal__number">№: {{ p.name }}</span></div><div class="gallery-modal__actions"><button type="button" class="gallery-modal__favorite is-active" data-favorite-toggle data-pict-id="{{ p.pk }}" data-favorite-url="{% url 'favorite_toggle' p.pk %}" aria-pressed="true"><span class="favorite-toggle__label" data-favorite-label><span class="favorite-toggle__label-add">В избранное</span><span class="favorite-toggle__label-remove">Удалить из избранного</span><span class="favorite-toggle__label-error">Не удалось сохранить</span></span></button></div>'>
+        <img class="favorite-card__image" src="{{ p.photo.url }}" alt="{{ p.alt }}">
+      </a>
+      <div class="favorite-card__content">
+        <h2>Изображение № {{ p.name }}</h2>
+        {% if p.alt %}
+          <p>{{ p.alt }}</p>
+        {% else %}
+          <p class="favorite-card__empty-description">Описание отсутствует</p>
+        {% endif %}
+        <button type="button"
+                class="favorite-card__remove is-active"
+                data-favorite-toggle
+                data-pict-id="{{ p.pk }}"
+                data-favorite-url="{% url 'favorite_toggle' p.pk %}"
+                aria-pressed="true">
+          <span class="favorite-toggle__label" data-favorite-label>
+            <span class="favorite-toggle__label-add">В избранное</span>
+            <span class="favorite-toggle__label-remove">Удалить из избранного</span>
+            <span class="favorite-toggle__label-error">Не удалось сохранить</span>
+          </span>
+        </button>
+      </div>
+    </article>
+  {% endfor %}
+
+  <p class="favorites-list__empty" data-favorites-empty{% if favorite_pictures %} hidden{% endif %}>
+    В избранном пока нет изображений. Добавьте их из модального окна галереи.
+  </p>
+</div>
+{% endblock %}
