@@ -1,0 +1,8 @@
+<a data-fancybox="gallery"
+   data-favorite-item
+   data-pict-id="{{ p.pk }}"
+   data-is-favorite="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"
+   href="{{ p.photo.url }}"
+   data-caption='<div class="gallery-modal__meta"><span class="gallery-modal__description">{{ p.alt }}</span><span class="gallery-modal__number">№: {{ p.name }}</span></div><div class="gallery-modal__actions"><button type="button" class="gallery-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}" data-favorite-toggle data-pict-id="{{ p.pk }}" data-favorite-url="{% url 'favorite_toggle' p.pk %}" aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"><span class="favorite-toggle__label" data-favorite-label><span class="favorite-toggle__label-add">В избранное</span><span class="favorite-toggle__label-remove">Удалить из избранного</span><span class="favorite-toggle__label-error">Не удалось сохранить</span></span></button></div>'>
+    <img class="item-photo" src="{{ p.photo.url }}" alt="{{ p.alt }}">
+</a>

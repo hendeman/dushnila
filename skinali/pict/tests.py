@@ -1,7 +1,7 @@
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from .models import Category, Pict, TagPict
+from .models import Category, Color, Pict, TagPict
 
 
 class PopularTagsByCategoryTests(TestCase):
@@ -9,6 +9,7 @@ class PopularTagsByCategoryTests(TestCase):
     def setUpTestData(cls):
         cls.first_category = Category.objects.create(cat='Первая', slug='first')
         cls.second_category = Category.objects.create(cat='Вторая', slug='second')
+        cls.selected_color = Color.objects.create(color='Красный', slug_color='red')
 
         cls.first_tag = TagPict.objects.create(tag='Первый тег', slug='first-tag')
         cls.second_tag = TagPict.objects.create(tag='Второй тег', slug='second-tag')
@@ -95,9 +96,31 @@ class PopularTagsByCategoryTests(TestCase):
             f'<a href="{reverse("skinali")}">Все</a>',
             html=True,
         )
+        self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
+        self.assertNotContains(response, 'Сбросить цвет')
+        self.assertContains(response, 'placeholder="Поиск, например море"')
+        self.assertContains(response, 'skinali/css/styles.css?v=20')
+        self.assertContains(response, 'skinali/images/odium_logo.png')
+        self.assertContains(
+            response,
+            'Режим работы: пн-вс 10.00 - 21.00 (прием заказов)',
+        )
+        self.assertContains(response, 'class="site-topbar"')
+        self.assertContains(response, 'href="tel:+375291498838"')
+        self.assertContains(response, 'data-mobile-menu-open')
+        self.assertContains(response, 'id="mobile-site-menu"')
+        self.assertContains(response, 'data-mobile-menu-close')
+        self.assertContains(response, 'skinali/images/menu.png')
+        self.assertContains(response, 'skinali/js/site-menu.js?v=1')
+        self.assertContains(response, 'data-mobile-filter-open="mobile-category-filter"')
+        self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
+        self.assertContains(response, 'id="mobile-category-filter"')
+        self.assertContains(response, 'id="mobile-color-filter"')
+        self.assertContains(response, 'mobile-catalog-filters__chevron')
+        self.assertContains(response, 'skinali/js/mobile-filters.js?v=1')
 
     def test_category_links_keep_selected_color(self):
-        selected_color = 'light-blue'
+        selected_color = self.selected_color.slug_color
         response = self.client.get(
             reverse('skinali', kwargs={'slug_cat': self.first_category.slug}),
             {'color': selected_color},
@@ -115,6 +138,27 @@ class PopularTagsByCategoryTests(TestCase):
                 f'?color={selected_color}">{self.second_category.cat}</a>'
             ),
             html=True,
+        )
+        self.assertContains(response, 'class="page-num color-option color-option--selected"')
+        self.assertContains(response, 'class="color-filter__options"')
+        self.assertContains(response, 'mobile-filter-dialog__item is-selected')
+        self.assertContains(response, 'mobile-filter-dialog__check')
+        self.assertContains(response, self.first_category.cat)
+        self.assertContains(response, self.selected_color.color)
+        self.assertContains(
+            response,
+            'class="color-option__selected-mark" aria-hidden="true"',
+        )
+        self.assertContains(response, 'class="list-all__reset"')
+        self.assertContains(
+            response,
+            'class="list-all__reset-icon" aria-hidden="true">&times;</span>',
+        )
+        self.assertContains(response, 'Сбросить цвет')
+        self.assertNotContains(response, 'сброс цветов')
+        self.assertNotContains(
+            response,
+            'class="page-num page-num-selected" style="background-color: red;"',
         )
 
     def test_category_links_have_no_color_parameter_when_color_is_not_selected(self):
@@ -225,6 +269,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(
             response,
             '<span class="mainmenu__favorites-count" data-favorites-count>1</span>',
+            count=2,
             html=True,
         )
         self.assertGreater(
@@ -240,6 +285,7 @@ class SessionFavoritesTests(TestCase):
         )
         self.assertContains(response, 'favorite-toggle__label-add">В избранное</span>')
         self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
+        self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")
         self.assertContains(response, 'slide.captionEl || fancybox.caption')
         self.assertContains(response, 'reveal: (fancybox, slide)')
         self.assertContains(response, "'Carousel.selectSlide': (fancybox, carousel, slide)")

@@ -1,4 +1,5 @@
 {% extends 'pict/base.html' %}
+{% load static %}
 
 {% block content %}
 <h1>{{ title }}</h1>
@@ -9,7 +10,113 @@
   <p>{{cat_name}}</p>
 {% endif %}
 
-<nav class="list-pages">
+<nav class="mobile-catalog-filters" aria-label="Фильтры каталога">
+  <button type="button"
+          class="mobile-catalog-filters__trigger{% if cat_name != title %} is-selected{% endif %}"
+          data-mobile-filter-open="mobile-category-filter"
+          aria-controls="mobile-category-filter"
+          aria-expanded="false">
+    <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
+    <span>{% if cat_name == title %}Все категории{% else %}{{ cat_name.cat }}{% endif %}</span>
+  </button>
+  <button type="button"
+          class="mobile-catalog-filters__trigger{% if col_ru %} is-selected{% endif %}"
+          data-mobile-filter-open="mobile-color-filter"
+          aria-controls="mobile-color-filter"
+          aria-expanded="false">
+    <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
+    <span>{% if col_ru %}{{ col_ru }}{% else %}Все цвета{% endif %}</span>
+  </button>
+</nav>
+
+<dialog class="mobile-filter-dialog"
+        id="mobile-category-filter"
+        aria-labelledby="mobile-category-filter-title">
+  <div class="mobile-filter-dialog__content">
+    <header class="mobile-filter-dialog__header">
+      <h2 id="mobile-category-filter-title">Категории</h2>
+      <button type="button"
+              class="mobile-filter-dialog__close"
+              data-mobile-filter-close
+              aria-label="Закрыть список категорий">&times;</button>
+    </header>
+    <ul class="mobile-filter-dialog__list">
+      <li>
+        {% if cat_name == title %}
+          <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+            <span>Все категории</span>
+            <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+          </span>
+        {% else %}
+          <a class="mobile-filter-dialog__item"
+             href="{% url 'skinali' %}{% if col %}?color={{ col|urlencode }}{% endif %}">Все категории</a>
+        {% endif %}
+      </li>
+      {% for p in list_cat %}
+        <li>
+          {% if p.cat == cat_name.cat %}
+            <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+              <span>{{ p.cat }}</span>
+              <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+            </span>
+          {% else %}
+            <a class="mobile-filter-dialog__item"
+               href="{{ p.get_absolute_url }}{% if col %}?color={{ col|urlencode }}{% endif %}">{{ p.cat }}</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</dialog>
+
+<dialog class="mobile-filter-dialog"
+        id="mobile-color-filter"
+        aria-labelledby="mobile-color-filter-title">
+  <div class="mobile-filter-dialog__content">
+    <header class="mobile-filter-dialog__header">
+      <h2 id="mobile-color-filter-title">Цвета</h2>
+      <button type="button"
+              class="mobile-filter-dialog__close"
+              data-mobile-filter-close
+              aria-label="Закрыть список цветов">&times;</button>
+    </header>
+    <ul class="mobile-filter-dialog__list">
+      <li>
+        {% if not col %}
+          <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+            <span>Все цвета</span>
+            <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+          </span>
+        {% else %}
+          <a class="mobile-filter-dialog__item"
+             href="{% if cat_name == title %}{% url 'skinali' %}{% else %}{{ cat_name.get_absolute_url }}{% endif %}">Все цвета</a>
+        {% endif %}
+      </li>
+      {% for p in color_list %}
+        <li>
+          {% if p.slug_color == col %}
+            <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+              <span class="mobile-filter-dialog__color-name">
+                <span class="mobile-filter-dialog__swatch" style="background-color: {{ p.slug_color }};" aria-hidden="true"></span>
+                <span>{{ p.color }}</span>
+              </span>
+              <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+            </span>
+          {% else %}
+            <a class="mobile-filter-dialog__item" href="?color={{ p.slug_color }}">
+              <span class="mobile-filter-dialog__color-name">
+                <span class="mobile-filter-dialog__swatch" style="background-color: {{ p.slug_color }};" aria-hidden="true"></span>
+                <span>{{ p.color }}</span>
+              </span>
+            </a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</dialog>
+
+<nav class="list-pages catalog-categories">
   <ul>
         {% if cat_name == title %}
           <li class="page-num page-num-selected">Все</li>
@@ -30,31 +137,49 @@
   </ul>
 </nav>
 <nav class="list-pages-color">
-  <ul>
+  <div class="color-filter__row">
+    <ul class="color-filter__options">
         {% for p in color_list %}
           {% if p.slug_color == col %}
-            <li class="page-num page-num-selected" style="background-color: {{ p.slug_color }};">
+            <li class="page-num color-option color-option--selected"
+                style="background-color: {{ p.slug_color }};"
+                aria-current="true">
+                <span class="color-option__selected-mark" aria-hidden="true"></span>
                 <p class="color-description">{{ p.color }}</p>
             </li>
 
           {% else %}
-            <li class="page-num">
-                <a href="?color={{ p.slug_color }}" style="background-color: {{ p.slug_color }};"></a>
+            <li class="page-num color-option">
+                <a class="color-option__link"
+                   href="?color={{ p.slug_color }}"
+                   style="background-color: {{ p.slug_color }};"
+                   aria-label="Выбрать цвет: {{ p.color }}"></a>
                 <p class="color-description">{{ p.color }}</p>
             </li>
 
           {% endif %}
         {% endfor %}
-        {% if not col %}
-            <li class="list-all">сброс цветов</li>
+    </ul>
+    {% if not col %}
+        <div class="list-all">Все цвета</div>
+    {% else %}
+        {% if cat_name == title %}
+            <div class="list-all">
+                <a class="list-all__reset" href="{% url 'skinali' %}">
+                    <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
+                    Сбросить цвет
+                </a>
+            </div>
         {% else %}
-            {% if cat_name == title %}
-                <li class="list-all"><a href="{% url 'skinali' %}">сброс цветов</a></li>
-            {% else %}
-                <li class="list-all"><a href="{{ cat_name.get_absolute_url }}">сброс цветов</a></li>
-            {% endif %}
+            <div class="list-all">
+                <a class="list-all__reset" href="{{ cat_name.get_absolute_url }}">
+                    <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
+                    Сбросить цвет
+                </a>
+            </div>
         {% endif %}
-  </ul>
+    {% endif %}
+  </div>
 </nav>
 
 <nav class="list-pages-tags">
@@ -93,5 +218,7 @@
 
 
 {% include  'pict/includes/paginator.html' %}
+
+<script src="{% static 'skinali/js/mobile-filters.js' %}?v=1" defer></script>
 
 {% endblock %}
