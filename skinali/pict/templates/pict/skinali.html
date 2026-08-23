@@ -211,7 +211,7 @@
 <div class="container">
   {% for p in page_obj %}
     <div class="item-block">
-      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
+      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
     </div>
   {% endfor %}
 </div>

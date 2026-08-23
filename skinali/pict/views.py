@@ -10,6 +10,7 @@ from .models import *
 # menu = ["Каталог скинали", "Услуги дизайнера", "Связаться с нами", "Главная страница"]
 menu = [{'title': "Главная страница", 'url_name': 'home'},
         {'title': "Каталог скинали", 'url_name': 'skinali'},
+        {'title': "Наши работы", 'url_name': 'finished_works'},
         {'title': "Услуги дизайнера", 'url_name': 'designer'},
         {'title': "Связаться с нами", 'url_name': 'about'}]
 
@@ -185,6 +186,28 @@ class PictTag(FavoritesContextMixin, ListView):
 
     def get_queryset(self):
         return Pict.objects.filter(tags__slug=self.kwargs['tag_slug'])
+
+
+class FinishedWorkList(FavoritesContextMixin, ListView):
+    model = FinishedWork
+    template_name = 'pict/finished_works.html'
+    context_object_name = 'finished_works'
+    paginate_by = 6
+
+    def get_queryset(self):
+        return (
+            FinishedWork.objects
+            .select_related('catalog_image')
+            .prefetch_related('catalog_image__cat')
+            .order_by('-created_at', '-id')
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['title'] = 'Наши работы'
+        context['menu'] = menu
+        context['col_tag'] = ''
+        return context
 
 
 def favorites(request):

@@ -1,6 +1,6 @@
 # AGENTS.md — навигация по проекту Skinali
 
-Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет изображение по номеру или тегу, просматривает каталог, фильтрует его по категории, цвету и тегу и ведет персональное избранное в Django-сессии; контент редактируется через Django Admin.
+Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет изображение по номеру или тегу, просматривает каталог, фильтрует его по категории, цвету и тегу, ведет персональное избранное в Django-сессии и смотрит фотогалерею готовых работ; контент редактируется через Django Admin.
 
 ## Порядок работы для ИИ-агента
 
@@ -20,6 +20,7 @@
 | Настройки Django, БД, язык, статика, media | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md) |
 | Корневые URL, admin, debug toolbar, обработчик 404 | [project/urls.md](docs/project/urls.md) | [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
 | Модели изображений, категорий, цветов и тегов | [pict/models.md](docs/pict/models.md) | [migrations/README.md](docs/migrations/README.md) |
+| Готовые работы, их связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/urls.md](docs/pict/urls.md) |
 | Поиск, каталог, фильтры, пагинация, контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) |
 | Избранное, Django-сессия, кнопка в модальной галерее | [pict/views.md](docs/pict/views.md) | [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict` | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md) |

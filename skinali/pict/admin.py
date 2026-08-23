@@ -1,8 +1,9 @@
 from django.contrib import admin
+from django.utils.html import format_html
 from django.utils.safestring import mark_safe
 
 from pict.forms import PictAdminForm
-from pict.models import Pict, Category, Color, TagPict
+from pict.models import Category, Color, FinishedWork, Pict, TagPict
 
 
 class PictAdmin(admin.ModelAdmin):
@@ -10,7 +11,7 @@ class PictAdmin(admin.ModelAdmin):
     list_display = ['name', 'get_html_photo', 'get_list_category', 'get_list_color']
     # list_editable = ['color']
     list_display_links = ['name']
-    search_fields = ['name', 'tags__tag']
+    search_fields = ['=name', 'tags__tag']
     list_filter = ['time_update', 'cat__cat', 'color__color']
     fields = ['name', 'alt', 'photo', 'get_html_photo_fields', 'time_update', 'color', 'cat', 'tags']
     readonly_fields = ['time_update', 'get_html_photo_fields']
@@ -60,6 +61,68 @@ class ColorAdmin(admin.ModelAdmin):
     list_display_links = ['color']
     ordering = ['color']
     # prepopulated_fields = {"slug_color": ("color",)}
+
+
+@admin.register(FinishedWork)
+class FinishedWorkAdmin(admin.ModelAdmin):
+    list_display = [
+        'name',
+        'get_html_photo',
+        'get_catalog_image_number',
+        'get_catalog_categories',
+        'created_at',
+    ]
+    list_display_links = ['name']
+    search_fields = ['name', 'description', '=catalog_image__name']
+    autocomplete_fields = ['catalog_image']
+    readonly_fields = ['get_html_photo_fields', 'created_at']
+    fields = [
+        'name',
+        'description',
+        'photo',
+        'get_html_photo_fields',
+        'catalog_image',
+        'created_at',
+    ]
+    ordering = ['-created_at', '-id']
+    list_per_page = 20
+
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request)
+            .select_related('catalog_image')
+            .prefetch_related('catalog_image__cat')
+        )
+
+    @admin.display(description='Миниатюра')
+    def get_html_photo(self, obj):
+        if obj.photo:
+            return format_html(
+                '<a href="{}" target="_blank"><img src="{}" width="120"></a>',
+                obj.photo.url,
+                obj.photo.url,
+            )
+        return '—'
+
+    @admin.display(description='Фото')
+    def get_html_photo_fields(self, obj):
+        if obj.photo:
+            return format_html(
+                '<a href="{}" target="_blank"><img src="{}" width="400"></a>',
+                obj.photo.url,
+                obj.photo.url,
+            )
+        return '—'
+
+    @admin.display(description='Номер изображения', ordering='catalog_image__name')
+    def get_catalog_image_number(self, obj):
+        return obj.catalog_image.name if obj.catalog_image else '—'
+
+    @admin.display(description='Категории')
+    def get_catalog_categories(self, obj):
+        if not obj.catalog_image:
+            return '—'
+        return ', '.join(category.cat for category in obj.catalog_image.cat.all()) or '—'
 
 
 admin.site.register(Pict, PictAdmin)

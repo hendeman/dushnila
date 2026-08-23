@@ -1,0 +1,25 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="finished-works-grid">
+  {% for work in finished_works %}
+    <article class="finished-work-card">
+      <a class="finished-work-card__link"
+         data-fancybox="finished-works"
+         href="{{ work.photo.url }}"
+         data-caption="<div class='finished-work-modal__caption'>{% if work.description %}<div class='finished-work-modal__description'>{{ work.description|linebreaksbr }}</div>{% endif %}{% if work.catalog_image %}<div class='finished-work-modal__meta'>{% with categories=work.catalog_image.cat.all %}{% if categories %}<span class='finished-work-modal__categories'>Категории: {% for category in categories %}{{ category.cat }}{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}{% endwith %}<span class='finished-work-modal__number'>Изображение № {{ work.catalog_image.name }}</span></div>{% endif %}</div>">
+        <img class="finished-work-card__image"
+             src="{{ work.photo.url }}"
+             alt="{{ work.name }}"
+             loading="lazy">
+      </a>
+    </article>
+  {% empty %}
+    <p class="finished-works-empty">Готовые работы пока не добавлены.</p>
+  {% endfor %}
+</div>
+
+{% include 'pict/includes/paginator.html' %}
+{% endblock %}

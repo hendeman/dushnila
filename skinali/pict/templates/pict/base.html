@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=20" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=26" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -89,6 +89,9 @@
     </div>
 </dialog>
 
+{% endblock mainmenu %}
+
+<main class="site-content">
 <form action="/">
    <p><input type="search" name="product-number" placeholder="Поиск, например море">
    <input type="submit" value="Найти"></p>
@@ -96,10 +99,9 @@
 </form>
 <br>
 
-{% endblock mainmenu %}
-
 {% block content %}
 {% endblock %}
+</main>
 
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
     <script src="{% static 'skinali/js/site-menu.js' %}?v=1" defer></script>
@@ -127,6 +129,31 @@
           CLOSE: 'Закрыть',
           NEXT: 'Следующее изображение',
           PREV: 'Предыдущее изображение'
+        }
+      });
+
+      Fancybox.bind('[data-fancybox="finished-works"]', {
+        mainClass: 'finished-works-modal',
+        idle: false,
+        closeButton: true,
+        Toolbar: false,
+        Thumbs: false,
+        contentClick: false,
+        Carousel: {
+          infinite: true
+        },
+        on: {
+          'Carousel.selectSlide': (fancybox, carousel, slide) => {
+            window.queueMicrotask(() => prepareGallerySlide(fancybox, slide));
+          },
+          resize: (fancybox) => prepareGallerySlide(fancybox, fancybox.getSlide()),
+          reveal: (fancybox, slide) => prepareGallerySlide(fancybox, slide),
+          done: (fancybox, slide) => prepareGallerySlide(fancybox, slide)
+        },
+        l10n: {
+          CLOSE: 'Закрыть',
+          NEXT: 'Следующая работа',
+          PREV: 'Предыдущая работа'
         }
       });
 
@@ -162,6 +189,11 @@
         document.querySelectorAll(`[data-favorite-toggle][data-pict-id="${pictId}"]`).forEach((button) => {
           button.classList.toggle('is-active', isFavorite);
           button.setAttribute('aria-pressed', isFavorite ? 'true' : 'false');
+          if (button.hasAttribute('data-catalog-favorite-toggle')) {
+            const label = isFavorite ? 'Удалить из избранного' : 'Добавить в избранное';
+            button.setAttribute('aria-label', label);
+            button.setAttribute('title', label);
+          }
           button.classList.remove('has-error');
         });
       }
@@ -189,6 +221,14 @@
         }
 
         event.preventDefault();
+        const pictId = button.dataset.pictId;
+        const previousFavoriteState = button.classList.contains('is-active');
+        const useImmediateIconUpdate = button.hasAttribute('data-catalog-favorite-toggle');
+
+        if (useImmediateIconUpdate) {
+          updateFavoriteButtons(pictId, !previousFavoriteState);
+        }
+
         button.disabled = true;
 
         try {
@@ -219,6 +259,9 @@
             }
           }
         } catch (error) {
+          if (useImmediateIconUpdate) {
+            updateFavoriteButtons(pictId, previousFavoriteState);
+          }
           const label = button.querySelector('[data-favorite-label]');
           if (label) {
             button.classList.add('has-error');

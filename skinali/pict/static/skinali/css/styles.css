@@ -1,8 +1,25 @@
+html {
+	scrollbar-gutter: stable;
+}
+
+body {
+	margin: 0;
+}
+
 .site-topbar {
 	position: sticky;
 	top: 0;
 	z-index: 1000;
+	width: 100%;
 	background: #fff;
+}
+
+.site-content {
+	box-sizing: border-box;
+	width: 100%;
+	max-width: 1250px;
+	margin: 0 auto;
+	padding-bottom: 40px;
 }
 
 .site-header {
@@ -210,15 +227,62 @@ ul.mainmenu li a:hover {
 }
 .container {
     text-align: center;
+	font-size: 0;
 }
 .item-block {
     display: inline-block;
-    margin: 10px;
+	position: relative;
+	margin: 8px;
+	vertical-align: top;
 }
 
 .item-photo {
-    width: 400px;
-    height: 70px;
+	width: 380px;
+	height: 67px;
+}
+
+.catalog-favorite-toggle {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	z-index: 2;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 30px;
+	height: 30px;
+	padding: 5px;
+	border: 0;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, 0.88);
+	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
+	cursor: pointer;
+}
+
+.catalog-favorite-toggle:hover,
+.catalog-favorite-toggle:focus-visible {
+	background: #fff;
+}
+
+.catalog-favorite-toggle:disabled {
+	cursor: wait;
+}
+
+.catalog-favorite-toggle__icon {
+	display: block;
+	width: 20px;
+	height: 20px;
+	image-rendering: auto;
+}
+
+.catalog-favorite-toggle__icon--active,
+.catalog-favorite-toggle.is-active .catalog-favorite-toggle__icon--inactive {
+	display: none;
+}
+
+.catalog-favorite-toggle.is-active .catalog-favorite-toggle__icon--active {
+	display: block;
 }
 
 .list-pages {
@@ -324,12 +388,14 @@ background-color: coral;
 	height: 30px;
 	width: 30px;
 	border: 1px solid gray;
+	border-radius: 50%;
     position: relative;
 }
 .list-pages-color .color-option__link {
 	display: block;
 	width: 100%;
 	height: 100%;
+	border-radius: 50%;
 }
 .color-description {
     position: absolute;
@@ -544,6 +610,161 @@ background-color: coral;
 	visibility: hidden !important;
 }
 
+/* Раздел готовых работ */
+.finished-works-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 24px;
+	margin: 24px 0 32px;
+}
+
+.finished-work-card {
+	min-width: 0;
+}
+
+.finished-work-card__link {
+	display: block;
+	overflow: hidden;
+	border-radius: 8px;
+	background: #f2f2f2;
+	box-shadow: 0 2px 9px rgba(0, 0, 0, 0.14);
+}
+
+.finished-work-card__image {
+	display: block;
+	width: 100%;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	border-radius: 8px;
+}
+
+.finished-works-empty {
+	grid-column: 1 / -1;
+	padding: 30px;
+	border: 1px dashed #bbb;
+	border-radius: 8px;
+	color: #666;
+	text-align: center;
+}
+
+.finished-works-modal {
+	--fancybox-bg: rgba(24, 24, 28, 0.92);
+	--fancybox-color: #fff;
+}
+
+.finished-works-modal .fancybox__slide {
+	padding: 70px 5vw 40px;
+}
+
+.finished-works-modal .fancybox__content {
+	box-sizing: border-box;
+	position: relative;
+	z-index: 1;
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	width: 90vw !important;
+	max-width: 1000px !important;
+	height: 80vh !important;
+	max-height: 760px !important;
+	min-height: 0 !important;
+	padding: 24px 24px 120px !important;
+	background: #fff !important;
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+	overflow: visible;
+	transform: none !important;
+}
+
+.finished-works-modal .fancybox__content img {
+	display: block;
+	width: auto !important;
+	max-width: 100% !important;
+	height: auto !important;
+	max-height: 100% !important;
+	object-fit: contain;
+	border-radius: 8px;
+}
+
+.finished-works-modal .fancybox__caption {
+	box-sizing: border-box;
+	position: absolute;
+	z-index: 2;
+	top: auto;
+	bottom: 0;
+	left: 0;
+	width: 100%;
+	padding: 14px 24px 18px;
+	color: #222;
+	pointer-events: none;
+	font-family: Arial, sans-serif;
+	visibility: hidden;
+}
+
+.finished-works-modal .fancybox__content > .fancybox__caption {
+	visibility: visible;
+}
+
+.finished-work-modal__caption {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	width: 100%;
+}
+
+.finished-work-modal__description {
+	max-height: 4.2em;
+	overflow-y: auto;
+	pointer-events: auto;
+	font-size: 17px;
+	line-height: 1.4;
+	text-align: left;
+}
+
+.finished-work-modal__meta {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 24px;
+	color: #666;
+	font-size: 15px;
+	line-height: 1.35;
+}
+
+.finished-work-modal__categories {
+	text-align: left;
+}
+
+.finished-work-modal__number {
+	flex: 0 0 auto;
+	text-align: right;
+}
+
+.finished-works-modal .fancybox__content > .f-button.is-close-btn {
+	position: absolute;
+	z-index: 3;
+	top: -52px !important;
+	right: 0 !important;
+	color: #fff;
+	background: transparent !important;
+	box-shadow: none;
+}
+
+.finished-works-modal .fancybox__content > .f-button.is-close-btn svg {
+	stroke: currentColor;
+}
+
+.finished-works-modal .fancybox__nav .f-button {
+	width: 56px;
+	height: 76px;
+	color: #fff;
+	background: rgba(0, 0, 0, 0.25);
+	border-radius: 4px;
+}
+
+.finished-works-modal .fancybox__nav .f-button:hover {
+	background: rgba(0, 0, 0, 0.55);
+}
+
 /* Страница избранного */
 .favorites-list {
 	max-width: 1100px;
@@ -630,7 +851,25 @@ background-color: coral;
 	display: none;
 }
 
+@media screen and (max-width: 1250px) {
+	.site-content {
+		padding-right: 20px;
+		padding-left: 20px;
+	}
+}
+
+@media (max-width: 900px) {
+	.finished-works-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
 @media (max-width: 700px) {
+	.site-content {
+		padding-right: 12px;
+		padding-left: 12px;
+	}
+
 	.site-header {
 		min-height: 50px;
 		gap: 10px;
@@ -854,7 +1093,57 @@ background-color: coral;
 		width: 24px;
 		height: 24px;
 		border: 1px solid #999;
-		border-radius: 2px;
+		border-radius: 50%;
+	}
+
+	.finished-works-grid {
+		grid-template-columns: 1fr;
+		gap: 16px;
+		margin-top: 18px;
+	}
+
+	.finished-works-modal .fancybox__slide {
+		padding: 60px 20px 24px;
+	}
+
+	.finished-works-modal .fancybox__content {
+		width: calc(100vw - 40px) !important;
+		max-width: 520px !important;
+		height: 72vh !important;
+		max-height: 640px !important;
+		padding: 16px 16px 150px !important;
+	}
+
+	.finished-works-modal .fancybox__caption {
+		padding: 12px 16px 16px;
+	}
+
+	.finished-work-modal__description {
+		font-size: 15px;
+	}
+
+	.finished-work-modal__meta {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 5px;
+		font-size: 14px;
+	}
+
+	.finished-work-modal__number {
+		text-align: left;
+	}
+
+	.finished-works-modal .fancybox__nav .f-button {
+		width: 42px;
+		height: 58px;
+	}
+
+	.finished-works-modal.is-compact .fancybox__content > .f-button.is-close-btn,
+	.finished-works-modal .fancybox__content > .f-button.is-close-btn {
+		top: -46px !important;
+		right: 0 !important;
+		color: #fff !important;
+		background: transparent !important;
 	}
 
 	.container {
@@ -866,11 +1155,14 @@ background-color: coral;
 
 	.item-block {
 		display: block;
-		margin: 10px 16px;
+		width: calc(100% - 32px);
+		max-width: 400px;
+		margin: 10px auto;
 	}
 
 	.item-block > a {
 		display: block;
+		width: 100%;
 		max-width: 100%;
 	}
 

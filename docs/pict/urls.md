@@ -12,6 +12,7 @@
 | `/about/` | `about` | `about` | контакты |
 | `/favorites/` | `favorites` | `favorites` | избранные изображения текущей сессии |
 | `/favorites/toggle/<int:pict_id>/` | `favorite_toggle` | `toggle_favorite` | добавить изображение в избранное или удалить его; только POST |
+| `/foto-skinali-iz-stekla/` | `finished_works` | `FinishedWorkList` | публичная галерея готовых работ |
 | `/skinali/` | `skinali` | `SkinaliAll` | весь каталог |
 | `/skinali/<slug:slug_cat>/` | `skinali` | `SkinaliSlug` | каталог категории |
 | `/designer` | `designer` | `designer` | услуги дизайнера |
@@ -24,6 +25,7 @@
 - Главная страница принимает GET-параметр `product-number`.
 - Стандартный параметр `page` обрабатывается пагинацией `ListView`.
 - Переключатель избранного принимает ID `Pict` в URL, возвращает JSON и отклоняет методы, отличные от POST.
+- Страница готовых работ принимает стандартный GET-параметр `page` и выводит по 6 работ.
 
 ## Зависимости
 

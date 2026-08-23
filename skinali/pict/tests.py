@@ -1,7 +1,7 @@
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from .models import Category, Color, Pict, TagPict
+from .models import Category, Color, FinishedWork, Pict, TagPict
 
 
 class PopularTagsByCategoryTests(TestCase):
@@ -99,13 +99,14 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=20')
+        self.assertContains(response, 'skinali/css/styles.css?v=26')
         self.assertContains(response, 'skinali/images/odium_logo.png')
         self.assertContains(
             response,
             'Режим работы: пн-вс 10.00 - 21.00 (прием заказов)',
         )
         self.assertContains(response, 'class="site-topbar"')
+        self.assertContains(response, '<main class="site-content">')
         self.assertContains(response, 'href="tel:+375291498838"')
         self.assertContains(response, 'data-mobile-menu-open')
         self.assertContains(response, 'id="mobile-site-menu"')
@@ -118,6 +119,9 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'id="mobile-color-filter"')
         self.assertContains(response, 'mobile-catalog-filters__chevron')
         self.assertContains(response, 'skinali/js/mobile-filters.js?v=1')
+        self.assertContains(response, 'data-catalog-favorite-toggle')
+        self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
+        self.assertContains(response, 'skinali/images/icon-favorite-active.png')
 
     def test_category_links_keep_selected_color(self):
         selected_color = self.selected_color.slug_color
@@ -284,6 +288,8 @@ class SessionFavoritesTests(TestCase):
             ),
         )
         self.assertContains(response, 'favorite-toggle__label-add">В избранное</span>')
+        self.assertContains(response, 'class="catalog-favorite-toggle is-active"')
+        self.assertContains(response, 'aria-label="Удалить из избранного"')
         self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
         self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")
         self.assertContains(response, 'slide.captionEl || fancybox.caption')
@@ -301,3 +307,84 @@ class SessionFavoritesTests(TestCase):
 
         self.assertEqual(self.client.get(valid_url).status_code, 405)
         self.assertEqual(self.client.post(missing_url).status_code, 404)
+
+
+class FinishedWorkTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(
+            cat='Архитектура',
+            slug='architecture',
+        )
+        cls.catalog_image = Pict.objects.create(
+            name=701,
+            alt='Каталожное изображение',
+            photo='photos/701.jpg',
+        )
+        cls.catalog_image.cat.add(cls.category)
+        cls.work = FinishedWork.objects.create(
+            name='Кухонный фартук',
+            description='Готовая работа с подсветкой',
+            photo='finished_works/kitchen.jpg',
+            catalog_image=cls.catalog_image,
+        )
+
+    def test_catalog_relation_is_optional_and_pict_deletion_keeps_work(self):
+        self.assertEqual(
+            list(self.catalog_image.finished_works.all()),
+            [self.work],
+        )
+        self.assertEqual(
+            list(self.work.catalog_image.cat.all()),
+            [self.category],
+        )
+
+        self.catalog_image.delete()
+        self.work.refresh_from_db()
+
+        self.assertIsNone(self.work.catalog_image)
+        self.assertTrue(FinishedWork.objects.filter(pk=self.work.pk).exists())
+
+        response = self.client.get(reverse('finished_works'))
+        self.assertNotContains(response, 'Изображение №')
+        self.assertNotContains(response, self.category.cat)
+
+    def test_public_gallery_shows_photo_and_linked_catalog_metadata(self):
+        response = self.client.get(reverse('finished_works'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['title'], 'Наши работы')
+        self.assertContains(response, 'class="finished-works-grid"')
+        self.assertContains(response, 'class="finished-work-card__image"')
+        self.assertContains(response, 'data-fancybox="finished-works"')
+        self.assertContains(response, self.work.photo.url)
+        self.assertContains(response, self.work.description)
+        self.assertContains(response, self.category.cat)
+        self.assertContains(response, 'Изображение № 701')
+        self.assertContains(
+            response,
+            f'href="{reverse("finished_works")}"',
+        )
+
+    def test_public_gallery_is_sorted_by_novelty_and_paginated_by_six(self):
+        newer_works = [
+            FinishedWork.objects.create(
+                name=f'Работа {index}',
+                photo=f'finished_works/work-{index}.jpg',
+            )
+            for index in range(1, 7)
+        ]
+
+        first_page = self.client.get(reverse('finished_works'))
+        second_page = self.client.get(reverse('finished_works'), {'page': 2})
+
+        self.assertEqual(
+            list(first_page.context['finished_works']),
+            list(reversed(newer_works)),
+        )
+        self.assertEqual(
+            list(second_page.context['finished_works']),
+            [self.work],
+        )
+        self.assertEqual(first_page.context['paginator'].per_page, 6)
+        self.assertContains(first_page, '?page=2')

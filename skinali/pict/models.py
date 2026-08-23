@@ -66,4 +66,29 @@ class Pict(models.Model):
         ordering = ['-id']
 
 
+class FinishedWork(models.Model):
+    name = models.CharField(max_length=200, verbose_name='Имя')
+    description = models.TextField(blank=True, verbose_name='Описание')
+    photo = models.ImageField(upload_to='finished_works/', verbose_name='Фото')
+    catalog_image = models.ForeignKey(
+        Pict,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='finished_works',
+        verbose_name='Номер изображения',
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
+
+    def __str__(self):
+        if self.catalog_image:
+            return f'{self.name} — изображение № {self.catalog_image.name}'
+        return self.name
+
+    class Meta:
+        verbose_name = 'Готовая работа'
+        verbose_name_plural = 'Готовые работы'
+        ordering = ['-created_at', '-id']
+
+
 
