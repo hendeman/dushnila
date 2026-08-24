@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=26" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=33" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -14,97 +14,103 @@
 </head>
 <body>
 {% block mainmenu %}
-
-<div class="site-topbar">
-<header class="site-header">
-    <a class="site-header__logo" href="{% url 'home' %}" aria-label="Перейти на главную страницу">
-        <img class="site-header__logo-image"
-             src="{% static 'skinali/images/odium_logo.png' %}"
-             width="180"
-             height="60"
-             alt="Odium">
-    </a>
-    <div class="site-header__schedule">Режим работы: пн-вс 10.00 - 21.00 (прием заказов)</div>
-    <a class="site-header__phone" href="tel:+375291498838">
-        <svg class="site-header__phone-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M6.6 10.8c1.5 3 3.9 5.4 6.9 6.9l2.3-2.3c.3-.3.7-.4 1.1-.2 1.2.4 2.5.7 3.8.7.6 0 1 .4 1 1v3.7c0 .6-.4 1-1 1C10.7 21.6 2.4 13.3 2.4 3.3c0-.6.4-1 1-1h3.7c.6 0 1 .4 1 1 0 1.3.2 2.6.7 3.8.1.4 0 .8-.2 1.1l-2 2.6z"></path>
-        </svg>
-        <span>+375 (29) 1498838</span>
-    </a>
-</header>
-
-<nav class="main-navigation" aria-label="Главное меню">
-    <ul class="mainmenu">
-    {% for m in menu %}
-        <li><a href="{% url m.url_name %}">{{ m.title }}</a></li>
-    {% endfor %}
-        <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
-            <a href="{% url 'favorites' %}">
-                Избранное
-                <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
+<header class="site-topbar">
+    <div class="site-info-panel">
+        <div class="site-header">
+            <a class="site-header__logo" href="{% url 'home' %}" aria-label="ОДИУМ — на главную">
+                <span class="site-header__logo-mark" aria-hidden="true">
+                    <svg viewBox="0 0 48 48">
+                        <circle class="site-header__logo-ring" cx="24" cy="24" r="17"></circle>
+                        <circle class="site-header__logo-accent" cx="24" cy="24" r="17" pathLength="100"></circle>
+                        <circle class="site-header__logo-dot" cx="24" cy="24" r="9"></circle>
+                    </svg>
+                </span>
+                <span class="site-header__logo-type" aria-hidden="true">
+                    <small><span>СКИНАЛИ</span><i>•</i><span>АРТ</span></small>
+                    <strong>ДИУМ</strong>
+                </span>
             </a>
-        </li>
-    </ul>
-    <div class="mobile-menu-bar">
-        <button class="mobile-menu-toggle"
-                type="button"
-                data-mobile-menu-open
-                aria-controls="mobile-site-menu"
-                aria-expanded="false"
-                aria-label="Открыть главное меню">
-            <img src="{% static 'skinali/images/menu.png' %}" width="32" height="24" alt="" aria-hidden="true">
-        </button>
+
+            <span class="site-header__schedule">
+                <small>ПН–ВС · ПРИЁМ ЗАКАЗОВ</small>
+                <span>10:00–21:00</span>
+            </span>
+            <a class="site-header__phone" href="tel:+375291498838">
+                <span class="site-header__phone-icon" aria-hidden="true">☎</span>
+                <span>+375 (29) 149-88-38</span>
+            </a>
+        </div>
     </div>
-</nav>
-</div>
 
-<dialog class="mobile-site-menu" id="mobile-site-menu" aria-label="Главное меню">
-    <div class="mobile-site-menu__content">
-        <header class="mobile-site-menu__header">
-            <a class="mobile-site-menu__logo" href="{% url 'home' %}" aria-label="Перейти на главную страницу">
-                <img src="{% static 'skinali/images/odium_logo.png' %}" width="180" height="60" alt="Odium">
-            </a>
-            <button class="mobile-site-menu__close"
+    <div class="site-navigation-panel">
+        <div class="site-navigation-panel__inner">
+            <button class="mobile-menu-toggle"
                     type="button"
-                    data-mobile-menu-close
-                    aria-label="Закрыть главное меню">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M5 5l14 14M19 5L5 19"></path>
-                </svg>
+                    data-mobile-menu-open
+                    aria-controls="mobile-site-menu"
+                    aria-expanded="false"
+                    aria-label="Открыть главное меню">
+                <span></span>
+                <span></span>
             </button>
-        </header>
-        <nav class="mobile-site-menu__nav" aria-label="Мобильное меню">
-            <ul>
-            {% for m in menu %}
-                <li><a href="{% url m.url_name %}">{{ m.title }}</a></li>
-            {% endfor %}
-                <li class="mobile-site-menu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
-                    <a href="{% url 'favorites' %}">
-                        Избранное
-                        <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
-                    </a>
-                </li>
-            </ul>
-        </nav>
+
+            <nav class="main-navigation" id="mobile-site-menu" aria-label="Главное меню">
+                <ul class="mainmenu">
+                {% for m in menu %}
+                    <li><a href="{% url m.url_name %}"{% if request.resolver_match.url_name == m.url_name %} class="is-active"{% endif %}>{{ m.title }}</a></li>
+                {% endfor %}
+                    <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
+                        <a href="{% url 'favorites' %}"{% if request.resolver_match.url_name == 'favorites' %} class="is-active"{% endif %}>
+                            Избранное
+                            <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
     </div>
-</dialog>
+</header>
 
 {% endblock mainmenu %}
 
 <main class="site-content">
-<form action="/">
-   <p><input type="search" name="product-number" placeholder="Поиск, например море">
-   <input type="submit" value="Найти"></p>
-   <p>Введите номер изображения или ключевое слово</p>
-</form>
-<br>
-
 {% block content %}
 {% endblock %}
 </main>
 
+{% block footer %}
+<footer class="site-footer">
+    <div class="site-footer__inner">
+        <div class="site-footer__brand">
+            <a class="site-footer__logo" href="{% url 'home' %}">СКИНАЛИ <span>•</span> АРТ <strong>ДИУМ</strong></a>
+            <p>Панорамные изображения для скинали и готовые работы для современных интерьеров.</p>
+        </div>
+        <nav class="site-footer__nav" aria-label="Навигация в подвале">
+            <strong>Навигация</strong>
+            {% for m in menu %}
+                <a href="{% url m.url_name %}">{{ m.title }}</a>
+            {% endfor %}
+        </nav>
+        <div class="site-footer__contacts">
+            <strong>Контакты</strong>
+            <a href="tel:+375291498838">+375 (29) 149-88-38</a>
+            <a href="mailto:odiumglass@gmail.com">odiumglass@gmail.com</a>
+        </div>
+        <div class="site-footer__hours">
+            <strong>Время работы</strong>
+            <p>Пн–Вс, 10:00–21:00</p>
+            <a href="{% url 'about' %}">Обсудить заказ →</a>
+        </div>
+    </div>
+    <div class="site-footer__bottom">
+        <span>© 2026 ОДИУМ · СКИНАЛИ АРТ</span>
+        <span>Каталог изображений для скинали</span>
+    </div>
+</footer>
+{% endblock footer %}
+
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
-    <script src="{% static 'skinali/js/site-menu.js' %}?v=1" defer></script>
+    <script src="{% static 'skinali/js/site-menu.js' %}?v=2" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
       Fancybox.bind('[data-fancybox="gallery"]', {

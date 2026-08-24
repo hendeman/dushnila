@@ -1,5 +1,5 @@
 {% if page_obj.has_other_pages %}
-  <nav class="list-pages">
+  <nav class="list-pages catalog-pagination" aria-label="Пагинация">
     <ul>
       {% if page_obj.number > 3 %}
       <li class="page-num">
@@ -15,7 +15,7 @@
 
       {% for p in page_obj.paginator.page_range %}
         {% if page_obj.number == p %}
-          <li class="page-num page-num-selected">{{ p }}</li>
+          <li class="page-num page-num-selected" aria-current="page">{{ p }}</li>
         {% elif p >= page_obj.number|add:-2 and p <= page_obj.number|add:2 %}
           <li class="page-num">
             <a href="?page={{ p }}{{ col_tag }}">{{ p }}</a>
@@ -24,7 +24,7 @@
       {% endfor %}
 
       {% if page_obj.has_next %}
-      <li>
+      <li class="page-num">
         <a href="?page={{ page_obj.next_page_number }}{{ col_tag }}">&gt;</a>
       </li>
       {% endif %}

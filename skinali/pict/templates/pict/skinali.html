@@ -2,9 +2,26 @@
 {% load static %}
 
 {% block content %}
+<section class="site-search" aria-label="Поиск изображений">
+  <form class="site-search__form" action="{% url 'home' %}">
+    <svg class="site-search__icon" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="7"></circle>
+      <path d="m16.2 16.2 4.3 4.3"></path>
+    </svg>
+    <input type="search"
+           name="product-number"
+           aria-label="Поиск изображений"
+           placeholder="Поиск, например море">
+    <button type="submit">Найти</button>
+  </form>
+  <p class="site-search__hint">Введите номер изображения или ключевое слово</p>
+</section>
+
 <h1>{{ title }}</h1>
 
-{% if col_ru %}
+{% if cat_name == title and not col_ru %}
+  <p class="catalog-intro">Выберите сюжет по теме и цвету. Нажмите на изображение, чтобы увидеть его номер, теги и раздел каталога.</p>
+{% elif col_ru %}
   <p>{{cat_name}}, {{col_ru}} оттенок</p>
 {% else %}
   <p>{{cat_name}}</p>
@@ -182,7 +199,8 @@
   </div>
 </nav>
 
-<nav class="list-pages-tags">
+<nav class="list-pages-tags" aria-labelledby="popular-tags-title">
+  <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные запросы:</h2>
   <ul>
         {% for p in list_tag %}
             <li class="page-num">
@@ -208,7 +226,7 @@
 <!--</nav>-->
 
 
-<div class="container">
+<div class="container catalog-gallery">
   {% for p in page_obj %}
     <div class="item-block">
       {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}

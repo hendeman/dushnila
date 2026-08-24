@@ -1,46 +1,47 @@
 (() => {
   const trigger = document.querySelector('[data-mobile-menu-open]');
-  const dialog = document.getElementById('mobile-site-menu');
+  const navigation = document.getElementById('mobile-site-menu');
 
-  if (!trigger || !dialog) {
+  if (!trigger || !navigation) {
     return;
   }
 
   function setExpanded(isExpanded) {
     trigger.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+    trigger.setAttribute(
+      'aria-label',
+      isExpanded ? 'Закрыть главное меню' : 'Открыть главное меню'
+    );
+    navigation.classList.toggle('is-open', isExpanded);
   }
 
-  function closeDialog() {
-    if (typeof dialog.close === 'function') {
-      dialog.close();
-    } else {
-      dialog.removeAttribute('open');
-      setExpanded(false);
-    }
+  function isExpanded() {
+    return trigger.getAttribute('aria-expanded') === 'true';
   }
 
   trigger.addEventListener('click', () => {
-    setExpanded(true);
-    if (typeof dialog.showModal === 'function') {
-      dialog.showModal();
-    } else {
-      dialog.setAttribute('open', '');
+    setExpanded(!isExpanded());
+  });
+
+  navigation.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => setExpanded(false));
+  });
+
+  document.addEventListener('click', (event) => {
+    if (
+      isExpanded() &&
+      !navigation.contains(event.target) &&
+      !trigger.contains(event.target)
+    ) {
+      setExpanded(false);
     }
   });
 
-  dialog.querySelectorAll('[data-mobile-menu-close]').forEach((button) => {
-    button.addEventListener('click', closeDialog);
-  });
-
-  dialog.addEventListener('close', () => {
-    setExpanded(false);
-  });
-
-  const mobileViewport = window.matchMedia('(max-width: 700px)');
+  const mobileViewport = window.matchMedia('(max-width: 900px)');
   if (typeof mobileViewport.addEventListener === 'function') {
     mobileViewport.addEventListener('change', (event) => {
-      if (!event.matches && dialog.open) {
-        closeDialog();
+      if (!event.matches) {
+        setExpanded(false);
       }
     });
   }

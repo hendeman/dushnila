@@ -1,12 +1,17 @@
 from django.contrib import admin
-from django.utils.html import format_html
-from django.utils.safestring import mark_safe
+from django.utils.html import format_html, format_html_join
 
 from pict.forms import PictAdminForm
 from pict.models import Category, Color, FinishedWork, Pict, TagPict
 
 
-class PictAdmin(admin.ModelAdmin):
+class AdminImagePreviewMixin:
+    class Media:
+        css = {'all': ('skinali/css/admin-image-preview.css',)}
+        js = ('skinali/js/admin-image-preview.js',)
+
+
+class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     list_per_page = 20
     list_display = ['name', 'get_html_photo', 'get_list_category', 'get_list_color']
     # list_editable = ['color']
@@ -14,27 +19,68 @@ class PictAdmin(admin.ModelAdmin):
     search_fields = ['=name', 'tags__tag']
     list_filter = ['time_update', 'cat__cat', 'color__color']
     fields = ['name', 'alt', 'photo', 'get_html_photo_fields', 'time_update', 'color', 'cat', 'tags']
-    readonly_fields = ['time_update', 'get_html_photo_fields']
+    readonly_fields = ['time_update', 'get_html_photo_fields', 'get_finished_works']
     filter_horizontal = ['color', 'cat', 'tags']
     ordering = ["-id"]
     form = PictAdminForm
 
+    def get_queryset(self, request):
+        return (
+            super().get_queryset(request)
+            .prefetch_related('cat', 'color', 'finished_works')
+        )
+
+    def get_fields(self, request, obj=None):
+        fields = list(self.fields)
+        if obj and obj.finished_works.exists():
+            fields.insert(fields.index('time_update'), 'get_finished_works')
+        return fields
+
 
     def get_html_photo(self, object):
         if object.photo:
-            return mark_safe(
-                f"<a href = '{object.photo.url}' target=_blank><img src='{object.photo.url}' width=150></a>")
+            return format_html(
+                '<a class="admin-image-preview-link" href="{}" data-image-preview>'
+                '<img src="{}" alt="Изображение № {}" width="150"></a>',
+                object.photo.url,
+                object.photo.url,
+                object.name,
+            )
 
     def get_html_photo_fields(self, object):
         if object.photo:
-            return mark_safe(
-                f"<a href = '{object.photo.url}' target=_blank><img src='{object.photo.url}' width=400></a>")
+            return format_html(
+                '<a class="admin-image-preview-link" href="{}" data-image-preview>'
+                '<img src="{}" alt="Изображение № {}" width="400"></a>',
+                object.photo.url,
+                object.photo.url,
+                object.name,
+            )
 
     def get_list_category(self, object):
         return ", ".join([x.cat for x in object.cat.all()])
 
     def get_list_color(self, object):
         return ", ".join([x.color for x in object.color.all()])
+
+    @admin.display(description='Готовые работы')
+    def get_finished_works(self, obj):
+        works = [work for work in obj.finished_works.all() if work.photo]
+        if not works:
+            return '—'
+        return format_html_join(
+            '',
+            (
+                '<a class="admin-image-preview-link" href="{}" '
+                'data-image-preview title="{}">'
+                '<img src="{}" alt="{}" width="160" '
+                'style="margin: 0 8px 8px 0; border-radius: 4px;"></a>'
+            ),
+            (
+                (work.photo.url, work.name, work.photo.url, work.name)
+                for work in works
+            ),
+        )
 
     get_html_photo.short_description = 'Миниатюра'
     get_html_photo_fields.short_description = 'Миниатюра'
@@ -64,7 +110,7 @@ class ColorAdmin(admin.ModelAdmin):
 
 
 @admin.register(FinishedWork)
-class FinishedWorkAdmin(admin.ModelAdmin):
+class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     list_display = [
         'name',
         'get_html_photo',
@@ -98,19 +144,23 @@ class FinishedWorkAdmin(admin.ModelAdmin):
     def get_html_photo(self, obj):
         if obj.photo:
             return format_html(
-                '<a href="{}" target="_blank"><img src="{}" width="120"></a>',
+                '<a class="admin-image-preview-link" href="{}" data-image-preview>'
+                '<img src="{}" alt="{}" width="80"></a>',
                 obj.photo.url,
                 obj.photo.url,
+                obj.name,
             )
         return '—'
 
-    @admin.display(description='Фото')
+    @admin.display(description='Миниатюра')
     def get_html_photo_fields(self, obj):
         if obj.photo:
             return format_html(
-                '<a href="{}" target="_blank"><img src="{}" width="400"></a>',
+                '<a class="admin-image-preview-link" href="{}" data-image-preview>'
+                '<img src="{}" alt="{}" width="200"></a>',
                 obj.photo.url,
                 obj.photo.url,
+                obj.name,
             )
         return '—'
 

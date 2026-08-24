@@ -1,6 +1,9 @@
+from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
 from django.test import Client, TestCase
 from django.urls import reverse
 
+from .admin import FinishedWorkAdmin, PictAdmin
 from .models import Category, Color, FinishedWork, Pict, TagPict
 
 
@@ -99,20 +102,36 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=26')
-        self.assertContains(response, 'skinali/images/odium_logo.png')
+        self.assertContains(response, 'skinali/css/styles.css?v=33')
+        self.assertContains(response, 'class="site-header__logo-mark"')
+        self.assertContains(response, '<strong>ДИУМ</strong>', count=2, html=True)
+        self.assertContains(response, 'ПН–ВС · ПРИЁМ ЗАКАЗОВ')
+        self.assertContains(response, '10:00–21:00')
         self.assertContains(
             response,
-            'Режим работы: пн-вс 10.00 - 21.00 (прием заказов)',
+            '<span class="site-header__phone-icon" aria-hidden="true">☎</span>',
+            html=True,
         )
         self.assertContains(response, 'class="site-topbar"')
+        self.assertContains(response, 'class="site-info-panel"')
+        self.assertContains(response, 'class="site-navigation-panel"')
+        self.assertContains(response, 'class="site-navigation-panel__inner"')
         self.assertContains(response, '<main class="site-content">')
+        self.assertContains(response, 'class="site-search__form"')
+        self.assertContains(response, 'Популярные запросы:')
+        self.assertContains(response, 'class="container catalog-gallery"')
+        self.assertContains(
+            response,
+            'Выберите сюжет по теме и цвету. Нажмите на изображение, '
+            'чтобы увидеть его номер, теги и раздел каталога.',
+        )
+        self.assertContains(response, 'class="catalog-intro"')
+        self.assertContains(response, 'class="site-footer"')
         self.assertContains(response, 'href="tel:+375291498838"')
         self.assertContains(response, 'data-mobile-menu-open')
         self.assertContains(response, 'id="mobile-site-menu"')
-        self.assertContains(response, 'data-mobile-menu-close')
-        self.assertContains(response, 'skinali/images/menu.png')
-        self.assertContains(response, 'skinali/js/site-menu.js?v=1')
+        self.assertNotContains(response, 'data-mobile-menu-close')
+        self.assertContains(response, 'skinali/js/site-menu.js?v=2')
         self.assertContains(response, 'data-mobile-filter-open="mobile-category-filter"')
         self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
         self.assertContains(response, 'id="mobile-category-filter"')
@@ -273,7 +292,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(
             response,
             '<span class="mainmenu__favorites-count" data-favorites-count>1</span>',
-            count=2,
+            count=1,
             html=True,
         )
         self.assertGreater(
@@ -361,6 +380,7 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, self.work.description)
         self.assertContains(response, self.category.cat)
         self.assertContains(response, 'Изображение № 701')
+        self.assertNotContains(response, 'class="site-search"')
         self.assertContains(
             response,
             f'href="{reverse("finished_works")}"',
@@ -387,4 +407,61 @@ class FinishedWorkTests(TestCase):
             [self.work],
         )
         self.assertEqual(first_page.context['paginator'].per_page, 6)
+        self.assertContains(first_page, 'class="list-pages catalog-pagination"')
+        self.assertContains(first_page, 'aria-current="page"')
         self.assertContains(first_page, '?page=2')
+
+    def test_admin_uses_compact_previews_and_shows_linked_works_on_pict(self):
+        site = AdminSite()
+        finished_work_admin = FinishedWorkAdmin(FinishedWork, site)
+        pict_admin = PictAdmin(Pict, site)
+
+        list_preview = str(finished_work_admin.get_html_photo(self.work))
+        form_preview = str(finished_work_admin.get_html_photo_fields(self.work))
+        linked_works = str(pict_admin.get_finished_works(self.catalog_image))
+
+        self.assertIn('width="80"', list_preview)
+        self.assertIn('width="200"', form_preview)
+        self.assertIn('data-image-preview', list_preview)
+        self.assertIn('data-image-preview', form_preview)
+        self.assertEqual(
+            finished_work_admin.get_html_photo_fields.short_description,
+            'Миниатюра',
+        )
+        self.assertIn('get_finished_works', pict_admin.get_fields(None, self.catalog_image))
+        self.assertIn('width="160"', linked_works)
+        self.assertIn('data-image-preview', linked_works)
+        self.assertIn(self.work.photo.url, linked_works)
+
+        image_without_works = Pict.objects.create(
+            name=702,
+            photo='photos/702.jpg',
+        )
+        self.assertNotIn(
+            'get_finished_works',
+            pict_admin.get_fields(None, image_without_works),
+        )
+
+        admin_user = get_user_model().objects.create_superuser(
+            username='admin-preview-test',
+            email='admin@example.com',
+            password='test-password',
+        )
+        self.client.force_login(admin_user)
+
+        linked_response = self.client.get(reverse(
+            'admin:pict_pict_change',
+            args=[self.catalog_image.pk],
+        ))
+        unlinked_response = self.client.get(reverse(
+            'admin:pict_pict_change',
+            args=[image_without_works.pk],
+        ))
+
+        self.assertEqual(linked_response.status_code, 200)
+        self.assertContains(linked_response, 'field-get_finished_works')
+        self.assertContains(linked_response, self.work.photo.url)
+        self.assertContains(linked_response, 'skinali/js/admin-image-preview.js')
+        self.assertContains(linked_response, 'skinali/css/admin-image-preview.css')
+        self.assertEqual(unlinked_response.status_code, 200)
+        self.assertNotContains(unlinked_response, 'field-get_finished_works')
