@@ -102,7 +102,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=33')
+        self.assertContains(response, 'skinali/css/styles.css?v=45')
         self.assertContains(response, 'class="site-header__logo-mark"')
         self.assertContains(response, '<strong>ДИУМ</strong>', count=2, html=True)
         self.assertContains(response, 'ПН–ВС · ПРИЁМ ЗАКАЗОВ')
@@ -116,7 +116,8 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'class="site-info-panel"')
         self.assertContains(response, 'class="site-navigation-panel"')
         self.assertContains(response, 'class="site-navigation-panel__inner"')
-        self.assertContains(response, '<main class="site-content">')
+        self.assertContains(response, '<main class="site-main">')
+        self.assertContains(response, '<div class="site-content">')
         self.assertContains(response, 'class="site-search__form"')
         self.assertContains(response, 'Популярные запросы:')
         self.assertContains(response, 'class="container catalog-gallery"')
@@ -141,6 +142,71 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
         self.assertContains(response, 'skinali/images/icon-favorite-active.png')
+
+    def test_homepage_shows_hero_and_search_results_replace_it(self):
+        finished_works = [
+            FinishedWork.objects.create(
+                name=f'Готовая работа {index}',
+                description=f'Описание готовой работы {index}',
+                photo=f'finished_works/home-work-{index}.jpg',
+            )
+            for index in range(1, 5)
+        ]
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="home-hero"')
+        self.assertContains(response, 'Скинали из')
+        self.assertContains(response, 'Заказать скинали')
+        self.assertContains(response, 'Выбрать изображение')
+        self.assertContains(response, 'skinali/images/odium-hero-glass-v2.jpg')
+        self.assertContains(response, 'class="home-offers"')
+        self.assertContains(response, 'Больше возможностей')
+        self.assertContains(response, 'class="home-offer-card"', count=3)
+        self.assertContains(response, 'skinali/images/home-offer-designer.jpg')
+        self.assertContains(response, 'skinali/images/home-offer-hood.jpg')
+        self.assertContains(response, 'skinali/images/home-offer-lighting.jpg')
+        self.assertContains(response, 'class="home-benefits"')
+        self.assertContains(response, 'Почему стекло')
+        self.assertContains(response, 'class="home-benefit-card"', count=6)
+        self.assertContains(response, 'skinali/images/home-benefit-strength.jpg')
+        self.assertContains(response, 'skinali/images/home-benefit-variants.jpg')
+        self.assertContains(response, 'class="home-recent-works"')
+        self.assertContains(
+            response,
+            'Ниже представлены свежие работы, выполненные нашей командой за последнюю неделю.',
+        )
+        self.assertContains(response, 'class="home-recent-work-card ', count=4)
+        self.assertContains(response, 'data-fancybox="finished-works"')
+        self.assertContains(response, 'class="home-recent-work-card__link"', count=3)
+        self.assertContains(response, finished_works[-1].description)
+        self.assertEqual(
+            list(response.context['recent_finished_works']),
+            list(reversed(finished_works[1:])),
+        )
+        self.assertNotContains(response, finished_works[0].photo.url)
+        self.assertContains(response, 'Смотреть все фото')
+        self.assertContains(
+            response,
+            f'class="home-hero__primary-action" href="{reverse("about")}"',
+        )
+        self.assertContains(
+            response,
+            f'class="home-hero__catalog-link" href="{reverse("skinali")}"',
+        )
+
+        picture = Pict.objects.order_by('pk').first()
+        search_response = self.client.get(
+            reverse('home'),
+            {'product-number': picture.name},
+        )
+
+        self.assertEqual(search_response.status_code, 200)
+        self.assertNotContains(search_response, 'class="home-hero"')
+        self.assertNotContains(search_response, 'class="home-offers"')
+        self.assertNotContains(search_response, 'class="home-benefits"')
+        self.assertNotContains(search_response, 'class="home-recent-works"')
+        self.assertContains(search_response, f'Результат поиска: "{picture.name}"')
 
     def test_category_links_keep_selected_color(self):
         selected_color = self.selected_color.slug_color

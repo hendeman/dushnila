@@ -39,6 +39,16 @@ def get_favorite_ids(request):
     return favorite_ids
 
 
+def get_finished_work_gallery_queryset():
+    # Главная и полная галерея используют одну сортировку и одинаковые связанные данные.
+    return (
+        FinishedWork.objects
+        .select_related('catalog_image')
+        .prefetch_related('catalog_image__cat')
+        .order_by('-created_at', '-id')
+    )
+
+
 class FavoritesContextMixin:
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -63,6 +73,8 @@ class PictHome(FavoritesContextMixin, ListView):
         context['col_tag'] = f"&product-number={get_find}" if get_find else ""
         if context['col_tag']:
             context['get_find'] = self.request.GET.get('product-number')
+        else:
+            context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
         return context
 
     def get_queryset(self):
@@ -195,12 +207,7 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
     paginate_by = 6
 
     def get_queryset(self):
-        return (
-            FinishedWork.objects
-            .select_related('catalog_image')
-            .prefetch_related('catalog_image__cat')
-            .order_by('-created_at', '-id')
-        )
+        return get_finished_work_gallery_queryset()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

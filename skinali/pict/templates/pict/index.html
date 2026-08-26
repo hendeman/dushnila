@@ -1,23 +1,277 @@
 {% extends 'pict/base.html' %}
+{% load static %}
 
 {% block content %}
-<h1>{{ title }}</h1>
-<div class="container">
-{% if list_pict == 0 %}
-  <p>По запросу "{{ get_find }}" ничего не найдено</p>
-{% else %}
-  {% if get_find %}
+{% if get_find %}
+  <h1>{{ title }}</h1>
+  <div class="container">
+  {% if list_pict == 0 %}
+    <p>По запросу "{{ get_find }}" ничего не найдено</p>
+  {% else %}
     <p>Результат поиска: "{{ get_find }}"</p>
+    {% for p in page_obj %}
+      <div class="item-block">
+        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
+      </div>
+    {% endfor %}
   {% endif %}
-  {% for p in page_obj %}
-    <div class="item-block">
-      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
+  </div>
+  {% include 'pict/includes/paginator.html' %}
+{% else %}
+  <section class="home-hero" aria-labelledby="home-hero-title">
+    <img class="home-hero__image"
+         src="{% static 'skinali/images/odium-hero-glass-v2.jpg' %}"
+         width="1774"
+         height="887"
+         alt=""
+         fetchpriority="high">
+
+    <div class="home-hero__content">
+      <p class="home-hero__eyebrow">Кухонные фартуки</p>
+      <h1 class="home-hero__title" id="home-hero-title">
+        Скинали из<br>
+        закалённого<br>
+        стекла
+      </h1>
+      <p class="home-hero__description">
+        Изготавливаем стеклянные фартуки с точной цветопередачей и гладкой поверхностью,
+        за которой легко ухаживать. Выберите готовый сюжет или закажите изображение
+        специально для своей кухни.
+      </p>
+
+      <div class="home-hero__actions">
+        <a class="home-hero__primary-action" href="{% url 'about' %}">
+          <span>Заказать скинали</span>
+          <span aria-hidden="true">↗</span>
+        </a>
+        <a class="home-hero__catalog-link" href="{% url 'skinali' %}">
+          <span>Выбрать изображение</span>
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <dl class="home-hero__facts">
+        <div>
+          <dt>5–6×</dt>
+          <dd>прочнее обычного стекла</dd>
+        </div>
+        <div>
+          <dt>UV</dt>
+          <dd>стойкая фотопечать</dd>
+        </div>
+        <div>
+          <dt>до 25 лет</dt>
+          <dd>гарантия на стекло</dd>
+        </div>
+      </dl>
     </div>
-  {% endfor %}
 
+    <aside class="home-hero__note">
+      <strong>Новая кухня начинается с детали</strong>
+      <span>Стекло, которое становится частью интерьера</span>
+    </aside>
+  </section>
 {% endif %}
+{% endblock %}
 
-</div>
-{% include  'pict/includes/paginator.html' %}
+{% block full_width_content %}
+{% if not get_find %}
+<section class="home-offers" aria-labelledby="home-offers-title">
+  <div class="site-content home-offers__inner">
+    <header class="home-offers__header">
+      <div class="home-offers__heading">
+        <p class="home-offers__eyebrow">Специальные предложения</p>
+        <h2 id="home-offers-title">Больше возможностей<br>для вашей кухни.</h2>
+      </div>
+      <div class="home-offers__intro">
+        <p>
+          Поможем заранее увидеть результат и добавим полезные детали к вашему заказу.
+          Условия предложений уточняйте у менеджера.
+        </p>
+        <a href="{% url 'about' %}">
+          <span>Уточнить условия</span>
+          <span aria-hidden="true">→</span>
+        </a>
+      </div>
+    </header>
 
+    <div class="home-offers__cards">
+      <article class="home-offer-card">
+        <div class="home-offer-card__meta">
+          <span class="home-offer-card__number">01</span>
+          <span class="home-offer-card__badge">до замера</span>
+        </div>
+        <img class="home-offer-card__image"
+             src="{% static 'skinali/images/home-offer-designer.jpg' %}"
+             width="1774"
+             height="887"
+             alt="Подбор изображения для скинали вместе с дизайнером"
+             loading="lazy">
+        <h3>Помощь дизайнера до замера</h3>
+        <p>
+          Примерим несколько сюжетов на фотографии вашей кухни,
+          чтобы вы могли выбрать подходящий вариант заранее.
+        </p>
+      </article>
+
+      <article class="home-offer-card">
+        <div class="home-offer-card__meta">
+          <span class="home-offer-card__number">02</span>
+          <span class="home-offer-card__badge">в подарок</span>
+        </div>
+        <img class="home-offer-card__image"
+             src="{% static 'skinali/images/home-offer-hood.jpg' %}"
+             width="627"
+             height="627"
+             alt="Стеклянная панель под кухонной вытяжкой"
+             loading="lazy">
+        <h3>Стекло под вытяжкой — в подарок</h3>
+        <p>
+          Дополнительная стеклянная панель в зоне вытяжки —
+          в подарок к заказу скинали.
+        </p>
+      </article>
+
+      <article class="home-offer-card">
+        <div class="home-offer-card__meta">
+          <span class="home-offer-card__number">03</span>
+          <span class="home-offer-card__badge">бесплатно</span>
+        </div>
+        <img class="home-offer-card__image"
+             src="{% static 'skinali/images/home-offer-lighting.jpg' %}"
+             width="627"
+             height="627"
+             alt="Скинали с подсветкой рабочей зоны"
+             loading="lazy">
+        <h3>Монтаж подсветки — бесплатно</h3>
+        <p>
+          При заказе скинали установим подсветку рабочей зоны
+          без дополнительной оплаты за монтаж.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-benefits" aria-labelledby="home-benefits-title">
+  <div class="site-content home-benefits__inner">
+    <header class="home-benefits__header">
+      <div class="home-benefits__heading">
+        <p class="home-benefits__eyebrow">Преимущества скинали</p>
+        <h2 id="home-benefits-title">Почему стекло<br>выбирают для кухни</h2>
+      </div>
+      <p class="home-benefits__intro">
+        В отличие от плитки и других наборных материалов, стеклянный фартук даёт
+        цельную поверхность, легко очищается и позволяет свободно менять характер интерьера.
+      </p>
+    </header>
+
+    <div class="home-benefits__cards">
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-strength.jpg' %}"
+             width="512"
+             height="512"
+             alt="Закалённое стекло с металлическим шаром на поверхности"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Долговечность и прочность</h3>
+          <p>Закалённое стекло устойчиво к ударам, влаге и кухонным перепадам температуры.</p>
+        </div>
+      </article>
+
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-installation.jpg' %}"
+             width="512"
+             height="512"
+             alt="Прозрачная стеклянная панель на креплениях"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Лёгкий монтаж и демонтаж</h3>
+          <p>Панель устанавливается после сборки кухни и при необходимости заменяется без большой переделки.</p>
+        </div>
+      </article>
+
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-seamless.jpg' %}"
+             width="512"
+             height="512"
+             alt="Цельный стеклянный фартук без швов на кухне"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Практически без швов</h3>
+          <p>Цельное полотно выглядит аккуратно, а в рабочей зоне меньше стыков, где скапливается грязь.</p>
+        </div>
+      </article>
+
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-design.jpg' %}"
+             width="512"
+             height="512"
+             alt="Образцы стекла с разными изображениями и цветами"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Любой сюжет</h3>
+          <p>Фотография, графика, текстура камня или спокойный цвет — изображение подбирается под интерьер.</p>
+        </div>
+      </article>
+
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-care.jpg' %}"
+             width="512"
+             height="512"
+             alt="Уход за гладкой стеклянной поверхностью"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Простой уход</h3>
+          <p>Гладкая непористая поверхность не впитывает запахи и очищается обычной мягкой салфеткой.</p>
+        </div>
+      </article>
+
+      <article class="home-benefit-card">
+        <img class="home-benefit-card__image"
+             src="{% static 'skinali/images/home-benefit-variants.jpg' %}"
+             width="512"
+             height="512"
+             alt="Разные варианты исполнения стеклянных панелей"
+             loading="lazy">
+        <div class="home-benefit-card__body">
+          <h3>Несколько вариантов исполнения</h3>
+          <p>УФ-печать, окраска, прозрачное стекло и подсветка дают разные эффекты на одной основе.</p>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-recent-works" aria-labelledby="home-recent-works-title">
+  <div class="site-content home-recent-works__inner">
+    <header class="home-benefits__header home-recent-works__header">
+      <div class="home-benefits__heading">
+        <h2 id="home-recent-works-title">Наши работы</h2>
+      </div>
+      <p class="home-benefits__intro">
+        Ниже представлены свежие работы, выполненные нашей командой за последнюю неделю.
+      </p>
+    </header>
+
+    <div class="home-recent-works__cards">
+      {% for work in recent_finished_works %}
+        <article class="home-recent-work-card home-recent-work-card--photo">
+          {% include 'pict/includes/finished_work_link.html' with work=work link_class='home-recent-work-card__link' image_class='home-recent-work-card__image' %}
+        </article>
+      {% endfor %}
+
+      <a class="home-recent-work-card home-recent-work-card--all"
+         href="{% url 'finished_works' %}">
+        <span>Смотреть все фото<br>наших работ</span>
+      </a>
+    </div>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

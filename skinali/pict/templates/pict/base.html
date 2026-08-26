@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=33" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=46" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -73,8 +73,12 @@
 
 {% endblock mainmenu %}
 
-<main class="site-content">
+<main class="site-main">
+<div class="site-content">
 {% block content %}
+{% endblock %}
+</div>
+{% block full_width_content %}
 {% endblock %}
 </main>
 
