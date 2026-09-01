@@ -1,6 +1,85 @@
 {% extends 'pict/base.html' %}
+{% load static %}
 
 {% block content %}
-<h1>{{ title }}</h1>
-<p>Услуги дизайнера</p>
+<article class="designer-page" aria-labelledby="designer-page-title">
+    <h1 id="designer-page-title">{{ title }}</h1>
+
+    <div class="designer-page__content">
+        <section class="designer-page__section" aria-labelledby="designer-copyright-title">
+            <h2 id="designer-copyright-title">
+                <span aria-hidden="true">📌</span>
+                Авторское право на изображения
+            </h2>
+            <p>На нашем сайте представлены уменьшенные копии (превью) изображений, предназначенных для печати на скинали. Все графические материалы являются объектом авторского права.</p>
+            <p>Мы строго соблюдаем законодательство и предлагаем только тот контент, авторами которого являемся сами, либо изображения, на распространение которых у нас есть официальное разрешение или лицензия от правообладателей.</p>
+        </section>
+
+        <section class="designer-page__section designer-page__section--buyers" aria-labelledby="designer-buyers-title">
+            <div class="designer-page__buyers-layout">
+                <div class="designer-page__buyers-copy">
+                    <h2 id="designer-buyers-title">
+                        <span aria-hidden="true">💡</span>
+                        Покупателям изображений
+                    </h2>
+                    <p>Каждое изображение защищено авторским правом. Чтобы использовать его в коммерческих или личных целях, необходимо приобрести лицензию у автора либо через официальную платформу, имеющую соглашение с правообладателем.</p>
+                    <p>Если наша компания обладает правами на дистрибуцию конкретного изображения, вы можете безопасно оплатить и скачать его в высоком качестве прямо на нашем сайте.</p>
+                    <p><a class="designer-page__contact-link" href="{% url 'about' %}">Напишите нам</a> номер изображения из каталога. Мы подтвердим заказ, пришлём реквизиты для оплаты и после оплаты отправим оригинал в высоком разрешении.</p>
+                </div>
+
+                <aside class="designer-price-card" aria-label="Стоимость и условия покупки готового изображения">
+                    <p class="designer-price-card__eyebrow">Стоимость готового оригинала</p>
+                    <p class="designer-price-card__price"><strong>30</strong> BYN</p>
+                    <p class="designer-price-card__description">Изменение пропорций, цветокоррекция или создание нового сюжета рассчитываются отдельно.</p>
+                    <dl class="designer-price-card__details">
+                        <div>
+                            <dt>Подтверждение заказа</dt>
+                            <dd>в течение 1 рабочего дня</dd>
+                        </div>
+                        <div>
+                            <dt>Отправка после оплаты</dt>
+                            <dd>в течение 2–4 рабочих часов</dd>
+                        </div>
+                        <div>
+                            <dt>Формат</dt>
+                            <dd>оригинал в высоком разрешении</dd>
+                        </div>
+                    </dl>
+                </aside>
+            </div>
+        </section>
+
+        <section class="designer-exclusive-banner" aria-labelledby="designer-exclusive-title">
+            <div class="designer-exclusive-banner__visual" aria-hidden="true">
+                <img src="{% static 'skinali/images/designer-exclusive-reference.jpg' %}"
+                     width="1086"
+                     height="233"
+                     loading="lazy"
+                     decoding="async"
+                     alt="">
+            </div>
+            <div class="designer-exclusive-banner__content">
+                <p class="designer-exclusive-banner__eyebrow">Индивидуальная разработка</p>
+                <h2 id="designer-exclusive-title">Эксклюзивное изображение с нуля.</h2>
+                <p class="designer-exclusive-banner__description">Если в каталоге нет подходящего сюжета, создадим его специально для вас: по описанию, референсам и цветам кухни. Сразу учтём пропорции скинали, расположение розеток и важные детали композиции.</p>
+            </div>
+            <a class="designer-exclusive-banner__action designer-page__contact-link" href="{% url 'about' %}">
+                Обсудить идею
+                <span aria-hidden="true">↗</span>
+            </a>
+        </section>
+
+        <section class="designer-page__section" aria-labelledby="designer-customers-title">
+            <h2 id="designer-customers-title">
+                <span aria-hidden="true">✅</span>
+                Заказчикам скинали
+            </h2>
+            <ul class="designer-page__list">
+                <li><strong>Изображения из нашего каталога</strong> предоставляются абсолютно <strong>БЕСПЛАТНО</strong> при условии заказа скинали в нашей компании.</li>
+                <li><strong>Собственные изображения</strong> (если вы хотите уникальный дизайн) вам необходимо приобрести самостоятельно на фотостоках или у авторов и предоставить нам готовый файл для печати.</li>
+            </ul>
+            <p>Для заказа скинали <a class="designer-page__contact-link" href="{% url 'about' %}">обратитесь к нам <span aria-hidden="true">→</span></a>.</p>
+        </section>
+    </div>
+</article>
 {% endblock %}

@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=46" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=57" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -117,6 +117,35 @@
     <script src="{% static 'skinali/js/site-menu.js' %}?v=2" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
+      Fancybox.bind('[data-fancybox="catalog-gallery"]', {
+        mainClass: 'catalog-gallery-modal',
+        idle: false,
+        showClass: false,
+        closeButton: true,
+        Toolbar: false,
+        Thumbs: false,
+        contentClick: false,
+        Images: {
+          zoom: false
+        },
+        caption: (fancybox, slide) => {
+          const templateId = slide.triggerEl?.dataset.captionTemplate;
+          const template = templateId ? document.getElementById(templateId) : null;
+          return template ? template.innerHTML : '';
+        },
+        Carousel: {
+          infinite: true,
+          transition: 'fade',
+          Navigation: false
+        },
+        on: createGalleryEvents(),
+        l10n: {
+          CLOSE: 'Закрыть',
+          NEXT: 'Следующее изображение',
+          PREV: 'Предыдущее изображение'
+        }
+      });
+
       Fancybox.bind('[data-fancybox="gallery"]', {
         mainClass: 'gallery-modal',
         idle: false,
@@ -127,14 +156,7 @@
         Carousel: {
           infinite: true
         },
-        on: {
-          'Carousel.selectSlide': (fancybox, carousel, slide) => {
-            window.queueMicrotask(() => prepareGallerySlide(fancybox, slide));
-          },
-          resize: (fancybox) => prepareGallerySlide(fancybox, fancybox.getSlide()),
-          reveal: (fancybox, slide) => prepareGallerySlide(fancybox, slide),
-          done: (fancybox, slide) => prepareGallerySlide(fancybox, slide)
-        },
+        on: createGalleryEvents(),
         l10n: {
           CLOSE: 'Закрыть',
           NEXT: 'Следующее изображение',
@@ -152,20 +174,24 @@
         Carousel: {
           infinite: true
         },
-        on: {
-          'Carousel.selectSlide': (fancybox, carousel, slide) => {
-            window.queueMicrotask(() => prepareGallerySlide(fancybox, slide));
-          },
-          resize: (fancybox) => prepareGallerySlide(fancybox, fancybox.getSlide()),
-          reveal: (fancybox, slide) => prepareGallerySlide(fancybox, slide),
-          done: (fancybox, slide) => prepareGallerySlide(fancybox, slide)
-        },
+        on: createGalleryEvents(),
         l10n: {
           CLOSE: 'Закрыть',
           NEXT: 'Следующая работа',
           PREV: 'Предыдущая работа'
         }
       });
+
+      function createGalleryEvents() {
+        return {
+          'Carousel.selectSlide': (fancybox, carousel, slide) => {
+            window.queueMicrotask(() => prepareGallerySlide(fancybox, slide));
+          },
+          resize: (fancybox) => prepareGallerySlide(fancybox, fancybox.getSlide()),
+          reveal: (fancybox, slide) => prepareGallerySlide(fancybox, slide),
+          done: (fancybox, slide) => prepareGallerySlide(fancybox, slide)
+        };
+      }
 
       function prepareGallerySlide(fancybox, slide) {
         const hasSlideCaption = Boolean(slide.captionEl);
@@ -182,6 +208,11 @@
           slide.contentEl.appendChild(caption);
         }
 
+        if (fancybox.container?.classList.contains('catalog-gallery-modal')) {
+          enableCatalogCaptionSelection(caption);
+          revealPreparedCatalogSlide(slide.contentEl);
+        }
+
         const button = slide.contentEl.querySelector('[data-favorite-toggle]');
         const trigger = slide.triggerEl;
         if (button && trigger && trigger.dataset.isFavorite) {
@@ -190,6 +221,34 @@
             trigger.dataset.isFavorite === 'true'
           );
         }
+      }
+
+      function enableCatalogCaptionSelection(caption) {
+        if (caption.dataset.catalogSelectionEnabled === 'true') {
+          return;
+        }
+
+        const stopImageNavigation = (event) => event.stopPropagation();
+        caption.addEventListener('mousedown', stopImageNavigation);
+        caption.addEventListener('touchstart', stopImageNavigation, { passive: true });
+        caption.dataset.catalogSelectionEnabled = 'true';
+      }
+
+      function revealPreparedCatalogSlide(content) {
+        if (content.classList.contains('is-catalog-prepared')) {
+          return;
+        }
+
+        content.classList.add('is-catalog-prepared');
+
+        // Сначала браузер рассчитывает окончательную сетку с подписью,
+        // и только на следующем кадре показывает уже собранную карточку.
+        content.getBoundingClientRect();
+        window.requestAnimationFrame(() => {
+          if (content.isConnected) {
+            content.classList.add('is-catalog-ready');
+          }
+        });
       }
 
       function updateFavoriteButtons(pictId, isFavorite) {

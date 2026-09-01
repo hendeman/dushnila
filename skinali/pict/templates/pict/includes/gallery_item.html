@@ -1,12 +1,89 @@
 {% load static %}
-<a data-fancybox="gallery"
+<a{% if gallery_link_class %} class="{{ gallery_link_class }}"{% endif %}
+   data-fancybox="{% if show_catalog_favorite or use_catalog_modal %}catalog-gallery{% else %}gallery{% endif %}"
    data-favorite-item
    data-pict-id="{{ p.pk }}"
    data-is-favorite="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"
    href="{{ p.photo.url }}"
-   data-caption='<div class="gallery-modal__meta"><span class="gallery-modal__description">{{ p.alt }}</span><span class="gallery-modal__number">№: {{ p.name }}</span></div><div class="gallery-modal__actions"><button type="button" class="gallery-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}" data-favorite-toggle data-pict-id="{{ p.pk }}" data-favorite-url="{% url 'favorite_toggle' p.pk %}" aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"><span class="favorite-toggle__label" data-favorite-label><span class="favorite-toggle__label-add">В избранное</span><span class="favorite-toggle__label-remove">Удалить из избранного</span><span class="favorite-toggle__label-error">Не удалось сохранить</span></span></button></div>'>
-    <img class="item-photo" src="{{ p.photo.url }}" alt="{{ p.alt }}">
+   {% if show_catalog_favorite or use_catalog_modal %}
+   data-caption-template="catalog-gallery-caption-{{ p.pk }}"
+   {% else %}
+   data-caption='<div class="gallery-modal__meta"><span class="gallery-modal__description">{{ p.alt }}</span><span class="gallery-modal__number">№: {{ p.name }}</span></div><div class="gallery-modal__actions"><button type="button" class="gallery-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}" data-favorite-toggle data-pict-id="{{ p.pk }}" data-favorite-url="{% url 'favorite_toggle' p.pk %}" aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"><span class="favorite-toggle__label" data-favorite-label><span class="favorite-toggle__label-add">В избранное</span><span class="favorite-toggle__label-remove">Удалить из избранного</span><span class="favorite-toggle__label-error">Не удалось сохранить</span></span></button></div>'
+   {% endif %}>
+    <img class="{% if gallery_image_class %}{{ gallery_image_class }}{% else %}item-photo{% endif %}"
+         src="{{ p.photo.url }}"
+         alt="{{ p.alt }}">
 </a>
+{% if show_catalog_favorite or use_catalog_modal %}
+  <template id="catalog-gallery-caption-{{ p.pk }}">
+    <div class="catalog-modal__caption">
+      <span class="catalog-modal__image-number">№{{ p.name }}</span>
+
+      <button type="button"
+              class="catalog-modal__nav catalog-modal__nav--prev"
+              data-fancybox-prev
+              aria-label="Предыдущее изображение">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"></path>
+        </svg>
+      </button>
+      <button type="button"
+              class="catalog-modal__nav catalog-modal__nav--next"
+              data-fancybox-next
+              aria-label="Следующее изображение">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
+      </button>
+
+      <h2 class="catalog-modal__title">{{ p.alt|default:"Изображение из каталога" }}</h2>
+
+      <dl class="catalog-modal__meta">
+        <div class="catalog-modal__meta-item catalog-modal__meta-item--tags">
+          <dt>Теги</dt>
+          <dd>
+            {% for tag in p.tags.all %}
+              <span>#{{ tag.tag }}</span>
+            {% empty %}
+              <span>—</span>
+            {% endfor %}
+          </dd>
+        </div>
+        <div class="catalog-modal__meta-item">
+          <dt>Номер изображения</dt>
+          <dd>№{{ p.name }}</dd>
+        </div>
+        <div class="catalog-modal__meta-item">
+          <dt>Каталог</dt>
+          <dd>
+            {% for category in p.cat.all %}
+              {{ category.cat }}{% if not forloop.last %}, {% endif %}
+            {% empty %}
+              —
+            {% endfor %}
+          </dd>
+        </div>
+      </dl>
+
+      <div class="catalog-modal__actions">
+        <button type="button"
+                class="catalog-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}"
+                data-favorite-toggle
+                data-pict-id="{{ p.pk }}"
+                data-favorite-url="{% url 'favorite_toggle' p.pk %}"
+                aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}">
+          <span class="favorite-toggle__label" data-favorite-label>
+            <span class="favorite-toggle__label-add">Добавить в избранное</span>
+            <span class="favorite-toggle__label-remove">Удалить из избранного</span>
+            <span class="favorite-toggle__label-error">Не удалось сохранить</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </template>
+
+{% endif %}
+
 {% if show_catalog_favorite %}
   <button type="button"
           class="catalog-favorite-toggle{% if p.pk in favorite_ids %} is-active{% endif %}"

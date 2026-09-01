@@ -40,11 +40,10 @@ def get_favorite_ids(request):
 
 
 def get_finished_work_gallery_queryset():
-    # Главная и полная галерея используют одну сортировку и одинаковые связанные данные.
+    # Главная и полная галерея используют одну сортировку и один JOIN для номера изображения.
     return (
         FinishedWork.objects
         .select_related('catalog_image')
-        .prefetch_related('catalog_image__cat')
         .order_by('-created_at', '-id')
     )
 
@@ -109,6 +108,11 @@ class SkinaliMix(FavoritesContextMixin, ListView):
     template_name = 'pict/skinali.html'
     paginate_by = 6
 
+    @staticmethod
+    def get_catalog_queryset():
+        # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
+        return Pict.objects.prefetch_related('tags', 'cat')
+
     def get_popular_tags(self):
         category_slug = self.kwargs.get('slug_cat')
         category_filter = Q(tags__cat__slug=category_slug) if category_slug else Q()
@@ -139,10 +143,11 @@ class SkinaliMix(FavoritesContextMixin, ListView):
 class SkinaliAll(SkinaliMix):
 
     def get_queryset(self):
+        queryset = self.get_catalog_queryset()
         if self.request.GET.get('color'):
-            return Pict.objects.filter(color__slug_color=self.request.GET.get('color'))
+            return queryset.filter(color__slug_color=self.request.GET.get('color'))
         else:
-            return Pict.objects.all()
+            return queryset
 
 # def skinaliall(request):
 #
@@ -180,10 +185,11 @@ class SkinaliAll(SkinaliMix):
 class SkinaliSlug(SkinaliMix):
 
     def get_queryset(self):
+        queryset = self.get_catalog_queryset()
         if self.request.GET.get('color'):
-            return Pict.objects.filter(color__slug_color=self.request.GET.get('color'), cat__slug=self.kwargs['slug_cat'])
+            return queryset.filter(color__slug_color=self.request.GET.get('color'), cat__slug=self.kwargs['slug_cat'])
         else:
-            return Pict.objects.filter(cat__slug=self.kwargs['slug_cat'])
+            return queryset.filter(cat__slug=self.kwargs['slug_cat'])
 
 
 class PictTag(FavoritesContextMixin, ListView):
@@ -219,7 +225,8 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
 
 def favorites(request):
     favorite_ids = get_favorite_ids(request)
-    pictures_by_id = Pict.objects.in_bulk(favorite_ids)
+    # Общая с каталогом модальная карточка использует теги и категории.
+    pictures_by_id = Pict.objects.prefetch_related('tags', 'cat').in_bulk(favorite_ids)
     valid_ids = [pict_id for pict_id in favorite_ids if pict_id in pictures_by_id]
 
     if valid_ids != favorite_ids:

@@ -42,6 +42,7 @@ class PopularTagsByCategoryTests(TestCase):
         for offset in range(count):
             picture = Pict.objects.create(
                 name=start_name + offset,
+                alt=f'Описание изображения {start_name + offset}',
                 photo=f'photos/{start_name + offset}.jpg',
             )
             picture.cat.add(category)
@@ -66,9 +67,16 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertNotIn(self.second_tag.slug, {tag.slug for tag in tags})
         self.assertContains(response, f'>{self.first_tag.tag}</a>', html=False)
         self.assertNotContains(response, f'{self.first_tag.tag} ({tags[0].total})')
-        self.assertContains(response, 'data-fancybox="gallery"')
-        self.assertContains(response, 'gallery-modal__description')
-        self.assertContains(response, 'gallery-modal__number')
+        self.assertContains(response, 'data-fancybox="catalog-gallery"')
+        self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
+        self.assertContains(response, 'class="catalog-modal__title"')
+        self.assertContains(response, 'Описание изображения 100')
+        self.assertContains(response, '<span>#Первый тег</span>', html=True)
+        self.assertContains(response, '<dd>№100</dd>', html=True)
+        self.assertContains(response, self.first_category.cat)
+        self.assertContains(response, 'class="catalog-modal__nav catalog-modal__nav--prev"')
+        self.assertContains(response, 'class="catalog-modal__nav catalog-modal__nav--next"')
+        self.assertNotContains(response, 'catalog-modal__counter')
         self.assertContains(response, 'data-favorite-toggle')
         self.assertContains(
             response,
@@ -102,7 +110,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=45')
+        self.assertContains(response, 'skinali/css/styles.css?v=57')
         self.assertContains(response, 'class="site-header__logo-mark"')
         self.assertContains(response, '<strong>ДИУМ</strong>', count=2, html=True)
         self.assertContains(response, 'ПН–ВС · ПРИЁМ ЗАКАЗОВ')
@@ -179,7 +187,8 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'class="home-recent-work-card ', count=4)
         self.assertContains(response, 'data-fancybox="finished-works"')
         self.assertContains(response, 'class="home-recent-work-card__link"', count=3)
-        self.assertContains(response, finished_works[-1].description)
+        self.assertContains(response, finished_works[-1].name)
+        self.assertNotContains(response, finished_works[-1].description)
         self.assertEqual(
             list(response.context['recent_finished_works']),
             list(reversed(finished_works[1:])),
@@ -262,6 +271,57 @@ class PopularTagsByCategoryTests(TestCase):
         )
 
 
+class ContactPageTests(TestCase):
+    def test_contact_page_shows_order_channels_and_service_area(self):
+        response = self.client.get(reverse('about'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'tel:+375291498838')
+        self.assertContains(response, 'mailto:odiumglass@gmail.com')
+        self.assertContains(response, 'tel:+375295912453')
+        self.assertContains(response, 'mailto:ra-dost@mail.ru')
+        self.assertContains(
+            response,
+            'Свяжитесь с нами по телефону или электронной почте, чтобы получить консультацию и оформить заказ на скинали (кухонный фартук):',
+        )
+        self.assertContains(
+            response,
+            'Контакты для заказа услуги «Услуги дизайнера»:',
+        )
+        self.assertContains(response, 'skinali/images/service-area-map.jpg')
+        self.assertContains(response, 'Основная зона обслуживания')
+        self.assertContains(response, 'не более 75 км от Жодино')
+
+
+class DesignerPageTests(TestCase):
+    def test_designer_page_shows_copyright_terms_and_contact_links(self):
+        response = self.client.get(reverse('designer'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Авторское право на изображения')
+        self.assertContains(response, 'Покупателям изображений')
+        self.assertContains(response, 'Заказчикам скинали')
+        self.assertContains(response, 'БЕСПЛАТНО')
+        self.assertContains(
+            response,
+            f'<a class="designer-page__contact-link" href="{reverse("about")}">Напишите нам</a> номер изображения из каталога.',
+        )
+        self.assertContains(response, 'class="designer-price-card"')
+        self.assertContains(response, '<strong>30</strong> BYN', html=True)
+        self.assertContains(response, 'Эксклюзивное изображение с нуля.')
+        self.assertContains(response, 'skinali/images/designer-exclusive-reference.jpg')
+        self.assertContains(response, 'Обсудить идею')
+        self.assertContains(
+            response,
+            f'class="designer-exclusive-banner__action designer-page__contact-link" href="{reverse("about")}"',
+        )
+        self.assertContains(
+            response,
+            f'class="designer-page__contact-link" href="{reverse("about")}"',
+            count=2,
+        )
+
+
 class SessionFavoritesTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -275,6 +335,16 @@ class SessionFavoritesTests(TestCase):
             alt='Второе описание',
             photo='photos/302.jpg',
         )
+        cls.favorite_category = Category.objects.create(
+            cat='Категория избранного',
+            slug='favorite-category',
+        )
+        cls.favorite_tag = TagPict.objects.create(
+            tag='Тег избранного',
+            slug='favorite-tag',
+        )
+        cls.first_picture.cat.add(cls.favorite_category)
+        cls.favorite_tag.tags.add(cls.first_picture)
 
     def test_toggle_adds_and_removes_picture_in_current_session(self):
         url = reverse('favorite_toggle', kwargs={'pict_id': self.first_picture.pk})
@@ -337,7 +407,14 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'Изображение № 301')
         self.assertContains(response, self.first_picture.alt)
         self.assertContains(response, 'data-favorite-row')
-        self.assertContains(response, 'data-fancybox="gallery"')
+        self.assertContains(response, 'class="favorite-card__preview"')
+        self.assertContains(response, 'data-fancybox="catalog-gallery"')
+        self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
+        self.assertContains(response, 'class="catalog-modal__title"')
+        self.assertContains(response, 'class="catalog-modal__favorite is-active"')
+        self.assertContains(response, '#Тег избранного')
+        self.assertContains(response, 'Категория избранного')
+        self.assertNotContains(response, 'class="catalog-favorite-toggle')
 
     def test_favorites_menu_link_and_modal_button_are_rendered(self):
         empty_response = self.client.get(reverse('skinali'))
@@ -372,9 +449,18 @@ class SessionFavoritesTests(TestCase):
                 kwargs={'pict_id': self.first_picture.pk},
             ),
         )
-        self.assertContains(response, 'favorite-toggle__label-add">В избранное</span>')
+        self.assertContains(response, 'favorite-toggle__label-add">Добавить в избранное</span>')
         self.assertContains(response, 'class="catalog-favorite-toggle is-active"')
         self.assertContains(response, 'aria-label="Удалить из избранного"')
+        self.assertContains(response, 'class="catalog-modal__favorite is-active"')
+        self.assertContains(response, "transition: 'fade'")
+        self.assertContains(response, 'Navigation: false')
+        self.assertContains(response, 'showClass: false')
+        self.assertContains(response, 'zoom: false')
+        self.assertContains(response, "content.classList.add('is-catalog-ready')")
+        self.assertContains(response, 'enableCatalogCaptionSelection(caption)')
+        self.assertContains(response, "caption.addEventListener('mousedown', stopImageNavigation)")
+        self.assertContains(response, "document.getElementById(templateId)")
         self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
         self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")
         self.assertContains(response, 'slide.captionEl || fancybox.caption')
@@ -434,7 +520,7 @@ class FinishedWorkTests(TestCase):
         self.assertNotContains(response, 'Изображение №')
         self.assertNotContains(response, self.category.cat)
 
-    def test_public_gallery_shows_photo_and_linked_catalog_metadata(self):
+    def test_public_gallery_shows_name_and_linked_catalog_number(self):
         response = self.client.get(reverse('finished_works'))
 
         self.assertEqual(response.status_code, 200)
@@ -443,8 +529,9 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, 'class="finished-work-card__image"')
         self.assertContains(response, 'data-fancybox="finished-works"')
         self.assertContains(response, self.work.photo.url)
-        self.assertContains(response, self.work.description)
-        self.assertContains(response, self.category.cat)
+        self.assertContains(response, self.work.name)
+        self.assertNotContains(response, self.work.description)
+        self.assertNotContains(response, self.category.cat)
         self.assertContains(response, 'Изображение № 701')
         self.assertNotContains(response, 'class="site-search"')
         self.assertContains(
