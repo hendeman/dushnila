@@ -14,6 +14,34 @@ from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BASE_DIR.parent / '.env'
+
+
+def load_environment_file(path):
+    """Загружает простой KEY=VALUE-файл, не заменяя системное окружение."""
+    if not path.exists():
+        return
+
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding='utf-8-sig').splitlines(),
+        start=1,
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith('#'):
+            continue
+        key, separator, value = line.partition('=')
+        key = key.strip()
+        if not separator or not key.isidentifier():
+            raise RuntimeError(
+                f'Некорректная строка {line_number} в файле окружения.'
+            )
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
+load_environment_file(ENV_FILE)
 
 
 # Quick-start development settings - unsuitable for production
@@ -67,6 +95,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'pict.context_processors.contact_forms',
             ],
         },
     },
@@ -133,3 +162,10 @@ MEDIA_URL = '/media/'
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Секреты Telegram передаются окружением и никогда не хранятся в репозитории.
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
+TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
+TELEGRAM_PROXY_URL = os.environ.get('TELEGRAM_PROXY_URL', '').strip()
+TELEGRAM_CONNECT_TIMEOUT = float(os.environ.get('TELEGRAM_CONNECT_TIMEOUT', '3'))
+TELEGRAM_READ_TIMEOUT = float(os.environ.get('TELEGRAM_READ_TIMEOUT', '5'))

@@ -64,6 +64,14 @@
         </article>
     </div>
 
+    <section class="contact-request-card" aria-labelledby="contact-request-title">
+        <header class="contact-request-card__header">
+            <h2 id="contact-request-title">Остались вопросы?</h2>
+            <p>Оставьте контактные данные, и мы свяжемся с вами.</p>
+        </header>
+        {% include 'pict/includes/contact_form.html' with form=question_form form_kind='question' submit_label='Отправить' %}
+    </section>
+
     <section class="contact-service-area" aria-labelledby="contact-service-area-title">
         <h2 id="contact-service-area-title">Основная зона обслуживания</h2>
         <figure class="contact-service-area__map">

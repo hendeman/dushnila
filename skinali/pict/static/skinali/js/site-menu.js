@@ -23,8 +23,8 @@
     setExpanded(!isExpanded());
   });
 
-  navigation.querySelectorAll('a').forEach((link) => {
-    link.addEventListener('click', () => setExpanded(false));
+  navigation.querySelectorAll('a, [data-callback-open]').forEach((control) => {
+    control.addEventListener('click', () => setExpanded(false));
   });
 
   document.addEventListener('click', (event) => {

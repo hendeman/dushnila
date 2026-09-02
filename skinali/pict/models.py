@@ -1,5 +1,6 @@
 from django.db import models
 from django.urls import reverse
+from django.utils import timezone
 
 
 class Color(models.Model):
@@ -89,6 +90,112 @@ class FinishedWork(models.Model):
         verbose_name = 'Готовая работа'
         verbose_name_plural = 'Готовые работы'
         ordering = ['-created_at', '-id']
+
+
+class ContactRequest(models.Model):
+    """Заявка посетителя, прошедшая серверную валидацию и антиспам-проверки."""
+
+    class RequestType(models.TextChoices):
+        CALLBACK = 'callback', 'Обратный звонок'
+        QUESTION = 'question', 'Вопрос'
+
+    request_type = models.CharField(
+        max_length=20,
+        choices=RequestType.choices,
+        verbose_name='Тип заявки',
+    )
+    name = models.CharField(max_length=20, verbose_name='Имя')
+    phone = models.CharField(max_length=20, verbose_name='Телефон')
+    question = models.CharField(max_length=250, blank=True, verbose_name='Вопрос')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время создания')
+
+    def __str__(self):
+        return f'{self.name} — {self.phone}'
+
+    class Meta:
+        verbose_name = 'Заявка'
+        verbose_name_plural = 'Заявки'
+        ordering = ['-created_at', '-id']
+
+
+class ContactRequestDelivery(models.Model):
+    """Состояние доставки одной заявки по одному внешнему каналу."""
+
+    class Channel(models.TextChoices):
+        TELEGRAM = 'telegram', 'Telegram'
+        EMAIL = 'email', 'Email'
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Ожидает отправки'
+        PROCESSING = 'processing', 'Отправляется'
+        RETRY = 'retry', 'Ожидает повтора'
+        SENT = 'sent', 'Отправлено'
+        FAILED = 'failed', 'Ошибка отправки'
+
+    contact_request = models.ForeignKey(
+        ContactRequest,
+        on_delete=models.CASCADE,
+        related_name='deliveries',
+        verbose_name='Заявка',
+    )
+    channel = models.CharField(
+        max_length=20,
+        choices=Channel.choices,
+        verbose_name='Канал',
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+        verbose_name='Статус',
+    )
+    attempts = models.PositiveSmallIntegerField(default=0, verbose_name='Попытки')
+    next_attempt_at = models.DateTimeField(
+        default=timezone.now,
+        null=True,
+        blank=True,
+        db_index=True,
+        verbose_name='Следующая попытка',
+    )
+    processing_started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Начало обработки',
+    )
+    sent_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        verbose_name='Время отправки',
+    )
+    external_message_id = models.BigIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='ID внешнего сообщения',
+    )
+    last_error = models.TextField(blank=True, verbose_name='Последняя ошибка')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время создания')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Время изменения')
+
+    def __str__(self):
+        return f'{self.get_channel_display()}: заявка № {self.contact_request_id}'
+
+    class Meta:
+        verbose_name = 'Доставка заявки'
+        verbose_name_plural = 'Доставки заявок'
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['contact_request', 'channel'],
+                name='unique_contact_request_delivery_channel',
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=['channel', 'status', 'next_attempt_at'],
+                name='pict_delivery_due_idx',
+            ),
+        ]
 
 
 

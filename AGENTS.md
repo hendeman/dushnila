@@ -25,6 +25,8 @@
 | Избранное, Django-сессия, кнопка в модальной галерее | [pict/views.md](docs/pict/views.md) | [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict` | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
+| Контактные формы, заявки, валидация и антиспам | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/context_processors.md](docs/pict/context_processors.md), [pict/urls.md](docs/pict/urls.md) |
+| Очередь и отправка контактных заявок в Telegram | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
@@ -45,6 +47,9 @@
 | `skinali/pict/apps.py` | [pict/apps.md](docs/pict/apps.md) |
 | `skinali/pict/models.py` | [pict/models.md](docs/pict/models.md) |
 | `skinali/pict/forms.py` | [pict/forms.md](docs/pict/forms.md) |
+| `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
+| `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
+| `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
 | `skinali/pict/urls.py` | [pict/urls.md](docs/pict/urls.md) |
 | `skinali/pict/views.py` | [pict/views.md](docs/pict/views.md) |

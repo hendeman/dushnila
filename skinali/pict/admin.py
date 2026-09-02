@@ -1,8 +1,17 @@
 from django.contrib import admin
+from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from pict.forms import PictAdminForm
-from pict.models import Category, Color, FinishedWork, Pict, TagPict
+from pict.models import (
+    Category,
+    Color,
+    ContactRequest,
+    ContactRequestDelivery,
+    FinishedWork,
+    Pict,
+    TagPict,
+)
 
 
 class AdminImagePreviewMixin:
@@ -173,6 +182,123 @@ class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
         if not obj.catalog_image:
             return '—'
         return ', '.join(category.cat for category in obj.catalog_image.cat.all()) or '—'
+
+
+class ContactRequestDeliveryInline(admin.TabularInline):
+    model = ContactRequestDelivery
+    extra = 0
+    can_delete = False
+    fields = [
+        'channel',
+        'status',
+        'attempts',
+        'next_attempt_at',
+        'sent_at',
+        'external_message_id',
+        'last_error',
+    ]
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(ContactRequest)
+class ContactRequestAdmin(admin.ModelAdmin):
+    list_display = [
+        'created_at',
+        'request_type',
+        'name',
+        'phone',
+        'question',
+        'get_telegram_status',
+    ]
+    list_display_links = ['created_at', 'name']
+    list_filter = ['request_type', 'created_at']
+    search_fields = ['name', 'phone', 'question']
+    readonly_fields = ['created_at']
+    fields = ['request_type', 'name', 'phone', 'question', 'created_at']
+    ordering = ['-created_at', '-id']
+    list_per_page = 50
+    inlines = [ContactRequestDeliveryInline]
+    actions = ['queue_missing_telegram_deliveries']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('deliveries')
+
+    @admin.display(description='Telegram')
+    def get_telegram_status(self, obj):
+        delivery = next(
+            (
+                item for item in obj.deliveries.all()
+                if item.channel == ContactRequestDelivery.Channel.TELEGRAM
+            ),
+            None,
+        )
+        return delivery.get_status_display() if delivery else 'Не поставлено в очередь'
+
+    @admin.action(description='Поставить выбранные заявки в очередь Telegram')
+    def queue_missing_telegram_deliveries(self, request, queryset):
+        created_count = 0
+        for contact_request in queryset.only('pk'):
+            _, created = ContactRequestDelivery.objects.get_or_create(
+                contact_request=contact_request,
+                channel=ContactRequestDelivery.Channel.TELEGRAM,
+            )
+            created_count += int(created)
+        self.message_user(request, f'Создано доставок: {created_count}.')
+
+
+@admin.register(ContactRequestDelivery)
+class ContactRequestDeliveryAdmin(admin.ModelAdmin):
+    list_display = [
+        'contact_request',
+        'channel',
+        'status',
+        'attempts',
+        'next_attempt_at',
+        'sent_at',
+    ]
+    list_filter = ['channel', 'status', 'created_at']
+    search_fields = ['contact_request__name', 'contact_request__phone']
+    readonly_fields = [
+        'contact_request',
+        'channel',
+        'status',
+        'attempts',
+        'next_attempt_at',
+        'processing_started_at',
+        'sent_at',
+        'external_message_id',
+        'last_error',
+        'created_at',
+        'updated_at',
+    ]
+    fields = readonly_fields
+    ordering = ['-created_at', '-id']
+    list_select_related = ['contact_request']
+    actions = ['retry_failed_deliveries']
+
+    def has_add_permission(self, request):
+        return False
+
+    @admin.action(description='Повторить выбранные неотправленные доставки')
+    def retry_failed_deliveries(self, request, queryset):
+        updated = queryset.filter(
+            channel=ContactRequestDelivery.Channel.TELEGRAM,
+            status__in=[
+                ContactRequestDelivery.Status.RETRY,
+                ContactRequestDelivery.Status.FAILED,
+            ],
+        ).update(
+            status=ContactRequestDelivery.Status.RETRY,
+            attempts=0,
+            next_attempt_at=timezone.now(),
+            processing_started_at=None,
+            last_error='',
+            updated_at=timezone.now(),
+        )
+        self.message_user(request, f'Поставлено в очередь: {updated}.')
 
 
 admin.site.register(Pict, PictAdmin)

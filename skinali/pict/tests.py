@@ -1,10 +1,41 @@
+import time
+from datetime import timedelta
+from io import StringIO
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import requests
+from django.conf import settings
+from django.contrib import admin
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.core import signing
+from django.core.management import CommandError, call_command
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 
-from .admin import FinishedWorkAdmin, PictAdmin
-from .models import Category, Color, FinishedWork, Pict, TagPict
+from .admin import (
+    ContactRequestAdmin,
+    ContactRequestDeliveryAdmin,
+    FinishedWorkAdmin,
+    PictAdmin,
+)
+from .forms import (
+    CONTACT_FORM_TOKEN_SALT,
+    BaseContactForm,
+    CallbackContactForm,
+    QuestionContactForm,
+)
+from .models import (
+    Category,
+    Color,
+    ContactRequest,
+    ContactRequestDelivery,
+    FinishedWork,
+    Pict,
+    TagPict,
+)
 
 
 class PopularTagsByCategoryTests(TestCase):
@@ -110,9 +141,11 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=57')
-        self.assertContains(response, 'class="site-header__logo-mark"')
-        self.assertContains(response, '<strong>ДИУМ</strong>', count=2, html=True)
+        self.assertContains(response, 'skinali/css/styles.css?v=60')
+        self.assertContains(response, 'skinali/images/logo_skinali.png', count=2)
+        self.assertContains(response, 'class="site-header__logo-image"')
+        self.assertContains(response, 'class="site-footer__logo-image"')
+        self.assertNotContains(response, 'class="site-header__logo-mark"')
         self.assertContains(response, 'ПН–ВС · ПРИЁМ ЗАКАЗОВ')
         self.assertContains(response, '10:00–21:00')
         self.assertContains(
@@ -140,7 +173,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'data-mobile-menu-open')
         self.assertContains(response, 'id="mobile-site-menu"')
         self.assertNotContains(response, 'data-mobile-menu-close')
-        self.assertContains(response, 'skinali/js/site-menu.js?v=2')
+        self.assertContains(response, 'skinali/js/site-menu.js?v=3')
         self.assertContains(response, 'data-mobile-filter-open="mobile-category-filter"')
         self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
         self.assertContains(response, 'id="mobile-category-filter"')
@@ -291,6 +324,338 @@ class ContactPageTests(TestCase):
         self.assertContains(response, 'skinali/images/service-area-map.jpg')
         self.assertContains(response, 'Основная зона обслуживания')
         self.assertContains(response, 'не более 75 км от Жодино')
+
+
+class ContactFormSubmissionTests(TestCase):
+    @staticmethod
+    def create_token(age_seconds=3):
+        return signing.dumps(
+            {'issued_at': time.time() - age_seconds},
+            salt=CONTACT_FORM_TOKEN_SALT,
+            compress=True,
+        )
+
+    def callback_data(self, **overrides):
+        data = {
+            'form_kind': 'callback',
+            'callback-name': 'Анна-Мария',
+            'callback-phone': '+1 (202) 555-0198',
+            'callback-email': '',
+            'callback-form_token': self.create_token(),
+        }
+        data.update(overrides)
+        return data
+
+    def question_data(self, **overrides):
+        data = {
+            'form_kind': 'question',
+            'question-name': 'Алексей',
+            'question-phone': '+375 (29) 123-45-67',
+            'question-question': '',
+            'question-email': '',
+            'question-form_token': self.create_token(),
+        }
+        data.update(overrides)
+        return data
+
+    def test_forms_inherit_common_fields_and_keep_question_optional(self):
+        self.assertTrue(issubclass(CallbackContactForm, BaseContactForm))
+        self.assertTrue(issubclass(QuestionContactForm, BaseContactForm))
+        self.assertEqual(CallbackContactForm.base_fields['name'].min_length, 3)
+        self.assertEqual(CallbackContactForm.base_fields['name'].max_length, 20)
+        self.assertEqual(CallbackContactForm.base_fields['phone'].max_length, 20)
+        self.assertEqual(QuestionContactForm.base_fields['question'].max_length, 250)
+        self.assertFalse(QuestionContactForm.base_fields['question'].required)
+
+    def test_menu_modal_and_contact_page_form_use_shared_markup(self):
+        home_response = self.client.get(reverse('home'))
+        contact_response = self.client.get(reverse('about'))
+
+        self.assertContains(home_response, 'class="mainmenu__callback-button"')
+        self.assertContains(home_response, 'Перезвоните мне')
+        self.assertContains(home_response, 'id="callback-dialog"')
+        self.assertContains(home_response, 'id="contact-success-dialog"')
+        self.assertContains(home_response, 'skinali/js/contact-forms.js?v=1')
+        self.assertLess(
+            home_response.content.find(b'mainmenu__favorites'),
+            home_response.content.find(b'mainmenu__callback'),
+        )
+        self.assertContains(contact_response, 'class="contact-request-card"')
+        self.assertContains(contact_response, 'Остались вопросы?')
+        self.assertContains(contact_response, 'name="question-question"')
+        self.assertContains(contact_response, 'maxlength="250"')
+        self.assertContains(contact_response, 'name="question-email"')
+
+    def test_valid_ajax_post_saves_callback_request(self):
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.callback_data(),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'ok': True,
+            'message': 'Спасибо! Мы получили заявку и скоро свяжемся с вами',
+        })
+        request = ContactRequest.objects.get()
+        self.assertEqual(request.request_type, ContactRequest.RequestType.CALLBACK)
+        self.assertEqual(request.name, 'Анна-Мария')
+        self.assertEqual(request.phone, '+1 (202) 555-0198')
+        self.assertEqual(request.question, '')
+        delivery = request.deliveries.get()
+        self.assertEqual(delivery.channel, ContactRequestDelivery.Channel.TELEGRAM)
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.PENDING)
+        self.assertEqual(delivery.attempts, 0)
+
+    def test_ajax_validation_reports_errors_for_name_and_phone(self):
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.callback_data(
+                **{
+                    'callback-name': 'Иван7',
+                    'callback-phone': '123+456',
+                }
+            ),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 422)
+        errors = response.json()['errors']
+        self.assertIn('name', errors)
+        self.assertIn('phone', errors)
+
+    def test_question_is_optional_but_cannot_exceed_250_characters(self):
+        optional_response = self.client.post(
+            reverse('contact_submit'),
+            self.question_data(),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        long_response = self.client.post(
+            reverse('contact_submit'),
+            self.question_data(**{'question-question': 'Я' * 251}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(optional_response.status_code, 200)
+        self.assertEqual(long_response.status_code, 422)
+        self.assertIn('question', long_response.json()['errors'])
+        request = ContactRequest.objects.get()
+        self.assertEqual(request.request_type, ContactRequest.RequestType.QUESTION)
+        self.assertEqual(request.question, '')
+
+    def test_honeypot_and_too_fast_token_return_indistinguishable_success(self):
+        honeypot_response = self.client.post(
+            reverse('contact_submit'),
+            self.callback_data(**{'callback-email': 'bot@example.com'}),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        fast_response = self.client.post(
+            reverse('contact_submit'),
+            self.callback_data(**{
+                'callback-form_token': self.create_token(age_seconds=0),
+            }),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(honeypot_response.status_code, 200)
+        self.assertTrue(honeypot_response.json()['ok'])
+        self.assertEqual(fast_response.status_code, 200)
+        self.assertTrue(fast_response.json()['ok'])
+        self.assertFalse(ContactRequest.objects.exists())
+
+    def test_non_ajax_invalid_post_preserves_values_and_errors(self):
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.callback_data(**{'callback-name': 'Иван7'}),
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertContains(response, 'value="Иван7"', status_code=422)
+        self.assertContains(
+            response,
+            'Используйте только буквы, пробел, дефис или апостроф.',
+            status_code=422,
+        )
+        self.assertNotContains(response, 'id="callback-dialog"', status_code=422)
+        self.assertFalse(ContactRequest.objects.exists())
+
+    def test_contact_requests_are_available_in_admin(self):
+        site = AdminSite()
+        request_admin = ContactRequestAdmin(ContactRequest, site)
+        request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.QUESTION,
+            name='Мария',
+            phone='+375 29 111-22-33',
+            question='Когда можно выполнить замер?',
+        )
+
+        self.assertIn('request_type', request_admin.list_display)
+        self.assertIn('phone', request_admin.search_fields)
+        self.assertIn('created_at', request_admin.readonly_fields)
+        self.assertIn('queue_missing_telegram_deliveries', request_admin.actions)
+        self.assertTrue(admin.site.is_registered(ContactRequest))
+        self.assertTrue(admin.site.is_registered(ContactRequestDelivery))
+        self.assertEqual(str(request), 'Мария — +375 29 111-22-33')
+
+
+@override_settings(
+    TELEGRAM_BOT_TOKEN='test-token',
+    TELEGRAM_CHAT_ID='123456',
+    TELEGRAM_PROXY_URL='',
+    TELEGRAM_CONNECT_TIMEOUT=3,
+    TELEGRAM_READ_TIMEOUT=5,
+)
+class ContactDeliveryTests(TestCase):
+    def create_delivery(self, **overrides):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.QUESTION,
+            name='Мария',
+            phone='+375 29 111-22-33',
+            question='Когда можно выполнить замер?',
+        )
+        defaults = {
+            'contact_request': contact_request,
+            'channel': ContactRequestDelivery.Channel.TELEGRAM,
+        }
+        defaults.update(overrides)
+        return ContactRequestDelivery.objects.create(**defaults)
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_management_command_marks_successful_telegram_delivery(self, session_class):
+        delivery = self.create_delivery()
+        session = session_class.return_value
+        post = session.post
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            'ok': True,
+            'result': {'message_id': 987},
+        }
+        post.return_value = response
+
+        output = StringIO()
+        call_command('process_contact_deliveries', stdout=output)
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.SENT)
+        self.assertEqual(delivery.attempts, 1)
+        self.assertEqual(delivery.external_message_id, 987)
+        self.assertIsNotNone(delivery.sent_at)
+        self.assertIsNone(delivery.next_attempt_at)
+        self.assertIn('отправлено=1', output.getvalue())
+        request_payload = post.call_args.kwargs['json']
+        self.assertEqual(request_payload['chat_id'], '123456')
+        self.assertIn(f'Новая заявка № {delivery.contact_request_id}', request_payload['text'])
+        self.assertIn('Телефон: +375 29 111-22-33', request_payload['text'])
+        self.assertEqual(post.call_args.kwargs['timeout'], (3, 5))
+        self.assertIsNone(post.call_args.kwargs['proxies'])
+        self.assertFalse(session.trust_env)
+        session.close.assert_called_once_with()
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_temporary_error_schedules_retry_without_losing_request(self, session_class):
+        delivery = self.create_delivery()
+        post = session_class.return_value.post
+        post.side_effect = requests.Timeout()
+
+        call_command('process_contact_deliveries', stdout=StringIO())
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.RETRY)
+        self.assertEqual(delivery.attempts, 1)
+        self.assertGreater(delivery.next_attempt_at, timezone.now())
+        self.assertIn('не ответил', delivery.last_error)
+        self.assertNotIn('test-token', delivery.last_error)
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_permanent_telegram_error_stops_automatic_retries(self, session_class):
+        delivery = self.create_delivery()
+        post = session_class.return_value.post
+        response = Mock(status_code=400)
+        response.json.return_value = {
+            'ok': False,
+            'error_code': 400,
+            'description': 'Bad Request: chat not found',
+        }
+        post.return_value = response
+
+        call_command('process_contact_deliveries', stdout=StringIO())
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.FAILED)
+        self.assertIsNone(delivery.next_attempt_at)
+        self.assertEqual(delivery.last_error, 'Bad Request: chat not found')
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_stale_processing_delivery_is_recovered_and_sent(self, session_class):
+        delivery = self.create_delivery(
+            status=ContactRequestDelivery.Status.PROCESSING,
+            attempts=1,
+            next_attempt_at=None,
+            processing_started_at=timezone.now() - timedelta(minutes=11),
+        )
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            'ok': True,
+            'result': {'message_id': 654},
+        }
+        post = session_class.return_value.post
+        post.return_value = response
+
+        output = StringIO()
+        call_command(
+            'process_contact_deliveries',
+            stale_after=600,
+            stdout=output,
+        )
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.SENT)
+        self.assertEqual(delivery.attempts, 2)
+        self.assertIn('восстановлено=1', output.getvalue())
+
+    @override_settings(
+        TELEGRAM_PROXY_URL='https://proxy-user:proxy-password@proxy.example:8443'
+    )
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_configured_proxy_is_used_in_strict_mode(self, session_class):
+        self.create_delivery()
+        session = session_class.return_value
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            'ok': True,
+            'result': {'message_id': 777},
+        }
+        session.post.return_value = response
+
+        call_command('process_contact_deliveries', stdout=StringIO())
+
+        expected_proxy = 'https://proxy-user:proxy-password@proxy.example:8443'
+        self.assertEqual(
+            session.post.call_args.kwargs['proxies'],
+            {'http': expected_proxy, 'https': expected_proxy},
+        )
+        self.assertFalse(session.trust_env)
+
+    @override_settings(TELEGRAM_BOT_TOKEN='', TELEGRAM_CHAT_ID='')
+    def test_missing_configuration_keeps_delivery_pending(self):
+        delivery = self.create_delivery()
+
+        with self.assertRaises(CommandError):
+            call_command('process_contact_deliveries', stdout=StringIO())
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.PENDING)
+        self.assertEqual(delivery.attempts, 0)
+
+    def test_delivery_model_is_available_in_admin(self):
+        delivery_admin = ContactRequestDeliveryAdmin(
+            ContactRequestDelivery,
+            AdminSite(),
+        )
+
+        self.assertIn('status', delivery_admin.list_display)
+        self.assertIn('retry_failed_deliveries', delivery_admin.actions)
 
 
 class DesignerPageTests(TestCase):
@@ -518,10 +883,14 @@ class FinishedWorkTests(TestCase):
 
         response = self.client.get(reverse('finished_works'))
         self.assertNotContains(response, 'Изображение №')
-        self.assertNotContains(response, self.category.cat)
+        self.assertNotContains(response, 'finished-work-modal__category')
 
     def test_public_gallery_shows_name_and_linked_catalog_number(self):
         response = self.client.get(reverse('finished_works'))
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['title'], 'Наши работы')
@@ -531,12 +900,21 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, self.work.photo.url)
         self.assertContains(response, self.work.name)
         self.assertNotContains(response, self.work.description)
-        self.assertNotContains(response, self.category.cat)
+        self.assertNotContains(response, 'finished-work-modal__category')
         self.assertContains(response, 'Изображение № 701')
         self.assertNotContains(response, 'class="site-search"')
         self.assertContains(
             response,
             f'href="{reverse("finished_works")}"',
+        )
+        self.assertIn(
+            '.finished-works-grid {\n\tgrid-template-columns: repeat(6, minmax(0, 1fr));',
+            styles,
+        )
+        self.assertIn(
+            '.list-pages-color ul .color-option:hover,\n'
+            '.list-pages-color ul .color-option:focus-within {\n\tz-index: 10;',
+            styles,
         )
 
     def test_public_gallery_is_sorted_by_novelty_and_paginated_by_six(self):
@@ -563,6 +941,67 @@ class FinishedWorkTests(TestCase):
         self.assertContains(first_page, 'class="list-pages catalog-pagination"')
         self.assertContains(first_page, 'aria-current="page"')
         self.assertContains(first_page, '?page=2')
+
+    def test_public_gallery_filters_by_catalog_category_and_keeps_it_in_pagination(self):
+        other_category = Category.objects.create(
+            cat='Природа',
+            slug='nature',
+        )
+        other_catalog_image = Pict.objects.create(
+            name=703,
+            photo='photos/703.jpg',
+        )
+        other_catalog_image.cat.add(other_category)
+        other_work = FinishedWork.objects.create(
+            name='Работа другой категории',
+            photo='finished_works/other-category.jpg',
+            catalog_image=other_catalog_image,
+        )
+        unlinked_work = FinishedWork.objects.create(
+            name='Работа без изображения каталога',
+            photo='finished_works/unlinked.jpg',
+        )
+        filtered_works = [
+            FinishedWork.objects.create(
+                name=f'Архитектурная работа {index}',
+                photo=f'finished_works/architecture-{index}.jpg',
+                catalog_image=self.catalog_image,
+            )
+            for index in range(1, 7)
+        ]
+
+        first_page = self.client.get(
+            reverse('finished_works'),
+            {'category': self.category.slug},
+        )
+        second_page = self.client.get(
+            reverse('finished_works'),
+            {'category': self.category.slug, 'page': 2},
+        )
+
+        self.assertEqual(first_page.status_code, 200)
+        self.assertEqual(first_page.context['selected_category'], self.category)
+        self.assertEqual(
+            list(first_page.context['finished_works']),
+            list(reversed(filtered_works)),
+        )
+        self.assertEqual(list(second_page.context['finished_works']), [self.work])
+        self.assertNotIn(other_work, first_page.context['finished_works'])
+        self.assertNotIn(unlinked_work, first_page.context['finished_works'])
+        self.assertContains(
+            first_page,
+            '<li class="page-num page-num-selected">Архитектура</li>',
+            html=True,
+        )
+        self.assertContains(first_page, 'class="mobile-filter-dialog"')
+        self.assertContains(first_page, 'skinali/js/mobile-filters.js?v=1')
+        self.assertContains(first_page, '?page=2&amp;category=architecture')
+
+        missing_category = self.client.get(
+            reverse('finished_works'),
+            {'category': 'missing-category'},
+        )
+        self.assertEqual(missing_category.status_code, 404)
 
     def test_admin_uses_compact_previews_and_shows_linked_works_on_pict(self):
         site = AdminSite()

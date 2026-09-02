@@ -1,10 +1,12 @@
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Count, Q
-from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView
 
+from .forms import CallbackContactForm, QuestionContactForm
 from .models import *
 
 # menu = ["Каталог скинали", "Услуги дизайнера", "Связаться с нами", "Главная страница"]
@@ -16,6 +18,11 @@ menu = [{'title': "Главная страница", 'url_name': 'home'},
 
 
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
+CONTACT_SUCCESS_MESSAGE = 'Спасибо! Мы получили заявку и скоро свяжемся с вами'
+CONTACT_FORM_CLASSES = {
+    CallbackContactForm.form_kind: CallbackContactForm,
+    QuestionContactForm.form_kind: QuestionContactForm,
+}
 
 
 def get_favorite_ids(request):
@@ -124,8 +131,13 @@ class SkinaliMix(FavoritesContextMixin, ListView):
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
         get_color = self.request.GET.get('color')
+        selected_category = (
+            Category.objects.get(slug=self.kwargs['slug_cat'])
+            if self.kwargs else None
+        )
         context['title'] = 'Каталог скинали'
-        context['cat_name'] = Category.objects.get(slug=self.kwargs['slug_cat']) if self.kwargs else 'Каталог скинали'
+        context['cat_name'] = selected_category or 'Каталог скинали'
+        context['selected_category'] = selected_category
         # context['slug_cat'] = self.kwargs['slug_cat']
         context['menu'] = menu
         context['col'] = get_color if get_color else ""
@@ -212,14 +224,35 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
     context_object_name = 'finished_works'
     paginate_by = 6
 
+    def get_selected_category(self):
+        # Категория готовой работы определяется только через связанное изображение каталога.
+        if not hasattr(self, 'selected_category'):
+            category_slug = self.request.GET.get('category', '').strip()
+            self.selected_category = (
+                get_object_or_404(Category, slug=category_slug)
+                if category_slug else None
+            )
+        return self.selected_category
+
     def get_queryset(self):
-        return get_finished_work_gallery_queryset()
+        queryset = get_finished_work_gallery_queryset()
+        selected_category = self.get_selected_category()
+        if selected_category:
+            queryset = queryset.filter(
+                catalog_image__cat=selected_category,
+            ).distinct()
+        return queryset
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Наши работы'
         context['menu'] = menu
-        context['col_tag'] = ''
+        context['categories'] = Category.objects.all()
+        context['selected_category'] = self.get_selected_category()
+        context['col_tag'] = (
+            f'&category={context["selected_category"].slug}'
+            if context['selected_category'] else ''
+        )
         return context
 
 
@@ -260,6 +293,83 @@ def toggle_favorite(request, pict_id):
         'is_favorite': is_favorite,
         'favorites_count': len(favorite_ids),
     })
+
+
+def is_ajax_request(request):
+    return request.headers.get('x-requested-with') == 'XMLHttpRequest'
+
+
+def serialize_form_errors(form):
+    return {
+        field_name: [error['message'] for error in errors]
+        for field_name, errors in form.errors.get_json_data(escape_html=True).items()
+    }
+
+
+def contact_success_response(request):
+    if is_ajax_request(request):
+        return JsonResponse({
+            'ok': True,
+            'message': CONTACT_SUCCESS_MESSAGE,
+        })
+
+    return render(request, 'pict/contact_form_result.html', {
+        'menu': menu,
+        'title': 'Заявка отправлена',
+        'favorites_count': len(get_favorite_ids(request)),
+        'submission_success': True,
+        'success_message': CONTACT_SUCCESS_MESSAGE,
+        'suppress_callback_dialog': True,
+    })
+
+
+@require_POST
+def submit_contact_form(request):
+    form_kind = request.POST.get('form_kind', '')
+    form_class = CONTACT_FORM_CLASSES.get(form_kind)
+    if form_class is None:
+        if is_ajax_request(request):
+            return JsonResponse({
+                'ok': False,
+                'errors': {'__all__': ['Не удалось определить тип формы.']},
+            }, status=400)
+        return HttpResponseBadRequest('Не удалось определить тип формы.')
+
+    form = form_class(request.POST, prefix=form_kind)
+
+    # Для honeypot и подозрительного возраста ответ не отличается от успешного.
+    if form.is_suspicious_submission():
+        return contact_success_response(request)
+
+    if form.is_valid():
+        # Сначала надежно фиксируем заявку; внешняя доставка будет отдельным сервисом.
+        with transaction.atomic():
+            contact_request = ContactRequest.objects.create(
+                request_type=form_kind,
+                name=form.cleaned_data['name'],
+                phone=form.cleaned_data['phone'],
+                question=form.cleaned_data.get('question', ''),
+            )
+            ContactRequestDelivery.objects.create(
+                contact_request=contact_request,
+                channel=ContactRequestDelivery.Channel.TELEGRAM,
+            )
+        return contact_success_response(request)
+
+    if is_ajax_request(request):
+        return JsonResponse({
+            'ok': False,
+            'errors': serialize_form_errors(form),
+        }, status=422)
+
+    return render(request, 'pict/contact_form_result.html', {
+        'menu': menu,
+        'title': 'Отправить заявку',
+        'favorites_count': len(get_favorite_ids(request)),
+        'submission_form': form,
+        'form_kind': form_kind,
+        'suppress_callback_dialog': True,
+    }, status=422)
 
 # def skinali(request, slug_cat):
 #     cat_name = Category.objects.get(slug=slug_cat)
@@ -305,6 +415,7 @@ def about(request):
         'menu': menu,
         'title': 'Связаться с нами',
         'favorites_count': len(favorite_ids),
+        'question_form': QuestionContactForm(prefix='question'),
     })
 
 

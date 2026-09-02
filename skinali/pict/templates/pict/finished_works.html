@@ -1,7 +1,15 @@
 {% extends 'pict/base.html' %}
+{% load static %}
 
 {% block content %}
 <h1>{{ title }}</h1>
+
+<nav class="mobile-catalog-filters" aria-label="Фильтр готовых работ">
+  {% include 'pict/includes/category_filter_trigger.html' with selected_category=selected_category %}
+</nav>
+
+{% include 'pict/includes/category_filter_dialog.html' with categories=categories selected_category=selected_category finished_works_filter=True %}
+{% include 'pict/includes/category_navigation.html' with categories=categories selected_category=selected_category finished_works_filter=True %}
 
 <div class="finished-works-grid">
   {% for work in finished_works %}
@@ -14,4 +22,6 @@
 </div>
 
 {% include 'pict/includes/paginator.html' %}
+
+<script src="{% static 'skinali/js/mobile-filters.js' %}?v=1" defer></script>
 {% endblock %}
