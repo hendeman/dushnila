@@ -1,6 +1,6 @@
 # AGENTS.md — навигация по проекту Skinali
 
-Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет изображение по номеру или тегу, просматривает каталог, фильтрует его по категории, цвету и тегу, ведет персональное избранное в Django-сессии и смотрит фотогалерею готовых работ; контент редактируется через Django Admin.
+Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет опубликованное изображение по номеру или тегу, просматривает опубликованную часть каталога, фильтрует её по категории, цвету и тегу, ведет персональное избранное в Django-сессии и смотрит опубликованные элементы фотогалереи готовых работ; контент и его публикация редактируются через Django Admin.
 
 ## Порядок работы для ИИ-агента
 
@@ -21,11 +21,13 @@
 | Корневые URL, admin, debug toolbar, обработчик 404 | [project/urls.md](docs/project/urls.md) | [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
 | Модели изображений, категорий, цветов и тегов | [pict/models.md](docs/pict/models.md) | [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, их связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/urls.md](docs/pict/urls.md) |
+| Флаги публикации изображений и готовых работ | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/forms.md](docs/pict/forms.md), [pict/tests.md](docs/pict/tests.md) |
 | Поиск, каталог, фильтры, пагинация, контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) |
 | Избранное, Django-сессия, кнопка в модальной галерее | [pict/views.md](docs/pict/views.md) | [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict` | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
 | Контактные формы, заявки, валидация и антиспам | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/context_processors.md](docs/pict/context_processors.md), [pict/urls.md](docs/pict/urls.md) |
+| Список заявок в admin, статусы Telegram и отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Очередь и отправка контактных заявок в Telegram | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |

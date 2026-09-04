@@ -3,6 +3,13 @@ from django.urls import reverse
 from django.utils import timezone
 
 
+class PublicationQuerySet(models.QuerySet):
+    """Единая выборка контента, разрешённого к показу на публичном сайте."""
+
+    def published(self):
+        return self.filter(is_published=True)
+
+
 class Color(models.Model):
     color = models.CharField(max_length=100, verbose_name='Цвет')
     slug_color = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
@@ -50,10 +57,13 @@ class Pict(models.Model):
     # name = models.CharField(max_length=10, unique=True, db_index=True, verbose_name='Имя файла')
     alt = models.CharField(max_length=250, blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to="photos/", verbose_name='Изображение')
+    is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
     time_update = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
     cat = models.ManyToManyField(Category, verbose_name="Категории")
     tags = models.ManyToManyField(TagPict, blank=True, related_name="tags", verbose_name="Теги")
     color = models.ManyToManyField(Color, verbose_name="Цвет")
+
+    objects = PublicationQuerySet.as_manager()
 
     def __str__(self):
         return str(self.name)
@@ -71,6 +81,7 @@ class FinishedWork(models.Model):
     name = models.CharField(max_length=200, verbose_name='Имя')
     description = models.TextField(blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to='finished_works/', verbose_name='Фото')
+    is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
     catalog_image = models.ForeignKey(
         Pict,
         on_delete=models.SET_NULL,
@@ -80,6 +91,8 @@ class FinishedWork(models.Model):
         verbose_name='Номер изображения',
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
+
+    objects = PublicationQuerySet.as_manager()
 
     def __str__(self):
         if self.catalog_image:
@@ -98,6 +111,8 @@ class ContactRequest(models.Model):
     class RequestType(models.TextChoices):
         CALLBACK = 'callback', 'Обратный звонок'
         QUESTION = 'question', 'Вопрос'
+        EMAIL_MESSAGE = 'email_message', 'Сообщение по email'
+        IMAGE_PURCHASE = 'image_purchase', 'Покупка изображения'
 
     request_type = models.CharField(
         max_length=20,
@@ -105,12 +120,41 @@ class ContactRequest(models.Model):
         verbose_name='Тип заявки',
     )
     name = models.CharField(max_length=20, verbose_name='Имя')
-    phone = models.CharField(max_length=20, verbose_name='Телефон')
+    phone = models.CharField(max_length=20, blank=True, verbose_name='Телефон')
+    email = models.EmailField(max_length=254, blank=True, default='', verbose_name='Email')
     question = models.CharField(max_length=250, blank=True, verbose_name='Вопрос')
+    comment = models.CharField(
+        max_length=250,
+        blank=True,
+        default='',
+        verbose_name='Комментарий',
+    )
+    catalog_image = models.ForeignKey(
+        Pict,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='purchase_requests',
+        verbose_name='Изображение каталога',
+    )
+    # Номер сохраняется отдельно, чтобы заявка оставалась понятной после удаления Pict.
+    image_number = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name='Номер изображения на момент заявки',
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время создания')
+    # Момент первого открытия в admin хранится отдельно от редактирования заявки.
+    viewed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        editable=False,
+        verbose_name='Время просмотра',
+    )
 
     def __str__(self):
-        return f'{self.name} — {self.phone}'
+        contact = self.phone or self.email or 'без контактных данных'
+        return f'{self.name} — {contact}'
 
     class Meta:
         verbose_name = 'Заявка'

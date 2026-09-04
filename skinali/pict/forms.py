@@ -23,7 +23,7 @@ def create_contact_form_token():
 
 
 class BaseContactForm(forms.Form):
-    """Общие поля, валидация и антиспам-проверки контактных форм."""
+    """Общие поля и антиспам-проверки всех публичных контактных форм."""
 
     form_kind = ''
 
@@ -44,27 +44,9 @@ class BaseContactForm(forms.Form):
             'data-field-name': 'name',
         }),
     )
-    phone = forms.CharField(
-        label='Номер телефона',
-        max_length=20,
-        error_messages={
-            'required': 'Укажите номер телефона.',
-            'max_length': 'Номер телефона должен содержать не более 20 символов.',
-        },
-        widget=forms.TextInput(attrs={
-            'type': 'tel',
-            'autocomplete': 'tel',
-            'inputmode': 'tel',
-            'maxlength': 20,
-            'pattern': r'[0-9+() \-]+',
-            'title': 'Используйте только цифры, +, круглые скобки, пробел и дефис.',
-            'required': True,
-            'data-field-name': 'phone',
-        }),
-    )
     # Поле должно оставаться обычным текстовым: многие боты пропускают input type="hidden".
-    email = forms.CharField(
-        label='Email',
+    website = forms.CharField(
+        label='Ваш сайт',
         required=False,
         widget=forms.TextInput(attrs={
             'autocomplete': 'off',
@@ -91,24 +73,9 @@ class BaseContactForm(forms.Form):
             )
         return name
 
-    def clean_phone(self):
-        phone = self.cleaned_data['phone'].strip()
-        if not re.fullmatch(r'[0-9+() \-]+', phone):
-            raise ValidationError(
-                'Используйте только цифры, +, круглые скобки, пробел и дефис.'
-            )
-
-        if phone.count('+') > 1 or ('+' in phone and not phone.startswith('+')):
-            raise ValidationError('Символ + можно указать только один раз в начале номера.')
-
-        digits_count = sum(character.isdigit() for character in phone)
-        if not 7 <= digits_count <= 15:
-            raise ValidationError('Номер должен содержать от 7 до 15 цифр.')
-        return phone
-
     def is_suspicious_submission(self):
         """Honeypot и подписанный возраст формы не раскрывают боту причину отказа."""
-        if self.data.get(self.add_prefix('email'), '').strip():
+        if self.data.get(self.add_prefix('website'), '').strip():
             return True
 
         token = self.data.get(self.add_prefix('form_token'), '')
@@ -125,11 +92,49 @@ class BaseContactForm(forms.Form):
         return form_age < CONTACT_FORM_MIN_AGE_SECONDS
 
 
-class CallbackContactForm(BaseContactForm):
+class PhoneContactForm(BaseContactForm):
+    """Общая телефонная часть форм обратного звонка и вопроса."""
+
+    phone = forms.CharField(
+        label='Номер телефона',
+        max_length=20,
+        error_messages={
+            'required': 'Укажите номер телефона.',
+            'max_length': 'Номер телефона должен содержать не более 20 символов.',
+        },
+        widget=forms.TextInput(attrs={
+            'type': 'tel',
+            'autocomplete': 'tel',
+            'inputmode': 'tel',
+            'maxlength': 20,
+            'pattern': r'[0-9+() \-]+',
+            'title': 'Используйте только цифры, +, круглые скобки, пробел и дефис.',
+            'required': True,
+            'data-field-name': 'phone',
+        }),
+    )
+
+    def clean_phone(self):
+        phone = self.cleaned_data['phone'].strip()
+        if not re.fullmatch(r'[0-9+() \-]+', phone):
+            raise ValidationError(
+                'Используйте только цифры, +, круглые скобки, пробел и дефис.'
+            )
+
+        if phone.count('+') > 1 or ('+' in phone and not phone.startswith('+')):
+            raise ValidationError('Символ + можно указать только один раз в начале номера.')
+
+        digits_count = sum(character.isdigit() for character in phone)
+        if not 7 <= digits_count <= 15:
+            raise ValidationError('Номер должен содержать от 7 до 15 цифр.')
+        return phone
+
+
+class CallbackContactForm(PhoneContactForm):
     form_kind = ContactRequest.RequestType.CALLBACK
 
 
-class QuestionContactForm(BaseContactForm):
+class QuestionContactForm(PhoneContactForm):
     form_kind = ContactRequest.RequestType.QUESTION
 
     question = forms.CharField(
@@ -148,6 +153,93 @@ class QuestionContactForm(BaseContactForm):
 
     def clean_question(self):
         return self.cleaned_data['question'].strip()
+
+
+class EmailCommentContactForm(BaseContactForm):
+    """Форма сообщения с обязательным обратным адресом без поля телефона."""
+
+    form_kind = ContactRequest.RequestType.EMAIL_MESSAGE
+
+    email = forms.EmailField(
+        label='Email',
+        max_length=254,
+        error_messages={
+            'required': 'Укажите ваш email.',
+            'invalid': 'Введите корректный адрес электронной почты.',
+            'max_length': 'Email должен содержать не более 254 символов.',
+        },
+        widget=forms.EmailInput(attrs={
+            'autocomplete': 'email',
+            'maxlength': 254,
+            'required': True,
+            'data-field-name': 'email',
+        }),
+    )
+    comment = forms.CharField(
+        label='Комментарий',
+        required=False,
+        max_length=250,
+        error_messages={
+            'max_length': 'Комментарий должен содержать не более 250 символов.',
+        },
+        widget=forms.Textarea(attrs={
+            'rows': 5,
+            'maxlength': 250,
+            'data-field-name': 'comment',
+        }),
+    )
+
+    def clean_email(self):
+        return self.cleaned_data['email'].strip().lower()
+
+    def clean_comment(self):
+        return self.cleaned_data['comment'].strip()
+
+
+class ImagePurchaseContactForm(EmailCommentContactForm):
+    """Заявка на покупку оригинала конкретного изображения каталога."""
+
+    form_kind = ContactRequest.RequestType.IMAGE_PURCHASE
+
+    email = forms.EmailField(
+        label='Email',
+        max_length=50,
+        error_messages={
+            'required': 'Укажите ваш email.',
+            'invalid': 'Введите корректный адрес электронной почты.',
+            'max_length': 'Email должен содержать не более 50 символов.',
+        },
+        widget=forms.EmailInput(attrs={
+            'autocomplete': 'email',
+            'maxlength': 50,
+            'required': True,
+            'data-field-name': 'email',
+        }),
+    )
+    # В браузер передаётся только первичный ключ; номер повторно берётся из БД.
+    pict_id = forms.IntegerField(
+        min_value=1,
+        widget=forms.HiddenInput(attrs={'data-image-purchase-pict': True}),
+        error_messages={
+            'required': 'Не удалось определить изображение. Откройте его повторно.',
+            'invalid': 'Не удалось определить изображение. Откройте его повторно.',
+            'min_value': 'Не удалось определить изображение. Откройте его повторно.',
+        },
+    )
+
+    def clean_pict_id(self):
+        pict_id = self.cleaned_data['pict_id']
+        try:
+            self.catalog_image = (
+                Pict.objects.published()
+                .only('id', 'name')
+                .get(pk=pict_id)
+            )
+        except Pict.DoesNotExist as error:
+            raise ValidationError(
+                'Выбранное изображение больше не доступно. Откройте другое изображение.'
+            ) from error
+        return pict_id
 
 
 class PictAdminForm(forms.ModelForm):

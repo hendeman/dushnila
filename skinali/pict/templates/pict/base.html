@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <title>{{ title }}</title>
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=60" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=61" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -84,6 +84,22 @@
         {% include 'pict/includes/contact_form.html' with form=callback_form form_kind='callback' submit_label='Отправить' %}
     </div>
 </dialog>
+
+<dialog class="contact-dialog contact-dialog--purchase"
+        id="image-purchase-dialog"
+        aria-labelledby="image-purchase-dialog-title">
+    <div class="contact-dialog__panel">
+        <button class="contact-dialog__close"
+                type="button"
+                data-contact-dialog-close
+                aria-label="Закрыть форму">&times;</button>
+        <h2 id="image-purchase-dialog-title">
+            Купить изображение №<span data-image-purchase-number>—</span>
+        </h2>
+        <p>Оставьте контактные данные, и мы свяжемся с вами для оформления покупки.</p>
+        {% include 'pict/includes/contact_form.html' with form=image_purchase_form form_kind='image_purchase' submit_label='Купить' %}
+    </div>
+</dialog>
 {% endif %}
 
 <dialog class="contact-dialog contact-dialog--success"
@@ -150,7 +166,7 @@
 
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
     <script src="{% static 'skinali/js/site-menu.js' %}?v=3" defer></script>
-    <script src="{% static 'skinali/js/contact-forms.js' %}?v=1" defer></script>
+    <script src="{% static 'skinali/js/contact-forms.js' %}?v=2" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
       Fancybox.bind('[data-fancybox="catalog-gallery"]', {

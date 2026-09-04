@@ -6,7 +6,12 @@ from django.shortcuts import get_object_or_404, render
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView
 
-from .forms import CallbackContactForm, QuestionContactForm
+from .forms import (
+    CallbackContactForm,
+    EmailCommentContactForm,
+    ImagePurchaseContactForm,
+    QuestionContactForm,
+)
 from .models import *
 
 # menu = ["Каталог скинали", "Услуги дизайнера", "Связаться с нами", "Главная страница"]
@@ -19,9 +24,12 @@ menu = [{'title': "Главная страница", 'url_name': 'home'},
 
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
 CONTACT_SUCCESS_MESSAGE = 'Спасибо! Мы получили заявку и скоро свяжемся с вами'
+IMAGE_PURCHASE_SUCCESS_MESSAGE = 'Спасибо! Заявка на покупку изображения принята'
 CONTACT_FORM_CLASSES = {
     CallbackContactForm.form_kind: CallbackContactForm,
     QuestionContactForm.form_kind: QuestionContactForm,
+    EmailCommentContactForm.form_kind: EmailCommentContactForm,
+    ImagePurchaseContactForm.form_kind: ImagePurchaseContactForm,
 }
 
 
@@ -40,6 +48,14 @@ def get_favorite_ids(request):
         if pict_id > 0 and pict_id not in favorite_ids:
             favorite_ids.append(pict_id)
 
+    # Снятые с публикации изображения не должны оставаться доступными через сессию.
+    published_ids = set(
+        Pict.objects.published()
+        .filter(pk__in=favorite_ids)
+        .values_list('pk', flat=True)
+    ) if favorite_ids else set()
+    favorite_ids = [pict_id for pict_id in favorite_ids if pict_id in published_ids]
+
     if favorite_ids != raw_ids:
         request.session[FAVORITES_SESSION_KEY] = favorite_ids
 
@@ -49,7 +65,7 @@ def get_favorite_ids(request):
 def get_finished_work_gallery_queryset():
     # Главная и полная галерея используют одну сортировку и один JOIN для номера изображения.
     return (
-        FinishedWork.objects
+        FinishedWork.objects.published()
         .select_related('catalog_image')
         .order_by('-created_at', '-id')
     )
@@ -87,11 +103,11 @@ class PictHome(FavoritesContextMixin, ListView):
         if self.request.GET.get('product-number'):
             search_elem = self.request.GET.get('product-number')
             if search_elem.isdigit():
-                return Pict.objects.filter(name=search_elem)
+                return Pict.objects.published().filter(name=search_elem)
             else:
                 if len(search_elem) >= 3:
                     request_cap = search_elem.lower()[:-1]
-                    return Pict.objects.filter(tags__tag__contains=request_cap)
+                    return Pict.objects.published().filter(tags__tag__contains=request_cap)
         else:
             return ""
 
@@ -118,14 +134,16 @@ class SkinaliMix(FavoritesContextMixin, ListView):
     @staticmethod
     def get_catalog_queryset():
         # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
-        return Pict.objects.prefetch_related('tags', 'cat')
+        return Pict.objects.published().prefetch_related('tags', 'cat')
 
     def get_popular_tags(self):
         category_slug = self.kwargs.get('slug_cat')
-        category_filter = Q(tags__cat__slug=category_slug) if category_slug else Q()
+        publication_filter = Q(tags__is_published=True)
+        if category_slug:
+            publication_filter &= Q(tags__cat__slug=category_slug)
 
         return TagPict.objects.annotate(
-            total=Count('tags', filter=category_filter, distinct=True)
+            total=Count('tags', filter=publication_filter, distinct=True)
         ).filter(total__gt=0).order_by('-total', 'tag')[:10]
 
     def get_context_data(self, *, object_list=None, **kwargs):
@@ -215,7 +233,7 @@ class PictTag(FavoritesContextMixin, ListView):
         return context
 
     def get_queryset(self):
-        return Pict.objects.filter(tags__slug=self.kwargs['tag_slug'])
+        return Pict.objects.published().filter(tags__slug=self.kwargs['tag_slug'])
 
 
 class FinishedWorkList(FavoritesContextMixin, ListView):
@@ -259,7 +277,11 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
 def favorites(request):
     favorite_ids = get_favorite_ids(request)
     # Общая с каталогом модальная карточка использует теги и категории.
-    pictures_by_id = Pict.objects.prefetch_related('tags', 'cat').in_bulk(favorite_ids)
+    pictures_by_id = (
+        Pict.objects.published()
+        .prefetch_related('tags', 'cat')
+        .in_bulk(favorite_ids)
+    )
     valid_ids = [pict_id for pict_id in favorite_ids if pict_id in pictures_by_id]
 
     if valid_ids != favorite_ids:
@@ -277,7 +299,7 @@ def favorites(request):
 
 @require_POST
 def toggle_favorite(request, pict_id):
-    get_object_or_404(Pict, pk=pict_id)
+    get_object_or_404(Pict.objects.published(), pk=pict_id)
     favorite_ids = get_favorite_ids(request)
 
     if pict_id in favorite_ids:
@@ -306,11 +328,16 @@ def serialize_form_errors(form):
     }
 
 
-def contact_success_response(request):
+def contact_success_response(request, *, form_kind=''):
+    success_message = (
+        IMAGE_PURCHASE_SUCCESS_MESSAGE
+        if form_kind == ContactRequest.RequestType.IMAGE_PURCHASE
+        else CONTACT_SUCCESS_MESSAGE
+    )
     if is_ajax_request(request):
         return JsonResponse({
             'ok': True,
-            'message': CONTACT_SUCCESS_MESSAGE,
+            'message': success_message,
         })
 
     return render(request, 'pict/contact_form_result.html', {
@@ -318,7 +345,7 @@ def contact_success_response(request):
         'title': 'Заявка отправлена',
         'favorites_count': len(get_favorite_ids(request)),
         'submission_success': True,
-        'success_message': CONTACT_SUCCESS_MESSAGE,
+        'success_message': success_message,
         'suppress_callback_dialog': True,
     })
 
@@ -339,7 +366,7 @@ def submit_contact_form(request):
 
     # Для honeypot и подозрительного возраста ответ не отличается от успешного.
     if form.is_suspicious_submission():
-        return contact_success_response(request)
+        return contact_success_response(request, form_kind=form_kind)
 
     if form.is_valid():
         # Сначала надежно фиксируем заявку; внешняя доставка будет отдельным сервисом.
@@ -347,14 +374,22 @@ def submit_contact_form(request):
             contact_request = ContactRequest.objects.create(
                 request_type=form_kind,
                 name=form.cleaned_data['name'],
-                phone=form.cleaned_data['phone'],
+                phone=form.cleaned_data.get('phone', ''),
+                email=form.cleaned_data.get('email', ''),
                 question=form.cleaned_data.get('question', ''),
+                comment=form.cleaned_data.get('comment', ''),
+                catalog_image=getattr(form, 'catalog_image', None),
+                image_number=(
+                    form.catalog_image.name
+                    if getattr(form, 'catalog_image', None)
+                    else None
+                ),
             )
             ContactRequestDelivery.objects.create(
                 contact_request=contact_request,
                 channel=ContactRequestDelivery.Channel.TELEGRAM,
             )
-        return contact_success_response(request)
+        return contact_success_response(request, form_kind=form_kind)
 
     if is_ajax_request(request):
         return JsonResponse({
@@ -416,6 +451,7 @@ def about(request):
         'title': 'Связаться с нами',
         'favorites_count': len(favorite_ids),
         'question_form': QuestionContactForm(prefix='question'),
+        'email_message_form': EmailCommentContactForm(prefix='email_message'),
     })
 
 

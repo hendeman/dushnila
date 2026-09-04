@@ -78,6 +78,15 @@
             <span class="favorite-toggle__label-error">Не удалось сохранить</span>
           </span>
         </button>
+        <button type="button"
+                class="catalog-modal__purchase"
+                data-image-purchase-open
+                data-pict-id="{{ p.pk }}"
+                data-image-number="{{ p.name }}"
+                aria-haspopup="dialog"
+                aria-controls="image-purchase-dialog">
+          Купить изображение
+        </button>
       </div>
     </div>
   </template>

@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from .admin import (
     ContactRequestAdmin,
-    ContactRequestDeliveryAdmin,
+    ContactRequestDeliveryInline,
     FinishedWorkAdmin,
     PictAdmin,
 )
@@ -25,6 +25,9 @@ from .forms import (
     CONTACT_FORM_TOKEN_SALT,
     BaseContactForm,
     CallbackContactForm,
+    EmailCommentContactForm,
+    ImagePurchaseContactForm,
+    PhoneContactForm,
     QuestionContactForm,
 )
 from .models import (
@@ -109,6 +112,9 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'class="catalog-modal__nav catalog-modal__nav--next"')
         self.assertNotContains(response, 'catalog-modal__counter')
         self.assertContains(response, 'data-favorite-toggle')
+        self.assertContains(response, 'class="catalog-modal__purchase"')
+        self.assertContains(response, 'data-image-purchase-open')
+        self.assertContains(response, 'data-image-number="100"')
         self.assertContains(
             response,
             f'<a href="{reverse("skinali")}">Все</a>',
@@ -141,7 +147,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=60')
+        self.assertContains(response, 'skinali/css/styles.css?v=61')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=2)
         self.assertContains(response, 'class="site-header__logo-image"')
         self.assertContains(response, 'class="site-footer__logo-image"')
@@ -304,6 +310,92 @@ class PopularTagsByCategoryTests(TestCase):
         )
 
 
+class PublicationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(cat='Публикация', slug='publication')
+        cls.color = Color.objects.create(color='Синий', slug_color='blue')
+        cls.published_tag = TagPict.objects.create(
+            tag='Опубликованный тег',
+            slug='published-tag',
+        )
+        cls.hidden_tag = TagPict.objects.create(
+            tag='Скрытый тег',
+            slug='hidden-tag',
+        )
+        cls.published_picture = Pict.objects.create(
+            name=801,
+            alt='Опубликованное изображение',
+            photo='photos/801.jpg',
+        )
+        cls.hidden_picture = Pict.objects.create(
+            name=802,
+            alt='Скрытое изображение',
+            photo='photos/802.jpg',
+            is_published=False,
+        )
+        for picture in (cls.published_picture, cls.hidden_picture):
+            picture.cat.add(cls.category)
+            picture.color.add(cls.color)
+        cls.published_picture.tags.add(cls.published_tag)
+        cls.hidden_picture.tags.add(cls.hidden_tag)
+        cls.published_work = FinishedWork.objects.create(
+            name='Опубликованная работа',
+            photo='finished_works/published.jpg',
+        )
+
+    def test_publication_defaults_and_admin_expose_editable_checkbox(self):
+        pict_admin = PictAdmin(Pict, AdminSite())
+        work_admin = FinishedWorkAdmin(FinishedWork, AdminSite())
+
+        self.assertTrue(self.published_picture.is_published)
+        self.assertTrue(self.published_work.is_published)
+        self.assertIs(Pict._meta.get_field('is_published').default, True)
+        self.assertIs(FinishedWork._meta.get_field('is_published').default, True)
+        self.assertEqual(
+            Pict._meta.get_field('is_published').verbose_name,
+            'Опубликовано',
+        )
+        self.assertIn('is_published', pict_admin.list_display)
+        self.assertIn('is_published', pict_admin.list_editable)
+        self.assertIn('is_published', pict_admin.fields)
+        self.assertIn('is_published', pict_admin.list_filter)
+        self.assertIn('is_published', work_admin.list_display)
+        self.assertIn('is_published', work_admin.list_editable)
+        self.assertIn('is_published', work_admin.fields)
+        self.assertIn('is_published', work_admin.list_filter)
+
+    def test_catalog_routes_and_popular_tags_hide_unpublished_pictures(self):
+        catalog_response = self.client.get(reverse('skinali'))
+        category_response = self.client.get(
+            reverse('skinali', kwargs={'slug_cat': self.category.slug}),
+            {'color': self.color.slug_color},
+        )
+        tag_response = self.client.get(
+            reverse('tag', kwargs={'tag_slug': self.hidden_tag.slug})
+        )
+        search_response = self.client.get(
+            reverse('home'),
+            {'product-number': self.hidden_picture.name},
+        )
+
+        self.assertEqual(
+            list(catalog_response.context['object_list']),
+            [self.published_picture],
+        )
+        self.assertEqual(
+            list(category_response.context['object_list']),
+            [self.published_picture],
+        )
+        self.assertEqual(list(tag_response.context['object_list']), [])
+        self.assertEqual(list(search_response.context['object_list']), [])
+        self.assertNotIn(
+            self.hidden_tag,
+            list(catalog_response.context['list_tag']),
+        )
+        self.assertNotContains(catalog_response, self.hidden_picture.photo.url)
+
+
 class ContactPageTests(TestCase):
     def test_contact_page_shows_order_channels_and_service_area(self):
         response = self.client.get(reverse('about'))
@@ -340,7 +432,7 @@ class ContactFormSubmissionTests(TestCase):
             'form_kind': 'callback',
             'callback-name': 'Анна-Мария',
             'callback-phone': '+1 (202) 555-0198',
-            'callback-email': '',
+            'callback-website': '',
             'callback-form_token': self.create_token(),
         }
         data.update(overrides)
@@ -352,20 +444,54 @@ class ContactFormSubmissionTests(TestCase):
             'question-name': 'Алексей',
             'question-phone': '+375 (29) 123-45-67',
             'question-question': '',
-            'question-email': '',
+            'question-website': '',
             'question-form_token': self.create_token(),
         }
         data.update(overrides)
         return data
 
+    def email_message_data(self, **overrides):
+        data = {
+            'form_kind': 'email_message',
+            'email_message-name': 'Елена',
+            'email_message-email': 'ELENA@example.com',
+            'email_message-comment': 'Хочу уточнить стоимость.',
+            'email_message-website': '',
+            'email_message-form_token': self.create_token(),
+        }
+        data.update(overrides)
+        return data
+
+    def image_purchase_data(self, picture, **overrides):
+        data = {
+            'form_kind': 'image_purchase',
+            'image_purchase-name': 'Елена',
+            'image_purchase-email': 'BUYER@example.com',
+            'image_purchase-comment': 'Хочу купить оригинал.',
+            'image_purchase-pict_id': picture.pk,
+            'image_purchase-website': '',
+            'image_purchase-form_token': self.create_token(),
+        }
+        data.update(overrides)
+        return data
+
     def test_forms_inherit_common_fields_and_keep_question_optional(self):
-        self.assertTrue(issubclass(CallbackContactForm, BaseContactForm))
-        self.assertTrue(issubclass(QuestionContactForm, BaseContactForm))
+        self.assertTrue(issubclass(PhoneContactForm, BaseContactForm))
+        self.assertTrue(issubclass(CallbackContactForm, PhoneContactForm))
+        self.assertTrue(issubclass(QuestionContactForm, PhoneContactForm))
+        self.assertTrue(issubclass(EmailCommentContactForm, BaseContactForm))
+        self.assertTrue(issubclass(ImagePurchaseContactForm, EmailCommentContactForm))
         self.assertEqual(CallbackContactForm.base_fields['name'].min_length, 3)
         self.assertEqual(CallbackContactForm.base_fields['name'].max_length, 20)
         self.assertEqual(CallbackContactForm.base_fields['phone'].max_length, 20)
         self.assertEqual(QuestionContactForm.base_fields['question'].max_length, 250)
         self.assertFalse(QuestionContactForm.base_fields['question'].required)
+        self.assertNotIn('phone', EmailCommentContactForm.base_fields)
+        self.assertTrue(EmailCommentContactForm.base_fields['email'].required)
+        self.assertEqual(EmailCommentContactForm.base_fields['comment'].max_length, 250)
+        self.assertFalse(EmailCommentContactForm.base_fields['comment'].required)
+        self.assertEqual(ImagePurchaseContactForm.base_fields['email'].max_length, 50)
+        self.assertTrue(ImagePurchaseContactForm.base_fields['pict_id'].required)
 
     def test_menu_modal_and_contact_page_form_use_shared_markup(self):
         home_response = self.client.get(reverse('home'))
@@ -374,8 +500,14 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(home_response, 'class="mainmenu__callback-button"')
         self.assertContains(home_response, 'Перезвоните мне')
         self.assertContains(home_response, 'id="callback-dialog"')
+        self.assertContains(home_response, 'id="image-purchase-dialog"')
+        self.assertContains(home_response, 'Купить изображение №')
+        self.assertContains(home_response, 'name="image_purchase-pict_id"')
+        self.assertContains(home_response, 'data-image-purchase-pict')
+        self.assertContains(home_response, 'name="image_purchase-email"')
+        self.assertContains(home_response, 'maxlength="50"')
         self.assertContains(home_response, 'id="contact-success-dialog"')
-        self.assertContains(home_response, 'skinali/js/contact-forms.js?v=1')
+        self.assertContains(home_response, 'skinali/js/contact-forms.js?v=2')
         self.assertLess(
             home_response.content.find(b'mainmenu__favorites'),
             home_response.content.find(b'mainmenu__callback'),
@@ -384,7 +516,12 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(contact_response, 'Остались вопросы?')
         self.assertContains(contact_response, 'name="question-question"')
         self.assertContains(contact_response, 'maxlength="250"')
-        self.assertContains(contact_response, 'name="question-email"')
+        self.assertContains(contact_response, 'name="question-website"')
+        self.assertContains(contact_response, 'id="email-message-title"')
+        self.assertContains(contact_response, 'name="email_message-email"')
+        self.assertContains(contact_response, 'type="email"')
+        self.assertContains(contact_response, 'name="email_message-comment"')
+        self.assertContains(contact_response, 'name="email_message-website"')
 
     def test_valid_ajax_post_saves_callback_request(self):
         response = self.client.post(
@@ -407,6 +544,133 @@ class ContactFormSubmissionTests(TestCase):
         self.assertEqual(delivery.channel, ContactRequestDelivery.Channel.TELEGRAM)
         self.assertEqual(delivery.status, ContactRequestDelivery.Status.PENDING)
         self.assertEqual(delivery.attempts, 0)
+
+    def test_valid_ajax_post_saves_email_message_and_queues_delivery(self):
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.email_message_data(),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        request = ContactRequest.objects.get()
+        self.assertEqual(
+            request.request_type,
+            ContactRequest.RequestType.EMAIL_MESSAGE,
+        )
+        self.assertEqual(request.name, 'Елена')
+        self.assertEqual(request.phone, '')
+        self.assertEqual(request.email, 'elena@example.com')
+        self.assertEqual(request.comment, 'Хочу уточнить стоимость.')
+        self.assertEqual(
+            request.deliveries.get().status,
+            ContactRequestDelivery.Status.PENDING,
+        )
+
+    def test_email_message_rejects_invalid_email_and_long_comment(self):
+        invalid_email_response = self.client.post(
+            reverse('contact_submit'),
+            self.email_message_data(**{
+                'email_message-email': 'incorrect-address',
+            }),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        long_comment_response = self.client.post(
+            reverse('contact_submit'),
+            self.email_message_data(**{
+                'email_message-comment': 'Я' * 251,
+            }),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(invalid_email_response.status_code, 422)
+        self.assertIn('email', invalid_email_response.json()['errors'])
+        self.assertEqual(long_comment_response.status_code, 422)
+        self.assertIn('comment', long_comment_response.json()['errors'])
+        self.assertFalse(ContactRequest.objects.exists())
+
+    def test_valid_image_purchase_saves_catalog_link_snapshot_and_delivery(self):
+        picture = Pict.objects.create(
+            name=127,
+            alt='Изображение для покупки',
+            photo='photos/127.jpg',
+        )
+
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.image_purchase_data(picture),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {
+            'ok': True,
+            'message': 'Спасибо! Заявка на покупку изображения принята',
+        })
+        request = ContactRequest.objects.get()
+        self.assertEqual(
+            request.request_type,
+            ContactRequest.RequestType.IMAGE_PURCHASE,
+        )
+        self.assertEqual(request.name, 'Елена')
+        self.assertEqual(request.email, 'buyer@example.com')
+        self.assertEqual(request.comment, 'Хочу купить оригинал.')
+        self.assertEqual(request.catalog_image, picture)
+        self.assertEqual(request.image_number, 127)
+        self.assertEqual(
+            request.deliveries.get().status,
+            ContactRequestDelivery.Status.PENDING,
+        )
+
+        picture.delete()
+        request.refresh_from_db()
+        self.assertIsNone(request.catalog_image)
+        self.assertEqual(request.image_number, 127)
+
+    def test_image_purchase_rejects_unknown_picture_and_email_over_50_characters(self):
+        picture = Pict.objects.create(
+            name=128,
+            alt='Изображение для проверки',
+            photo='photos/128.jpg',
+        )
+        missing_response = self.client.post(
+            reverse('contact_submit'),
+            self.image_purchase_data(picture, **{
+                'image_purchase-pict_id': 999999,
+            }),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+        long_email_response = self.client.post(
+            reverse('contact_submit'),
+            self.image_purchase_data(picture, **{
+                'image_purchase-email': f'{"a" * 39}@example.com',
+            }),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(missing_response.status_code, 422)
+        self.assertIn('pict_id', missing_response.json()['errors'])
+        self.assertEqual(long_email_response.status_code, 422)
+        self.assertIn('email', long_email_response.json()['errors'])
+        self.assertFalse(ContactRequest.objects.exists())
+
+    def test_image_purchase_rejects_unpublished_picture(self):
+        picture = Pict.objects.create(
+            name=129,
+            alt='Снятое с публикации изображение',
+            photo='photos/129.jpg',
+            is_published=False,
+        )
+
+        response = self.client.post(
+            reverse('contact_submit'),
+            self.image_purchase_data(picture),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('pict_id', response.json()['errors'])
+        self.assertFalse(ContactRequest.objects.exists())
 
     def test_ajax_validation_reports_errors_for_name_and_phone(self):
         response = self.client.post(
@@ -447,7 +711,7 @@ class ContactFormSubmissionTests(TestCase):
     def test_honeypot_and_too_fast_token_return_indistinguishable_success(self):
         honeypot_response = self.client.post(
             reverse('contact_submit'),
-            self.callback_data(**{'callback-email': 'bot@example.com'}),
+            self.callback_data(**{'callback-website': 'https://spam.example'}),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
         )
         fast_response = self.client.post(
@@ -483,20 +747,150 @@ class ContactFormSubmissionTests(TestCase):
     def test_contact_requests_are_available_in_admin(self):
         site = AdminSite()
         request_admin = ContactRequestAdmin(ContactRequest, site)
-        request = ContactRequest.objects.create(
+        question_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.QUESTION,
             name='Мария',
             phone='+375 29 111-22-33',
             question='Когда можно выполнить замер?',
         )
+        picture = Pict.objects.create(
+            name=130,
+            photo='photos/130.jpg',
+        )
+        purchase_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.IMAGE_PURCHASE,
+            name='Елена',
+            email='buyer@example.com',
+            comment='Хочу купить оригинал.',
+            catalog_image=picture,
+            image_number=picture.name,
+        )
+        ContactRequestDelivery.objects.create(
+            contact_request=purchase_request,
+            channel=ContactRequestDelivery.Channel.TELEGRAM,
+        )
 
-        self.assertIn('request_type', request_admin.list_display)
+        self.assertEqual(request_admin.list_display, [
+            'get_request_name',
+            'phone',
+            'email',
+            'request_type',
+            'get_delivery_channel',
+            'get_delivery_status',
+            'created_at',
+        ])
+        self.assertEqual(request_admin.list_display[3], 'request_type')
+        self.assertEqual(
+            request_admin.get_fields(None, question_request),
+            [
+                'request_type',
+                'name',
+                'phone',
+                'question',
+                'get_delivery_status',
+                'created_at',
+            ],
+        )
+        self.assertEqual(
+            request_admin.get_fields(None, purchase_request),
+            [
+                'request_type',
+                'name',
+                'email',
+                'comment',
+                'image_number',
+                'get_catalog_image_thumbnail',
+                'get_delivery_status',
+                'created_at',
+            ],
+        )
+        self.assertIn(
+            'request_type',
+            request_admin.get_readonly_fields(None, question_request),
+        )
+        thumbnail = str(request_admin.get_catalog_image_thumbnail(purchase_request))
+        self.assertIn(picture.photo.url, thumbnail)
+        self.assertIn('width="150"', thumbnail)
+        self.assertIn('data-image-preview', thumbnail)
+        self.assertEqual(request_admin.get_delivery_channel(purchase_request), 'Telegram')
+        self.assertEqual(
+            request_admin.get_delivery_status(purchase_request),
+            'Ожидает отправки',
+        )
         self.assertIn('phone', request_admin.search_fields)
+        self.assertIn('email', request_admin.search_fields)
+        self.assertIn('=image_number', request_admin.search_fields)
         self.assertIn('created_at', request_admin.readonly_fields)
         self.assertIn('queue_missing_telegram_deliveries', request_admin.actions)
+        self.assertIn('retry_failed_telegram_deliveries', request_admin.actions)
+        self.assertEqual(request_admin.inlines, [ContactRequestDeliveryInline])
+        delivery_inline = ContactRequestDeliveryInline(ContactRequest, site)
+        self.assertEqual(delivery_inline.fields, [
+            'channel',
+            'status',
+            'attempts',
+            'next_attempt_at',
+            'sent_at',
+            'external_message_id',
+            'last_error',
+        ])
+        self.assertEqual(delivery_inline.readonly_fields, delivery_inline.fields)
+        self.assertFalse(delivery_inline.can_delete)
+        self.assertFalse(delivery_inline.has_add_permission(None, question_request))
         self.assertTrue(admin.site.is_registered(ContactRequest))
-        self.assertTrue(admin.site.is_registered(ContactRequestDelivery))
-        self.assertEqual(str(request), 'Мария — +375 29 111-22-33')
+        self.assertFalse(admin.site.is_registered(ContactRequestDelivery))
+        self.assertEqual(str(question_request), 'Мария — +375 29 111-22-33')
+        with patch.object(request_admin, 'message_user'):
+            request_admin.queue_missing_telegram_deliveries(
+                None,
+                ContactRequest.objects.select_related('catalog_image'),
+            )
+        self.assertEqual(ContactRequestDelivery.objects.count(), 2)
+
+    def test_opening_contact_request_marks_its_name_as_viewed(self):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.CALLBACK,
+            name='Новая заявка',
+            phone='+375 29 111-22-33',
+        )
+        request_admin = ContactRequestAdmin(ContactRequest, AdminSite())
+        admin_user = get_user_model().objects.create_superuser(
+            username='contact-view-test',
+            email='contact-view@example.com',
+            password='test-password',
+        )
+        self.client.force_login(admin_user)
+
+        self.assertIsNone(contact_request.viewed_at)
+        change_url = reverse(
+            'admin:pict_contactrequest_change',
+            args=[contact_request.pk],
+        )
+        self.assertHTMLEqual(
+            str(request_admin.get_request_name(contact_request)),
+            f'<a href="{change_url}">Новая заявка</a>',
+        )
+        self.assertIsNone(request_admin.list_display_links)
+
+        response = self.client.get(change_url)
+        contact_request.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNotNone(contact_request.viewed_at)
+        self.assertHTMLEqual(
+            str(request_admin.get_request_name(contact_request)),
+            f'<a class="contact-request-name--viewed" href="{change_url}">'
+            'Новая заявка</a>',
+        )
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/admin-image-preview.css',
+        ).read_text(encoding='utf-8')
+        self.assertIn(
+            '#result_list a.contact-request-name--viewed:link,',
+            styles,
+        )
+        self.assertIn('color: #8baec0;', styles)
 
 
 @override_settings(
@@ -566,6 +960,61 @@ class ContactDeliveryTests(TestCase):
         self.assertGreater(delivery.next_attempt_at, timezone.now())
         self.assertIn('не ответил', delivery.last_error)
         self.assertNotIn('test-token', delivery.last_error)
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_email_message_contains_email_and_comment_without_empty_phone(self, session_class):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.EMAIL_MESSAGE,
+            name='Елена',
+            email='elena@example.com',
+            comment='Хочу уточнить стоимость.',
+        )
+        ContactRequestDelivery.objects.create(
+            contact_request=contact_request,
+            channel=ContactRequestDelivery.Channel.TELEGRAM,
+        )
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            'ok': True,
+            'result': {'message_id': 988},
+        }
+        session_class.return_value.post.return_value = response
+
+        call_command('process_contact_deliveries', stdout=StringIO())
+
+        message = session_class.return_value.post.call_args.kwargs['json']['text']
+        self.assertIn('Тип: Сообщение по email', message)
+        self.assertIn('Email: elena@example.com', message)
+        self.assertIn('Комментарий: Хочу уточнить стоимость.', message)
+        self.assertNotIn('Телефон:', message)
+
+    @patch('pict.services.contact_delivery.requests.Session')
+    def test_image_purchase_message_contains_catalog_image_number(self, session_class):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.IMAGE_PURCHASE,
+            name='Елена',
+            email='buyer@example.com',
+            comment='Хочу купить оригинал.',
+            image_number=127,
+        )
+        ContactRequestDelivery.objects.create(
+            contact_request=contact_request,
+            channel=ContactRequestDelivery.Channel.TELEGRAM,
+        )
+        response = Mock(status_code=200)
+        response.json.return_value = {
+            'ok': True,
+            'result': {'message_id': 989},
+        }
+        session_class.return_value.post.return_value = response
+
+        call_command('process_contact_deliveries', stdout=StringIO())
+
+        message = session_class.return_value.post.call_args.kwargs['json']['text']
+        self.assertIn('Тип: Покупка изображения', message)
+        self.assertIn('Email: buyer@example.com', message)
+        self.assertIn('Комментарий: Хочу купить оригинал.', message)
+        self.assertIn('Изображение: №127', message)
 
     @patch('pict.services.contact_delivery.requests.Session')
     def test_permanent_telegram_error_stops_automatic_retries(self, session_class):
@@ -648,14 +1097,28 @@ class ContactDeliveryTests(TestCase):
         self.assertEqual(delivery.status, ContactRequestDelivery.Status.PENDING)
         self.assertEqual(delivery.attempts, 0)
 
-    def test_delivery_model_is_available_in_admin(self):
-        delivery_admin = ContactRequestDeliveryAdmin(
-            ContactRequestDelivery,
-            AdminSite(),
+    def test_delivery_model_is_hidden_from_admin_and_retry_action_is_preserved(self):
+        delivery = self.create_delivery(
+            status=ContactRequestDelivery.Status.FAILED,
+            attempts=3,
+            next_attempt_at=None,
+            last_error='Ошибка доставки',
         )
+        request_admin = ContactRequestAdmin(ContactRequest, AdminSite())
 
-        self.assertIn('status', delivery_admin.list_display)
-        self.assertIn('retry_failed_deliveries', delivery_admin.actions)
+        self.assertFalse(admin.site.is_registered(ContactRequestDelivery))
+        self.assertIn('retry_failed_telegram_deliveries', request_admin.actions)
+        with patch.object(request_admin, 'message_user'):
+            request_admin.retry_failed_telegram_deliveries(
+                None,
+                ContactRequest.objects.filter(pk=delivery.contact_request_id),
+            )
+
+        delivery.refresh_from_db()
+        self.assertEqual(delivery.status, ContactRequestDelivery.Status.RETRY)
+        self.assertEqual(delivery.attempts, 0)
+        self.assertIsNotNone(delivery.next_attempt_at)
+        self.assertEqual(delivery.last_error, '')
 
 
 class DesignerPageTests(TestCase):
@@ -777,6 +1240,8 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
         self.assertContains(response, 'class="catalog-modal__title"')
         self.assertContains(response, 'class="catalog-modal__favorite is-active"')
+        self.assertContains(response, 'class="catalog-modal__purchase"')
+        self.assertContains(response, 'data-image-purchase-open')
         self.assertContains(response, '#Тег избранного')
         self.assertContains(response, 'Категория избранного')
         self.assertNotContains(response, 'class="catalog-favorite-toggle')
@@ -843,6 +1308,35 @@ class SessionFavoritesTests(TestCase):
 
         self.assertEqual(self.client.get(valid_url).status_code, 405)
         self.assertEqual(self.client.post(missing_url).status_code, 404)
+
+    def test_unpublished_picture_is_removed_from_favorites_and_cannot_be_added(self):
+        for picture in (self.first_picture, self.second_picture):
+            self.client.post(reverse(
+                'favorite_toggle',
+                kwargs={'pict_id': picture.pk},
+            ))
+
+        self.first_picture.is_published = False
+        self.first_picture.save(update_fields=['is_published'])
+
+        response = self.client.get(reverse('favorites'))
+
+        self.assertEqual(
+            response.context['favorite_pictures'],
+            [self.second_picture],
+        )
+        self.assertEqual(
+            self.client.session['favorite_pict_ids'],
+            [self.second_picture.pk],
+        )
+        self.assertNotContains(response, 'Изображение № 301')
+        self.assertEqual(
+            self.client.post(reverse(
+                'favorite_toggle',
+                kwargs={'pict_id': self.first_picture.pk},
+            )).status_code,
+            404,
+        )
 
 
 class FinishedWorkTests(TestCase):
@@ -941,6 +1435,21 @@ class FinishedWorkTests(TestCase):
         self.assertContains(first_page, 'class="list-pages catalog-pagination"')
         self.assertContains(first_page, 'aria-current="page"')
         self.assertContains(first_page, '?page=2')
+
+    def test_unpublished_work_is_hidden_from_gallery_and_homepage(self):
+        hidden_work = FinishedWork.objects.create(
+            name='Скрытая готовая работа',
+            photo='finished_works/hidden.jpg',
+            is_published=False,
+        )
+
+        gallery_response = self.client.get(reverse('finished_works'))
+        home_response = self.client.get(reverse('home'))
+
+        self.assertNotIn(hidden_work, gallery_response.context['finished_works'])
+        self.assertNotIn(hidden_work, home_response.context['recent_finished_works'])
+        self.assertNotContains(gallery_response, hidden_work.photo.url)
+        self.assertNotContains(home_response, hidden_work.photo.url)
 
     def test_public_gallery_filters_by_catalog_category_and_keeps_it_in_pagination(self):
         other_category = Category.objects.create(

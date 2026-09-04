@@ -922,6 +922,7 @@ ul.mainmenu li a.is-active::after {
 
 .contact-form__field--wide,
 .contact-form__errors[data-form-errors="__all__"],
+.contact-form__errors--hidden-field,
 .contact-form__submit {
 	grid-column: 1 / -1;
 }
@@ -1047,6 +1048,12 @@ ul.mainmenu li a.is-active::after {
 	background: rgba(24, 28, 25, .7);
 }
 
+/* Поверх Fancybox оставляем видимой текущую карточку изображения. */
+.contact-dialog--purchase::backdrop,
+.contact-dialog--over-gallery::backdrop {
+	background: transparent;
+}
+
 .contact-dialog__panel {
 	position: relative;
 	box-sizing: border-box;
@@ -1099,6 +1106,10 @@ ul.mainmenu li a.is-active::after {
 }
 
 .contact-dialog--success {
+	width: min(520px, calc(100vw - 32px));
+}
+
+.contact-dialog--purchase {
 	width: min(520px, calc(100vw - 32px));
 }
 
@@ -2184,6 +2195,8 @@ background-color: coral;
 	display: flex;
 	align-items: flex-end;
 	margin-top: auto;
+	gap: 12px;
+	flex-wrap: wrap;
 	pointer-events: auto;
 }
 
@@ -2239,6 +2252,30 @@ background-color: coral;
 .catalog-modal__favorite:disabled {
 	opacity: .65;
 	cursor: wait;
+}
+
+.catalog-modal__purchase {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 44px;
+	padding: 9px 22px;
+	border: 1px solid #6f8a68;
+	border-radius: 999px;
+	color: #fff;
+	background: #6f8a68;
+	cursor: pointer;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 650;
+	transition: background .16s, border-color .16s;
+}
+
+.catalog-modal__purchase:hover,
+.catalog-modal__purchase:focus-visible {
+	border-color: #5d7757;
+	background: #5d7757;
 }
 
 /* Модальная галерея изображений вне основного каталога. */
@@ -3469,10 +3506,14 @@ background-color: coral;
 	}
 
 	.catalog-modal__actions {
+		flex-direction: column;
+		align-items: stretch;
 		margin-top: 18px;
+		gap: 10px;
 	}
 
-	.catalog-modal__favorite {
+	.catalog-modal__favorite,
+	.catalog-modal__purchase {
 		min-width: 0;
 		width: 100%;
 	}
