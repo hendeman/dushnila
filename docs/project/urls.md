@@ -8,11 +8,11 @@
 
 | Путь | Назначение |
 |---|---|
-| `/admin/` | Django Admin |
+| `/<DJANGO_ADMIN_PATH>/` | Django Admin; локальное значение по умолчанию — `/admin/` |
 | `/` | все маршруты из `pict.urls` |
-| `/__debug__/` | Django Debug Toolbar |
+| `/__debug__/` | Django Debug Toolbar; добавляется только при `ENABLE_DEBUG_TOOLBAR=True` |
 
-При `settings.DEBUG` к `urlpatterns` добавляется обслуживание `MEDIA_URL` из `MEDIA_ROOT`.
+При `settings.DEBUG` к `urlpatterns` добавляется обслуживание `MEDIA_URL` из `MEDIA_ROOT`. Маршрут Debug Toolbar полностью отсутствует в production-профиле, а не только скрывает панель.
 
 ## Дополнительная конфигурация
 
@@ -28,12 +28,9 @@
 
 ## Особенности и риски
 
-- Используется wildcard-импорт `from pict.views import *`, фактически нужный для `pageNotFound`.
-- `path` импортируется дважды.
-- Маршрут debug toolbar добавляется без условной проверки `DEBUG`, хотя показ самой панели дополнительно зависит от ее настроек.
+- Значение `DJANGO_ADMIN_PATH` меняет только адрес admin и не заменяет аутентификацию, HTTPS и ограничение попыток входа.
 - Обслуживание media через Django предназначено только для разработки.
 
 ## Когда читать исходник
 
 При добавлении приложения, изменении верхнеуровневого префикса, admin, debug toolbar, media или обработчиков ошибок.
-

@@ -863,8 +863,7 @@ ul.mainmenu li a.is-active::after {
 	gap: 18px;
 }
 
-.contact-card,
-.contact-service-area {
+.contact-card {
 	box-sizing: border-box;
 	border: 1px solid #dcd9cf;
 	border-radius: 18px;
@@ -877,7 +876,6 @@ ul.mainmenu li a.is-active::after {
 	padding: clamp(24px, 3vw, 38px);
 }
 
-.contact-request-card,
 .contact-form-fallback {
 	box-sizing: border-box;
 	margin-top: 18px;
@@ -885,6 +883,25 @@ ul.mainmenu li a.is-active::after {
 	border: 1px solid #dcd9cf;
 	border-radius: 18px;
 	background: #fbfaf6;
+}
+
+/* Форма и карта центрируются и занимают половину страницы без оформления карточки. */
+.contact-request-card,
+.contact-service-area {
+	box-sizing: border-box;
+	width: 50%;
+	margin-top: 18px;
+	margin-inline: auto;
+	padding: clamp(24px, 3vw, 38px);
+}
+
+.contact-request-card .contact-form {
+	grid-template-columns: minmax(0, 1fr);
+}
+
+.contact-request-card .contact-form__submit {
+	justify-self: center;
+	width: auto;
 }
 
 .contact-request-card__header {
@@ -1192,11 +1209,6 @@ ul.mainmenu li a.is-active::after {
 	stroke-width: 1.8;
 	stroke-linecap: round;
 	stroke-linejoin: round;
-}
-
-.contact-service-area {
-	margin-top: 18px;
-	padding: clamp(24px, 3vw, 38px);
 }
 
 .contact-service-area__map {
@@ -1573,6 +1585,13 @@ ul.mainmenu li a.is-active::after {
 	font-size: 11px;
 	letter-spacing: 0.04em;
 }
+.search-back-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 16px;
+}
+
 .container {
     text-align: center;
 	font-size: 0;
@@ -2691,6 +2710,11 @@ background-color: coral;
 
 	.contact-page__cards {
 		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.contact-request-card,
+	.contact-service-area {
+		width: 100%;
 	}
 
 	.site-header {

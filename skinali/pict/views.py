@@ -90,7 +90,7 @@ class PictHome(FavoritesContextMixin, ListView):
         get_find = self.request.GET.get('product-number')
         if len(context['object_list']) == 0 and get_find:
             context['list_pict'] = 0
-        context['title'] = 'Главная страница'
+        context['title'] = 'Результаты поиска' if get_find else 'Главная страница'
         context['menu'] = menu
         context['col_tag'] = f"&product-number={get_find}" if get_find else ""
         if context['col_tag']:
@@ -108,6 +108,8 @@ class PictHome(FavoritesContextMixin, ListView):
                 if len(search_elem) >= 3:
                     request_cap = search_elem.lower()[:-1]
                     return Pict.objects.published().filter(tags__tag__contains=request_cap)
+                # Короткий текстовый запрос показывает обычную пустую выдачу.
+                return Pict.objects.none()
         else:
             return ""
 

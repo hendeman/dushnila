@@ -1,15 +1,22 @@
 from django.contrib import admin
-from django.urls import reverse
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.http import HttpResponseNotAllowed
+from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
+from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
-from pict.forms import PictAdminForm
+from pict.forms import IntegrationAdminForm, PictAdminForm
 from pict.models import (
     Category,
     Color,
     ContactRequest,
     ContactRequestDelivery,
     FinishedWork,
+    Integration,
+    IntegrationRevision,
     Pict,
     TagPict,
 )
@@ -390,3 +397,114 @@ admin.site.register(Pict, PictAdmin)
 admin.site.register(Category, CategoryAdmin)
 admin.site.register(Color, ColorAdmin)
 admin.site.register(TagPict, TagPictAdmin)
+
+
+class SuperuserIntegrationAdminMixin:
+    """Вставка JavaScript доступна только активным суперпользователям, даже при выдаче обычных прав."""
+
+    def has_module_permission(self, request):
+        return request.user.is_active and request.user.is_superuser
+
+    def has_view_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_add_permission(self, request):
+        return self.has_module_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        # Отключение сохраняет историю и позволяет вернуть интеграцию позже.
+        return False
+
+
+@admin.register(Integration)
+class IntegrationAdmin(SuperuserIntegrationAdminMixin, admin.ModelAdmin):
+    form = IntegrationAdminForm
+    list_display = ['name', 'is_enabled', 'position', 'updated_at', 'versions_link']
+    list_filter = ['is_enabled']
+    search_fields = ['name', 'description']
+    list_per_page = 30
+    readonly_fields = ['updated_at', 'versions_link']
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'is_enabled', 'position', 'page_paths'),
+            'description': 'Код применяется к публичным страницам сразу после сохранения включённой интеграции. '
+                           'Вставляйте код только доверенных сервисов. Меньшее число порядка подключается раньше.',
+        }),
+        ('Код в head', {'fields': ('head_html',)}),
+        ('Код в начале body', {'fields': ('body_start_html',)}),
+        ('Код в конце body', {'fields': ('body_end_html',)}),
+        ('История', {'fields': ('updated_at', 'versions_link')}),
+    )
+
+    @admin.display(description='Версии')
+    def versions_link(self, obj):
+        if not obj.pk:
+            return 'История появится после сохранения.'
+        return format_html(
+            '<a href="{}?integration__id__exact={}">Открыть историю версий</a>',
+            reverse('admin:pict_integrationrevision_changelist'), obj.pk,
+        )
+
+    def save_model(self, request, obj, form, change):
+        obj.save_with_revision(request.user, 'Изменение' if change else 'Создание')
+
+
+@admin.register(IntegrationRevision)
+class IntegrationRevisionAdmin(SuperuserIntegrationAdminMixin, admin.ModelAdmin):
+    list_display = ['__str__', 'integration', 'created_at', 'author', 'note']
+    list_select_related = ['integration', 'author']
+    list_per_page = 30
+    fields = ['integration', 'created_at', 'author', 'note', 'snapshot_display', 'restore_link']
+    readonly_fields = fields
+    actions = None
+
+    def get_model_perms(self, request):
+        # Версии открываются из интеграции и не создают лишний раздел главного меню.
+        return {}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_urls(self):
+        return [path('<int:object_id>/restore/', self.admin_site.admin_view(self.restore_view),
+                     name='pict_integrationrevision_restore')] + super().get_urls()
+
+    @admin.display(description='Сохранённые настройки')
+    def snapshot_display(self, obj):
+        # format_html_join экранирует значения: HTML/JS из снимка в admin не исполняется.
+        return format_html_join('', '<p><strong>{}</strong></p><pre style="white-space: pre-wrap">{}</pre>', (
+            (Integration._meta.get_field(field).verbose_name, obj.snapshot[field])
+            for field in Integration.SNAPSHOT_FIELDS
+        ))
+
+    @admin.display(description='Восстановление')
+    def restore_link(self, obj):
+        return format_html('<a href="{}">Восстановить эту версию…</a>',
+                           reverse('admin:pict_integrationrevision_restore', args=[obj.pk]))
+
+    def restore_view(self, request, object_id):
+        if not self.has_module_permission(request):
+            raise PermissionDenied
+        if request.method not in ('GET', 'POST'):
+            return HttpResponseNotAllowed(['GET', 'POST'])
+        revision = get_object_or_404(IntegrationRevision.objects.select_related('integration'), pk=object_id)
+        if request.method == 'POST':
+            with transaction.atomic():
+                integration = revision.restore(request.user)
+                self.log_change(request, integration, f'Восстановлена версия № {revision.pk}')
+            self.message_user(request, 'Версия восстановлена. Текущее состояние сохранено в новой версии.')
+            return redirect('admin:pict_integration_change', integration.pk)
+        return TemplateResponse(request, 'admin/pict/integration/restore.html', {
+            **self.admin_site.each_context(request),
+            'title': f'Восстановить версию № {revision.pk}',
+            'opts': Integration._meta,
+            'revision': revision,
+            'snapshot_display': self.snapshot_display(revision),
+            'integration_url': reverse('admin:pict_integration_change', args=[revision.integration_id]),
+        })

@@ -1,4 +1,5 @@
-{% load static %}
+{% load static integrations %}
+{% site_integrations as site_integration_list %}
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -11,8 +12,10 @@
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
 <!--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css"/>-->
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+{% for integration in site_integration_list %}{{ integration.head_html|safe }}{% endfor %}
 </head>
 <body>
+{% for integration in site_integration_list %}{{ integration.body_start_html|safe }}{% endfor %}
 {% block mainmenu %}
 <header class="site-topbar">
     <div class="site-info-panel">
@@ -395,5 +398,6 @@
         }
       });
     </script>
+{% for integration in site_integration_list %}{{ integration.body_end_html|safe }}{% endfor %}
 </body>
 </html>

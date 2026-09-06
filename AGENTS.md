@@ -18,6 +18,7 @@
 |---|---|---|
 | Понять устройство проекта целиком | [architecture.md](docs/architecture.md) | [pict/overview.md](docs/pict/overview.md) |
 | Настройки Django, БД, язык, статика, media | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md) |
+| Разделение development/production и HTTPS-защита | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
 | Корневые URL, admin, debug toolbar, обработчик 404 | [project/urls.md](docs/project/urls.md) | [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
 | Модели изображений, категорий, цветов и тегов | [pict/models.md](docs/pict/models.md) | [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, их связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/urls.md](docs/pict/urls.md) |
@@ -30,6 +31,7 @@
 | Список заявок в admin, статусы Telegram и отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Очередь и отправка контактных заявок в Telegram | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
+| Интеграции, вставки HTML/JS, выбор страниц и восстановление версий | [pict/integrations.md](docs/pict/integrations.md) | [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
 | История схемы базы данных | [migrations/README.md](docs/migrations/README.md) | [pict/models.md](docs/pict/models.md) |
@@ -53,6 +55,7 @@
 | `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
+| `skinali/pict/templatetags/integrations.py` | [pict/integrations.md](docs/pict/integrations.md) |
 | `skinali/pict/urls.py` | [pict/urls.md](docs/pict/urls.md) |
 | `skinali/pict/views.py` | [pict/views.md](docs/pict/views.md) |
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |

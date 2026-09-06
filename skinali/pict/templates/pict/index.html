@@ -3,20 +3,24 @@
 
 {% block content %}
 {% if get_find %}
+  <a class="search-back-link" href="{% url 'skinali' %}" data-search-back>
+    <span aria-hidden="true">←</span> Назад
+  </a>
   <h1>{{ title }}</h1>
-  <div class="container">
+  <p class="catalog-intro">Введенные слова: {{ get_find }}</p>
   {% if list_pict == 0 %}
-    <p>По запросу "{{ get_find }}" ничего не найдено</p>
+    <p>По запросу ничего не найдено</p>
   {% else %}
-    <p>Результат поиска: "{{ get_find }}"</p>
+    <div class="container catalog-gallery">
     {% for p in page_obj %}
       <div class="item-block">
-        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
+        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
       </div>
     {% endfor %}
+    </div>
   {% endif %}
-  </div>
   {% include 'pict/includes/paginator.html' %}
+  <script src="{% static 'skinali/js/search-results.js' %}" defer></script>
 {% else %}
   <section class="home-hero" aria-labelledby="home-hero-title">
     <img class="home-hero__image"

@@ -5,7 +5,17 @@ from django import forms
 from django.core import signing
 from django.core.exceptions import ValidationError
 
-from pict.models import ContactRequest, Pict
+from pict.models import ContactRequest, Integration, Pict
+
+
+class IntegrationAdminForm(forms.ModelForm):
+    class Meta:
+        model = Integration
+        fields = Integration.SNAPSHOT_FIELDS
+        widgets = {
+            field: forms.Textarea(attrs={'rows': 12, 'cols': 100, 'spellcheck': 'false', 'style': 'font-family: monospace; max-width: 100%;'})
+            for field in ('head_html', 'body_start_html', 'body_end_html')
+        }
 
 
 CONTACT_FORM_TOKEN_SALT = 'pict.contact-form'

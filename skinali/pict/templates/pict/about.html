@@ -72,14 +72,6 @@
         {% include 'pict/includes/contact_form.html' with form=question_form form_kind='question' submit_label='Отправить' %}
     </section>
 
-    <section class="contact-request-card" aria-labelledby="email-message-title">
-        <header class="contact-request-card__header">
-            <h2 id="email-message-title">Напишите нам</h2>
-            <p>Оставьте ваш email и комментарий — мы ответим на указанную почту.</p>
-        </header>
-        {% include 'pict/includes/contact_form.html' with form=email_message_form form_kind='email_message' submit_label='Отправить' %}
-    </section>
-
     <section class="contact-service-area" aria-labelledby="contact-service-area-title">
         <h2 id="contact-service-area-title">Основная зона обслуживания</h2>
         <figure class="contact-service-area__map">

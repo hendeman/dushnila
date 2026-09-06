@@ -1,19 +1,25 @@
 import time
 from datetime import timedelta
-from io import StringIO
+from io import BytesIO, StringIO
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
 
 import requests
+from PIL import Image
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission
 from django.core import signing
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
-from django.test import Client, TestCase, override_settings
+from django.template import RequestContext, Template
+from django.test import Client, RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.html import escape
 
 from .admin import (
     ContactRequestAdmin,
@@ -27,6 +33,7 @@ from .forms import (
     CallbackContactForm,
     EmailCommentContactForm,
     ImagePurchaseContactForm,
+    IntegrationAdminForm,
     PhoneContactForm,
     QuestionContactForm,
 )
@@ -36,9 +43,36 @@ from .models import (
     ContactRequest,
     ContactRequestDelivery,
     FinishedWork,
+    Integration,
+    IntegrationRevision,
     Pict,
     TagPict,
 )
+
+
+TEST_MEDIA_DIRECTORY = TemporaryDirectory()
+TEST_MEDIA_SETTINGS = override_settings(MEDIA_ROOT=TEST_MEDIA_DIRECTORY.name)
+
+
+def setUpModule():
+    """Изолирует создаваемые тестами изображения от рабочего media-каталога."""
+    TEST_MEDIA_SETTINGS.enable()
+
+
+def tearDownModule():
+    TEST_MEDIA_SETTINGS.disable()
+    TEST_MEDIA_DIRECTORY.cleanup()
+
+
+def create_test_image_file(filename, size=(1000, 200)):
+    """Возвращает настоящий JPEG для проверок ImageField и sorl-thumbnail."""
+    image_bytes = BytesIO()
+    Image.new('RGB', size, color='#7f9f74').save(image_bytes, format='JPEG')
+    return SimpleUploadedFile(
+        filename,
+        image_bytes.getvalue(),
+        content_type='image/jpeg',
+    )
 
 
 class PopularTagsByCategoryTests(TestCase):
@@ -77,7 +111,7 @@ class PopularTagsByCategoryTests(TestCase):
             picture = Pict.objects.create(
                 name=start_name + offset,
                 alt=f'Описание изображения {start_name + offset}',
-                photo=f'photos/{start_name + offset}.jpg',
+                photo=create_test_image_file(f'{start_name + offset}.jpg'),
             )
             picture.cat.add(category)
             pictures.append(picture)
@@ -254,7 +288,18 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertNotContains(search_response, 'class="home-offers"')
         self.assertNotContains(search_response, 'class="home-benefits"')
         self.assertNotContains(search_response, 'class="home-recent-works"')
-        self.assertContains(search_response, f'Результат поиска: "{picture.name}"')
+        self.assertContains(search_response, f'Введенные слова: {picture.name}')
+        self.assertContains(search_response, '<h1>Результаты поиска</h1>')
+        self.assertContains(search_response, 'data-search-back')
+        self.assertContains(search_response, 'data-fancybox="catalog-gallery"')
+
+        # Пустая выдача должна работать и для короткого текстового запроса.
+        for query in ('я', 'несуществующий-запрос-xyz'):
+            with self.subTest(query=query):
+                response = self.client.get(reverse('home'), {'product-number': query})
+                self.assertContains(response, '<p>По запросу ничего не найдено</p>')
+                self.assertContains(response, f'Введенные слова: {query}')
+                self.assertNotContains(response, '<div class="container')
 
     def test_category_links_keep_selected_color(self):
         selected_color = self.selected_color.slug_color
@@ -310,6 +355,43 @@ class PopularTagsByCategoryTests(TestCase):
         )
 
 
+class CatalogThumbnailTests(TestCase):
+    @staticmethod
+    def get_thumbnail_url(response):
+        html = response.content.decode()
+        thumbnail_url_start = html.index('/media/cache/thumbnails/')
+        thumbnail_url_end = html.index('"', thumbnail_url_start)
+        return html[thumbnail_url_start:thumbnail_url_end]
+
+    def test_catalog_uses_cached_thumbnail_and_lazy_loading(self):
+        picture = Pict.objects.create(
+            name=701,
+            alt='Кешируемое превью',
+            photo=create_test_image_file('catalog-thumbnail-source.jpg'),
+        )
+
+        response = self.client.get(reverse('skinali'))
+        thumbnail_url = self.get_thumbnail_url(response)
+        thumbnail_path = Path(settings.MEDIA_ROOT) / thumbnail_url.removeprefix(
+            settings.MEDIA_URL
+        )
+
+        self.assertContains(response, f'href="{picture.photo.url}"')
+        self.assertContains(response, 'width="760"')
+        self.assertContains(response, 'loading="lazy"')
+        self.assertContains(response, 'decoding="async"')
+        self.assertNotEqual(thumbnail_url, picture.photo.url)
+        self.assertTrue(thumbnail_path.exists())
+        with Image.open(thumbnail_path) as thumbnail:
+            self.assertEqual(thumbnail.width, 760)
+
+        initial_mtime = thumbnail_path.stat().st_mtime_ns
+        repeated_response = self.client.get(reverse('skinali'))
+
+        self.assertEqual(self.get_thumbnail_url(repeated_response), thumbnail_url)
+        self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
+
+
 class PublicationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -326,12 +408,12 @@ class PublicationTests(TestCase):
         cls.published_picture = Pict.objects.create(
             name=801,
             alt='Опубликованное изображение',
-            photo='photos/801.jpg',
+            photo=create_test_image_file('801.jpg'),
         )
         cls.hidden_picture = Pict.objects.create(
             name=802,
             alt='Скрытое изображение',
-            photo='photos/802.jpg',
+            photo=create_test_image_file('802.jpg'),
             is_published=False,
         )
         for picture in (cls.published_picture, cls.hidden_picture):
@@ -593,7 +675,7 @@ class ContactFormSubmissionTests(TestCase):
         picture = Pict.objects.create(
             name=127,
             alt='Изображение для покупки',
-            photo='photos/127.jpg',
+            photo=create_test_image_file('127.jpg'),
         )
 
         response = self.client.post(
@@ -631,7 +713,7 @@ class ContactFormSubmissionTests(TestCase):
         picture = Pict.objects.create(
             name=128,
             alt='Изображение для проверки',
-            photo='photos/128.jpg',
+            photo=create_test_image_file('128.jpg'),
         )
         missing_response = self.client.post(
             reverse('contact_submit'),
@@ -658,7 +740,7 @@ class ContactFormSubmissionTests(TestCase):
         picture = Pict.objects.create(
             name=129,
             alt='Снятое с публикации изображение',
-            photo='photos/129.jpg',
+            photo=create_test_image_file('129.jpg'),
             is_published=False,
         )
 
@@ -755,7 +837,7 @@ class ContactFormSubmissionTests(TestCase):
         )
         picture = Pict.objects.create(
             name=130,
-            photo='photos/130.jpg',
+            photo=create_test_image_file('130.jpg'),
         )
         purchase_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.IMAGE_PURCHASE,
@@ -1156,12 +1238,12 @@ class SessionFavoritesTests(TestCase):
         cls.first_picture = Pict.objects.create(
             name=301,
             alt='Первое описание',
-            photo='photos/301.jpg',
+            photo=create_test_image_file('301.jpg'),
         )
         cls.second_picture = Pict.objects.create(
             name=302,
             alt='Второе описание',
-            photo='photos/302.jpg',
+            photo=create_test_image_file('302.jpg'),
         )
         cls.favorite_category = Category.objects.create(
             cat='Категория избранного',
@@ -1349,7 +1431,7 @@ class FinishedWorkTests(TestCase):
         cls.catalog_image = Pict.objects.create(
             name=701,
             alt='Каталожное изображение',
-            photo='photos/701.jpg',
+            photo=create_test_image_file('701.jpg'),
         )
         cls.catalog_image.cat.add(cls.category)
         cls.work = FinishedWork.objects.create(
@@ -1458,7 +1540,7 @@ class FinishedWorkTests(TestCase):
         )
         other_catalog_image = Pict.objects.create(
             name=703,
-            photo='photos/703.jpg',
+            photo=create_test_image_file('703.jpg'),
         )
         other_catalog_image.cat.add(other_category)
         other_work = FinishedWork.objects.create(
@@ -1536,7 +1618,7 @@ class FinishedWorkTests(TestCase):
 
         image_without_works = Pict.objects.create(
             name=702,
-            photo='photos/702.jpg',
+            photo=create_test_image_file('702.jpg'),
         )
         self.assertNotIn(
             'get_finished_works',
@@ -1566,3 +1648,127 @@ class FinishedWorkTests(TestCase):
         self.assertContains(linked_response, 'skinali/css/admin-image-preview.css')
         self.assertEqual(unlinked_response.status_code, 200)
         self.assertNotContains(unlinked_response, 'field-get_finished_works')
+
+
+class IntegrationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = get_user_model().objects.create_superuser('integration-owner', password='test-password')
+        cls.staff = get_user_model().objects.create_user('integration-staff', is_staff=True)
+        cls.staff.user_permissions.set(Permission.objects.filter(content_type__model__in=['integration', 'integrationrevision']))
+
+    def setUp(self):
+        self.integration = Integration(name='Метрика', is_enabled=True,
+                                       head_html='<script>window.integrationHead = "{{ title }}";</script>',
+                                       body_start_html='<div id="integration-start"></div>',
+                                       body_end_html='<script>window.integrationEnd = true;</script>')
+        self.integration.save_with_revision(self.owner, 'Создание')
+
+    def test_slots_render_raw_code_once_without_evaluating_django_templates(self):
+        html = self.client.get(reverse('about')).content.decode()
+        head = self.integration.head_html
+        start = self.integration.body_start_html
+        end = self.integration.body_end_html
+        for fragment in (head, start, end):
+            self.assertEqual(html.count(fragment), 1)
+        self.assertLess(html.index(head), html.index('</head>'))
+        self.assertLess(html.index('<body>'), html.index(start))
+        self.assertLess(html.index(start), html.index('<header'))
+        self.assertLess(html.index(end), html.index('</body>'))
+        self.assertGreater(html.index(end), html.index('</footer>'))
+
+    def test_path_scope_query_parameters_and_immediate_disable(self):
+        self.integration.page_paths = '/about/'
+        self.integration.save_with_revision(self.owner)
+        self.assertContains(self.client.get('/about/?source=test'), self.integration.head_html)
+        self.assertNotContains(self.client.get('/'), self.integration.head_html)
+        self.integration.is_enabled = False
+        self.integration.save_with_revision(self.owner)
+        self.assertNotContains(self.client.get('/about/'), self.integration.head_html)
+
+    def test_render_uses_one_query_and_stable_order(self):
+        Integration.objects.create(name='Раньше', is_enabled=True, position=0, head_html='FIRST')
+        self.integration.position = 10
+        self.integration.save_with_revision(self.owner)
+        request = RequestFactory().get('/about/')
+        template = Template('{% load integrations %}{% site_integrations as items %}'
+                            '{% for item in items %}{{ item.head_html|safe }}{% endfor %}'
+                            '{% for item in items %}{{ item.body_end_html|safe }}{% endfor %}')
+        with self.assertNumQueries(1):
+            html = template.render(RequestContext(request))
+        self.assertTrue(html.startswith('FIRST'))
+
+    def test_form_rejects_invalid_paths_and_empty_enabled_integration(self):
+        data = {field: getattr(self.integration, field) for field in Integration.SNAPSHOT_FIELDS}
+        for path in ('https://example.com/', '//example.com/', '/about/?q=1', '/about/#x', '/skinali/*', '/bad path'):
+            with self.subTest(path=path):
+                form = IntegrationAdminForm(data={**data, 'page_paths': path})
+                self.assertFalse(form.is_valid())
+                self.assertIn('page_paths', form.errors)
+        form = IntegrationAdminForm(data={**data, 'page_paths': ' /about/\n/about/\n/designer '})
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.instance.page_paths, '/about/\n/designer')
+        form = IntegrationAdminForm(data={**data, 'head_html': '', 'body_start_html': '', 'body_end_html': ''})
+        self.assertFalse(form.is_valid())
+        self.assertIn('is_enabled', form.errors)
+
+    def test_admin_save_records_author_and_escapes_code(self):
+        self.client.force_login(self.owner)
+        code = '</textarea><script>window.adminInjection = true;</script>'
+        data = {field: getattr(self.integration, field) for field in Integration.SNAPSHOT_FIELDS}
+        url = reverse('admin:pict_integration_change', args=[self.integration.pk])
+        response = self.client.post(url, {**data, 'head_html': code, '_save': 'Сохранить'})
+        self.assertEqual(response.status_code, 302)
+        revision = self.integration.revisions.first()
+        self.assertEqual(revision.author, self.owner)
+        self.assertEqual(revision.snapshot['head_html'], code)
+        for page in (url, reverse('admin:pict_integrationrevision_change', args=[revision.pk]),
+                     reverse('admin:pict_integrationrevision_restore', args=[revision.pk])):
+            response = self.client.get(page)
+            self.assertContains(response, escape(code))
+            self.assertNotContains(response, code)
+        self.assertNotContains(self.client.get(reverse('admin:index')), self.integration.body_end_html)
+        self.assertEqual(self.client.get(reverse('admin:pict_integrationrevision_changelist') +
+                                        f'?integration__id__exact={self.integration.pk}').status_code, 200)
+
+    def test_regular_staff_cannot_read_write_or_restore_even_with_model_permissions(self):
+        self.client.force_login(self.staff)
+        revision = self.integration.revisions.first()
+        urls = [reverse('admin:pict_integration_changelist'), reverse('admin:pict_integration_add'),
+                reverse('admin:pict_integration_change', args=[self.integration.pk]),
+                reverse('admin:pict_integrationrevision_changelist'),
+                reverse('admin:pict_integrationrevision_change', args=[revision.pk]),
+                reverse('admin:pict_integrationrevision_restore', args=[revision.pk])]
+        for url in urls:
+            for method in ('get', 'post'):
+                with self.subTest(url=url, method=method):
+                    self.assertEqual(getattr(self.client, method)(url).status_code, 403)
+        self.assertNotContains(self.client.get(reverse('admin:index')), 'Интеграции')
+
+    def test_restore_requires_csrf_and_post_and_creates_new_revision(self):
+        original = self.integration.revisions.first()
+        self.integration.name = 'Новая версия'
+        self.integration.is_enabled = False
+        self.integration.save_with_revision(self.owner)
+        secure_client = Client(enforce_csrf_checks=True)
+        secure_client.force_login(self.owner)
+        url = reverse('admin:pict_integrationrevision_restore', args=[original.pk])
+        self.assertEqual(secure_client.get(url).status_code, 200)
+        self.assertEqual(self.integration.revisions.count(), 2)
+        self.assertEqual(secure_client.post(url).status_code, 403)
+        response = secure_client.post(url, {'csrfmiddlewaretoken': secure_client.cookies['csrftoken'].value})
+        self.assertEqual(response.status_code, 302)
+        self.integration.refresh_from_db()
+        self.assertEqual(self.integration.name, 'Метрика')
+        self.assertTrue(self.integration.is_enabled)
+        self.assertEqual(self.integration.revisions.count(), 3)
+        self.assertEqual(self.integration.revisions.first().snapshot, original.snapshot)
+
+    def test_revision_write_failure_rolls_back_settings(self):
+        self.integration.name = 'Не должно сохраниться'
+        with patch('pict.models.IntegrationRevision.objects.create', side_effect=RuntimeError('failure')):
+            with self.assertRaises(RuntimeError):
+                self.integration.save_with_revision(self.owner)
+        self.integration.refresh_from_db()
+        self.assertEqual(self.integration.name, 'Метрика')
+        self.assertEqual(self.integration.revisions.count(), 1)
