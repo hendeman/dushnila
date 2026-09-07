@@ -1631,9 +1631,6 @@ ul.mainmenu li a.is-active::after {
 	align-items: center;
 	justify-content: center;
 	margin-bottom: 20px;
-	padding: 8px 12px;
-	border-radius: 8px;
-	background: #f5f2e9;
 }
 
 .site-footer__logo-image {

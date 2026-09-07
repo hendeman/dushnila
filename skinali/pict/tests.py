@@ -17,9 +17,11 @@ from django.core import signing
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
+from django.core.paginator import Paginator
 from django.db import connection
 from django.template import RequestContext, Template
-from django.test import Client, RequestFactory, TestCase, override_settings
+from django.template.loader import render_to_string
+from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
@@ -189,8 +191,15 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=62')
-        self.assertContains(response, 'skinali/images/logo_skinali.png', count=2)
+        self.assertContains(response, 'skinali/css/styles.css?v=63')
+        self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
+        self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
+        self.assertTrue(
+            Path(
+                settings.BASE_DIR,
+                'pict/static/skinali/images/logo_skinali_white.png',
+            ).is_file()
+        )
         self.assertContains(response, 'class="site-header__logo-image"')
         self.assertContains(response, 'class="site-footer__logo-image"')
         self.assertNotContains(response, 'class="site-header__logo-mark"')
@@ -250,13 +259,23 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'Выбрать изображение')
         self.assertContains(response, 'skinali/images/odium-hero-glass-v2.jpg')
         self.assertContains(response, 'class="home-offers"')
-        self.assertContains(response, 'Больше возможностей')
+        self.assertContains(
+            response,
+            '<h2 id="home-offers-title">Больше возможностей<br>для вашей кухни</h2>',
+            html=True,
+        )
+        self.assertNotContains(response, 'для вашей кухни.</h2>')
         self.assertContains(response, 'class="home-offer-card"', count=3)
         self.assertContains(response, 'skinali/images/home-offer-designer.jpg')
         self.assertContains(response, 'skinali/images/home-offer-hood.jpg')
         self.assertContains(response, 'skinali/images/home-offer-lighting.jpg')
         self.assertContains(response, 'class="home-benefits"')
-        self.assertContains(response, 'Почему стекло')
+        self.assertContains(
+            response,
+            '<h2 id="home-benefits-title">Почему выбирают<br>стекло для кухни?</h2>',
+            html=True,
+        )
+        self.assertNotContains(response, 'Почему стекло<br>выбирают для кухни')
         self.assertContains(response, 'class="home-benefit-card"', count=6)
         self.assertContains(response, 'skinali/images/home-benefit-strength.jpg')
         self.assertContains(response, 'skinali/images/home-benefit-variants.jpg')
@@ -349,6 +368,42 @@ class PopularTagsByCategoryTests(TestCase):
             f'<a href="{self.second_category.get_absolute_url()}">{self.second_category.cat}</a>',
             html=True,
         )
+
+
+class PaginatorTemplateTests(SimpleTestCase):
+    @staticmethod
+    def render_paginator(page_number, num_pages):
+        page_obj = Paginator(range(num_pages), 1).page(page_number)
+        return render_to_string(
+            'pict/includes/paginator.html',
+            {'page_obj': page_obj, 'col_tag': ''},
+        )
+
+    def test_five_page_jump_controls_use_exact_targets(self):
+        html = self.render_paginator(page_number=6, num_pages=11)
+
+        self.assertInHTML(
+            '<a href="?page=1" aria-label="Назад на 5 страниц" '
+            'title="Назад на 5 страниц">&laquo;</a>',
+            html,
+        )
+        self.assertInHTML(
+            '<a href="?page=11" aria-label="Вперёд на 5 страниц" '
+            'title="Вперёд на 5 страниц">&raquo;</a>',
+            html,
+        )
+
+    def test_five_page_jump_controls_require_a_full_jump(self):
+        cases = (
+            (5, 10, 'Назад на 5 страниц', 'Вперёд на 5 страниц'),
+            (6, 10, 'Вперёд на 5 страниц', 'Назад на 5 страниц'),
+        )
+
+        for page_number, num_pages, hidden_label, visible_label in cases:
+            with self.subTest(page_number=page_number, num_pages=num_pages):
+                html = self.render_paginator(page_number, num_pages)
+                self.assertNotIn(f'aria-label="{hidden_label}"', html)
+                self.assertIn(f'aria-label="{visible_label}"', html)
 
 
 class CatalogSearchTests(TestCase):

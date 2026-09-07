@@ -8,8 +8,18 @@
       {% endif %}
 
       {% if page_obj.has_previous %}
+        {% if page_obj.number > 5 %}
+        <li class="page-num">
+          <a href="?page={{ page_obj.number|add:-5 }}{{ col_tag }}"
+             aria-label="Назад на 5 страниц"
+             title="Назад на 5 страниц">&laquo;</a>
+        </li>
+        {% endif %}
+
       <li class="page-num">
-        <a href="?page={{ page_obj.previous_page_number }}{{ col_tag }}">&lt;</a>
+        <a href="?page={{ page_obj.previous_page_number }}{{ col_tag }}"
+           aria-label="Назад на одну страницу"
+           title="Назад на одну страницу">&lt;</a>
       </li>
       {% endif %}
 
@@ -25,8 +35,18 @@
 
       {% if page_obj.has_next %}
       <li class="page-num">
-        <a href="?page={{ page_obj.next_page_number }}{{ col_tag }}">&gt;</a>
+        <a href="?page={{ page_obj.next_page_number }}{{ col_tag }}"
+           aria-label="Вперёд на одну страницу"
+           title="Вперёд на одну страницу">&gt;</a>
       </li>
+
+        {% if page_obj.number <= page_obj.paginator.num_pages|add:-5 %}
+        <li class="page-num">
+          <a href="?page={{ page_obj.number|add:5 }}{{ col_tag }}"
+             aria-label="Вперёд на 5 страниц"
+             title="Вперёд на 5 страниц">&raquo;</a>
+        </li>
+        {% endif %}
       {% endif %}
 
       {% if page_obj.number < page_obj.paginator.num_pages|add:-2 %}
