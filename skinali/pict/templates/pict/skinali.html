@@ -3,20 +3,54 @@
 
 {% block content %}
 <section class="site-search" aria-label="Поиск изображений">
-  <form class="site-search__form" action="{% url 'home' %}">
+  <form class="site-search__form"
+        action="{% url 'skinali' %}"
+        method="get"
+        role="search">
     <svg class="site-search__icon" viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="11" cy="11" r="7"></circle>
       <path d="m16.2 16.2 4.3 4.3"></path>
     </svg>
     <input type="search"
-           name="product-number"
+           name="q"
+           value="{{ search_query }}"
+           maxlength="{{ search_form.q.field.max_length }}"
            aria-label="Поиск изображений"
+           aria-describedby="catalog-search-hint{% if search_form.q.errors %} catalog-search-error{% endif %}"
+           {% if search_form.q.errors %}aria-invalid="true"{% endif %}
            placeholder="Поиск, например море">
     <button type="submit">Найти</button>
   </form>
-  <p class="site-search__hint">Введите номер изображения или ключевое слово</p>
+  <p class="site-search__hint" id="catalog-search-hint">Введите номер изображения или до пяти ключевых слов</p>
+  {% if search_form.q.errors %}
+    <div class="site-search__errors" id="catalog-search-error" role="alert">
+      {% for error in search_form.q.errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
 </section>
 
+{% if is_search %}
+  <section class="search-results" aria-labelledby="search-results-title">
+    <header class="search-results__header">
+      <h1 id="search-results-title">Результаты поиска</h1>
+      {% if search_is_valid %}
+        <p class="search-results__count">{{ search_result_summary }}</p>
+        <ul class="search-query-chips" aria-label="Слова поискового запроса">
+          {% for term in search_terms %}
+            <li>
+              <a class="search-query-chip"
+                 href="{{ term.remove_url }}"
+                 aria-label="Удалить слово «{{ term.label }}» из поиска">
+                <span>{{ term.label }}</span>
+                <span class="search-query-chip__remove" aria-hidden="true">&times;</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </header>
+  </section>
+{% else %}
 <h1>{{ title }}</h1>
 
 {% if cat_name == title and not col_ru %}
@@ -146,32 +180,31 @@
   </ul>
 </nav>
 
-<!--<nav class="list-pages">-->
-<!--  <ul>-->
-<!--        {% for p in color_list %}-->
-<!--          {% if p.slug_color == col %}-->
-<!--            <li class="page-num page-num-selected">{{ p.color }}</li>-->
-<!--          {% else %}-->
-<!--            <li class="page-num">-->
-<!--                <a href="?color={{ p.slug_color }}">{{ p.color }}</a>-->
-<!--            </li>-->
-<!--          {% endif %}-->
-<!--        {% endfor %}-->
-
-<!--  </ul>-->
-<!--</nav>-->
+{% endif %}
 
 
-<div class="container catalog-gallery">
-  {% for p in page_obj %}
-    <div class="item-block">
-      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
+{% if not is_search or search_is_valid %}
+  {% if page_obj.object_list %}
+    <div class="container catalog-gallery">
+      {% for p in page_obj %}
+        <div class="item-block">
+          {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
+        </div>
+      {% endfor %}
     </div>
-  {% endfor %}
-</div>
+  {% elif is_search %}
+    <section class="search-empty" aria-labelledby="search-empty-title">
+      <h2 id="search-empty-title">Ничего не найдено</h2>
+      <p>Удалите одно из слов или измените поисковый запрос.</p>
+      <a href="{% url 'skinali' %}">Показать весь каталог</a>
+    </section>
+  {% endif %}
+{% endif %}
 
 
-{% include  'pict/includes/paginator.html' %}
+{% if not is_search or search_is_valid %}
+  {% include 'pict/includes/paginator.html' %}
+{% endif %}
 
 <script src="{% static 'skinali/js/mobile-filters.js' %}?v=1" defer></script>
 

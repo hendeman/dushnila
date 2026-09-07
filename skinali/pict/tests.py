@@ -4,6 +4,7 @@ from io import BytesIO, StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import Mock, patch
+from urllib.parse import parse_qs, urlparse
 
 import requests
 from PIL import Image
@@ -13,10 +14,13 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
 from django.core import signing
+from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import CommandError, call_command
+from django.db import connection
 from django.template import RequestContext, Template
 from django.test import Client, RequestFactory, TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import escape
@@ -31,6 +35,7 @@ from .forms import (
     CONTACT_FORM_TOKEN_SALT,
     BaseContactForm,
     CallbackContactForm,
+    CatalogSearchForm,
     EmailCommentContactForm,
     ImagePurchaseContactForm,
     IntegrationAdminForm,
@@ -46,8 +51,11 @@ from .models import (
     Integration,
     IntegrationRevision,
     Pict,
+    TagAlias,
     TagPict,
 )
+from .search import format_image_count, normalize_search_value, parse_search_query
+from .views import SkinaliAll
 
 
 TEST_MEDIA_DIRECTORY = TemporaryDirectory()
@@ -181,7 +189,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=61')
+        self.assertContains(response, 'skinali/css/styles.css?v=62')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=2)
         self.assertContains(response, 'class="site-header__logo-image"')
         self.assertContains(response, 'class="site-footer__logo-image"')
@@ -224,7 +232,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
         self.assertContains(response, 'skinali/images/icon-favorite-active.png')
 
-    def test_homepage_shows_hero_and_search_results_replace_it(self):
+    def test_homepage_shows_hero_and_redirects_legacy_search(self):
         finished_works = [
             FinishedWork.objects.create(
                 name=f'Готовая работа {index}',
@@ -278,28 +286,16 @@ class PopularTagsByCategoryTests(TestCase):
         )
 
         picture = Pict.objects.order_by('pk').first()
-        search_response = self.client.get(
+        legacy_search_response = self.client.get(
             reverse('home'),
             {'product-number': picture.name},
         )
 
-        self.assertEqual(search_response.status_code, 200)
-        self.assertNotContains(search_response, 'class="home-hero"')
-        self.assertNotContains(search_response, 'class="home-offers"')
-        self.assertNotContains(search_response, 'class="home-benefits"')
-        self.assertNotContains(search_response, 'class="home-recent-works"')
-        self.assertContains(search_response, f'Введенные слова: {picture.name}')
-        self.assertContains(search_response, '<h1>Результаты поиска</h1>')
-        self.assertContains(search_response, 'data-search-back')
-        self.assertContains(search_response, 'data-fancybox="catalog-gallery"')
-
-        # Пустая выдача должна работать и для короткого текстового запроса.
-        for query in ('я', 'несуществующий-запрос-xyz'):
-            with self.subTest(query=query):
-                response = self.client.get(reverse('home'), {'product-number': query})
-                self.assertContains(response, '<p>По запросу ничего не найдено</p>')
-                self.assertContains(response, f'Введенные слова: {query}')
-                self.assertNotContains(response, '<div class="container')
+        self.assertRedirects(
+            legacy_search_response,
+            f'{reverse("skinali")}?q={picture.name}',
+            fetch_redirect_response=False,
+        )
 
     def test_category_links_keep_selected_color(self):
         selected_color = self.selected_color.slug_color
@@ -353,6 +349,248 @@ class PopularTagsByCategoryTests(TestCase):
             f'<a href="{self.second_category.get_absolute_url()}">{self.second_category.cat}</a>',
             html=True,
         )
+
+
+class CatalogSearchTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.first_category = Category.objects.create(cat='Первая', slug='search-first')
+        cls.second_category = Category.objects.create(cat='Вторая', slug='search-second')
+        cls.color = Color.objects.create(color='Синий', slug_color='search-blue')
+        cls.sea_tag = TagPict.objects.create(tag='Море', slug='search-sea')
+        cls.sunset_tag = TagPict.objects.create(tag='Закат', slug='search-sunset')
+        cls.forest_tag = TagPict.objects.create(tag='Лес', slug='search-forest')
+        cls.oceanarium_tag = TagPict.objects.create(
+            tag='Океанариум',
+            slug='search-oceanarium',
+        )
+        cls.ocean_alias = TagAlias.objects.create(tag=cls.sea_tag, alias='Океан')
+
+        cls.both_picture = cls.create_picture(
+            901,
+            cls.second_category,
+            [cls.sea_tag, cls.sunset_tag],
+        )
+        cls.sea_picture = cls.create_picture(
+            902,
+            cls.first_category,
+            [cls.sea_tag],
+        )
+        cls.partial_picture = cls.create_picture(
+            903,
+            cls.first_category,
+            [cls.oceanarium_tag],
+        )
+        cls.alt_only_picture = cls.create_picture(
+            904,
+            cls.first_category,
+            [cls.forest_tag],
+            alt='Океан и закат находятся только в описании',
+        )
+        cls.hidden_picture = cls.create_picture(
+            905,
+            cls.second_category,
+            [cls.sea_tag, cls.sunset_tag],
+            is_published=False,
+        )
+
+    @classmethod
+    def create_picture(cls, name, category, tags, *, alt='', is_published=True):
+        picture = Pict.objects.create(
+            name=name,
+            alt=alt,
+            photo=create_test_image_file(f'search-{name}.jpg', size=(100, 20)),
+            is_published=is_published,
+        )
+        picture.cat.add(category)
+        picture.color.add(cls.color)
+        picture.tags.add(*tags)
+        return picture
+
+    def test_normalization_and_all_supported_separators(self):
+        parsed = parse_search_query(
+            '  #МОРЕ,\tзакат:лес;ночь-туман–река—поле\n'
+        )
+
+        self.assertEqual(
+            parsed.terms,
+            ('море', 'закат', 'лес', 'ночь', 'туман', 'река', 'поле'),
+        )
+        self.assertEqual(normalize_search_value('  Ёлка  '), 'елка')
+        self.assertEqual(parse_search_query('#123').image_number, 123)
+
+    def test_result_count_uses_correct_russian_word_form(self):
+        self.assertEqual(format_image_count(1), 'Найдено 1 изображение')
+        self.assertEqual(format_image_count(2), 'Найдено 2 изображения')
+        self.assertEqual(format_image_count(5), 'Найдено 5 изображений')
+        self.assertEqual(format_image_count(11), 'Найдено 11 изображений')
+        self.assertEqual(format_image_count(21), 'Найдено 21 изображение')
+
+    def test_search_form_validates_terms_and_deduplicates_them(self):
+        valid_form = CatalogSearchForm({'q': '#Море, море; ЗАКАТ'})
+        self.assertTrue(valid_form.is_valid())
+        self.assertEqual(valid_form.parsed_query.terms, ('море', 'закат'))
+        self.assertEqual(valid_form.cleaned_data['q'], 'море закат')
+
+        invalid_queries = (
+            'я',
+            '..',
+            '#, : ; -',
+            'один два три четыре пять шесть',
+            '999999999999999999999999999999',
+            'а' * 101,
+        )
+        for query in invalid_queries:
+            with self.subTest(query=query):
+                form = CatalogSearchForm({'q': query})
+                self.assertFalse(form.is_valid())
+                self.assertIn('q', form.errors)
+
+    def test_models_normalize_values_and_validate_aliases(self):
+        tag = TagPict.objects.create(tag='Ёлка', slug='search-fir-tree')
+        self.assertEqual(tag.normalized_tag, 'елка')
+
+        tag.tag = '  ЁЛКА  '
+        tag.save(update_fields={'tag'})
+        tag.refresh_from_db()
+        self.assertEqual(tag.normalized_tag, 'елка')
+
+        with self.assertRaises(ValidationError):
+            TagPict(tag='#ЕЛКА', slug='search-duplicate-fir').save()
+
+        alias = TagAlias(tag=tag, alias='#Хвойный')
+        alias.full_clean()
+        alias.save()
+        self.assertEqual(alias.normalized_alias, 'хвойный')
+
+        for invalid_alias in ('Море', '#ОКЕАН', 'морской пейзаж', '..'):
+            with self.subTest(alias=invalid_alias):
+                candidate = TagAlias(tag=tag, alias=invalid_alias)
+                with self.assertRaises(ValidationError):
+                    candidate.save()
+
+    def test_multiple_words_use_global_and_search_with_aliases(self):
+        response = self.client.get(
+            reverse('skinali', kwargs={'slug_cat': self.first_category.slug}),
+            {'q': '#ОКЕАН, ЗАКАТ', 'color': self.color.slug_color},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context['object_list']), [self.both_picture])
+        self.assertIsNone(response.context['selected_category'])
+        self.assertEqual(response.context['col'], '')
+        self.assertEqual(response.context['search_result_count'], 1)
+        self.assertContains(response, '<h1 id="search-results-title">Результаты поиска</h1>')
+        self.assertContains(response, 'Найдено 1 изображение')
+        self.assertContains(response, 'name="q"')
+        self.assertContains(response, 'value="#ОКЕАН, ЗАКАТ"')
+        self.assertNotContains(response, 'data-mobile-filter-open')
+        self.assertNotContains(response, 'Популярные запросы:')
+
+        missing_category_response = self.client.get(
+            reverse('skinali', kwargs={'slug_cat': 'missing-category'}),
+            {'q': 'море'},
+        )
+        self.assertEqual(missing_category_response.status_code, 404)
+
+    def test_exact_alias_precedes_partial_tag_match(self):
+        response = self.client.get(reverse('skinali'), {'q': 'океан'})
+
+        self.assertEqual(
+            list(response.context['object_list']),
+            [self.sea_picture, self.both_picture, self.partial_picture],
+        )
+
+    def test_number_search_is_exact_and_unpublished_picture_is_hidden(self):
+        response = self.client.get(reverse('skinali'), {'q': '901'})
+        hidden_response = self.client.get(reverse('skinali'), {'q': '905'})
+
+        self.assertEqual(list(response.context['object_list']), [self.both_picture])
+        self.assertEqual(list(hidden_response.context['object_list']), [])
+
+    def test_description_is_not_part_of_search(self):
+        response = self.client.get(reverse('skinali'), {'q': 'описании'})
+        self.assertEqual(list(response.context['object_list']), [])
+
+    def test_empty_state_and_term_removal_links(self):
+        response = self.client.get(reverse('skinali'), {'q': '#ОКЕАН; ЛЕС'})
+
+        self.assertEqual(response.context['search_result_count'], 0)
+        self.assertContains(response, 'Ничего не найдено')
+        self.assertContains(response, 'Удалите одно из слов или измените поисковый запрос.')
+        self.assertNotContains(response, 'class="container catalog-gallery"')
+        links = {
+            item['label']: item['remove_url']
+            for item in response.context['search_terms']
+        }
+        self.assertEqual(parse_qs(urlparse(links['океан']).query), {'q': ['лес']})
+        self.assertEqual(parse_qs(urlparse(links['лес']).query), {'q': ['океан']})
+
+        single_term_response = self.client.get(reverse('skinali'), {'q': 'океан'})
+        self.assertEqual(
+            single_term_response.context['search_terms'][0]['remove_url'],
+            reverse('skinali'),
+        )
+
+    def test_invalid_query_shows_error_without_catalog_results(self):
+        response = self.client.get(
+            reverse('skinali'),
+            {'q': 'один два три четыре пять шесть'},
+        )
+
+        self.assertFalse(response.context['search_is_valid'])
+        self.assertContains(response, 'Введите не более 5 разных слов.')
+        self.assertContains(response, 'role="alert"')
+        self.assertNotContains(response, 'class="container catalog-gallery"')
+
+    def test_catalog_and_tag_pages_use_thirty_items(self):
+        catalog_response = self.client.get(reverse('skinali'))
+        tag_response = self.client.get(
+            reverse('tag', kwargs={'tag_slug': self.sea_tag.slug})
+        )
+
+        self.assertEqual(catalog_response.context['paginator'].per_page, 30)
+        self.assertEqual(tag_response.context['paginator'].per_page, 30)
+
+    def test_search_page_size_and_query_count_are_bounded(self):
+        for offset in range(29):
+            self.create_picture(
+                1000 + offset,
+                self.first_category,
+                [self.sea_tag],
+            )
+
+        first_page = self.client.get(reverse('skinali'), {'q': 'океан'})
+        second_page = self.client.get(reverse('skinali'), {'q': 'океан', 'page': 2})
+        self.assertEqual(first_page.context['paginator'].count, 32)
+        self.assertEqual(len(first_page.context['object_list']), 30)
+        self.assertEqual(len(second_page.context['object_list']), 2)
+        self.assertIn('q=%D0%BE%D0%BA%D0%B5%D0%B0%D0%BD', first_page.context['col_tag'])
+
+        request = RequestFactory().get(reverse('skinali'), {'q': 'океан'})
+        view = SkinaliAll()
+        view.setup(request)
+        queryset = view.get_queryset()
+        with CaptureQueriesContext(connection) as query_context:
+            queryset.count()
+            pictures = list(queryset[:30])
+            for picture in pictures:
+                list(picture.tags.all())
+                list(picture.cat.all())
+
+        self.assertEqual(len(query_context), 4)
+
+    def test_number_of_terms_does_not_increase_database_query_count(self):
+        for query in ('море', 'море закат лес река поле'):
+            with self.subTest(query=query):
+                request = RequestFactory().get(reverse('skinali'), {'q': query})
+                view = SkinaliAll()
+                view.setup(request)
+
+                with CaptureQueriesContext(connection) as query_context:
+                    view.get_queryset().count()
+
+                self.assertEqual(len(query_context), 1)
 
 
 class CatalogThumbnailTests(TestCase):
@@ -457,8 +695,8 @@ class PublicationTests(TestCase):
             reverse('tag', kwargs={'tag_slug': self.hidden_tag.slug})
         )
         search_response = self.client.get(
-            reverse('home'),
-            {'product-number': self.hidden_picture.name},
+            reverse('skinali'),
+            {'q': self.hidden_picture.name},
         )
 
         self.assertEqual(
@@ -575,7 +813,7 @@ class ContactFormSubmissionTests(TestCase):
         self.assertEqual(ImagePurchaseContactForm.base_fields['email'].max_length, 50)
         self.assertTrue(ImagePurchaseContactForm.base_fields['pict_id'].required)
 
-    def test_menu_modal_and_contact_page_form_use_shared_markup(self):
+    def test_menu_modal_and_contact_page_question_form_use_shared_markup(self):
         home_response = self.client.get(reverse('home'))
         contact_response = self.client.get(reverse('about'))
 
@@ -599,11 +837,8 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(contact_response, 'name="question-question"')
         self.assertContains(contact_response, 'maxlength="250"')
         self.assertContains(contact_response, 'name="question-website"')
-        self.assertContains(contact_response, 'id="email-message-title"')
-        self.assertContains(contact_response, 'name="email_message-email"')
-        self.assertContains(contact_response, 'type="email"')
-        self.assertContains(contact_response, 'name="email_message-comment"')
-        self.assertContains(contact_response, 'name="email_message-website"')
+        self.assertNotContains(contact_response, 'id="email-message-title"')
+        self.assertNotContains(contact_response, 'name="email_message-email"')
 
     def test_valid_ajax_post_saves_callback_request(self):
         response = self.client.post(

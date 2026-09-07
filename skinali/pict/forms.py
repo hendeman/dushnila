@@ -6,6 +6,62 @@ from django.core import signing
 from django.core.exceptions import ValidationError
 
 from pict.models import ContactRequest, Integration, Pict
+from pict.search import (
+    SEARCH_IMAGE_NUMBER_MAX,
+    SEARCH_QUERY_MAX_LENGTH,
+    SEARCH_TERM_MIN_LENGTH,
+    SEARCH_TERMS_LIMIT,
+    parse_search_query,
+)
+
+
+class CatalogSearchForm(forms.Form):
+    q = forms.CharField(
+        label='Поиск изображений',
+        max_length=SEARCH_QUERY_MAX_LENGTH,
+        strip=True,
+        error_messages={
+            'required': 'Введите номер изображения или хотя бы одно слово.',
+            'max_length': 'Поисковый запрос должен содержать не более 100 символов.',
+        },
+        widget=forms.TextInput(attrs={
+            'type': 'search',
+            'maxlength': SEARCH_QUERY_MAX_LENGTH,
+            'placeholder': 'Поиск, например море',
+            'autocomplete': 'off',
+        }),
+    )
+
+    def clean_q(self):
+        parsed_query = parse_search_query(self.cleaned_data['q'])
+        if not parsed_query.terms:
+            raise ValidationError('Введите номер изображения или хотя бы одно слово.')
+        if len(parsed_query.terms) > SEARCH_TERMS_LIMIT:
+            raise ValidationError(
+                f'Введите не более {SEARCH_TERMS_LIMIT} разных слов.'
+            )
+        if (
+            parsed_query.image_number is not None
+            and parsed_query.image_number > SEARCH_IMAGE_NUMBER_MAX
+        ):
+            raise ValidationError('Номер изображения слишком большой.')
+
+        short_terms = [
+            term for term in parsed_query.terms
+            if len(term) < SEARCH_TERM_MIN_LENGTH
+        ]
+        invalid_terms = [
+            term for term in parsed_query.terms
+            if not any(character.isalnum() for character in term)
+        ]
+        if parsed_query.image_number is None and (short_terms or invalid_terms):
+            raise ValidationError(
+                'Каждое поисковое слово должно содержать букву или цифру '
+                'и не менее 2 символов.'
+            )
+
+        self.parsed_query = parsed_query
+        return parsed_query.normalized
 
 
 class IntegrationAdminForm(forms.ModelForm):

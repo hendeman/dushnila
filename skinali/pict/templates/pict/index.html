@@ -2,26 +2,6 @@
 {% load static %}
 
 {% block content %}
-{% if get_find %}
-  <a class="search-back-link" href="{% url 'skinali' %}" data-search-back>
-    <span aria-hidden="true">←</span> Назад
-  </a>
-  <h1>{{ title }}</h1>
-  <p class="catalog-intro">Введенные слова: {{ get_find }}</p>
-  {% if list_pict == 0 %}
-    <p>По запросу ничего не найдено</p>
-  {% else %}
-    <div class="container catalog-gallery">
-    {% for p in page_obj %}
-      <div class="item-block">
-        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
-      </div>
-    {% endfor %}
-    </div>
-  {% endif %}
-  {% include 'pict/includes/paginator.html' %}
-  <script src="{% static 'skinali/js/search-results.js' %}" defer></script>
-{% else %}
   <section class="home-hero" aria-labelledby="home-hero-title">
     <img class="home-hero__image"
          src="{% static 'skinali/images/odium-hero-glass-v2.jpg' %}"
@@ -75,11 +55,9 @@
       <span>Стекло, которое становится частью интерьера</span>
     </aside>
   </section>
-{% endif %}
 {% endblock %}
 
 {% block full_width_content %}
-{% if not get_find %}
 <section class="home-offers" aria-labelledby="home-offers-title">
   <div class="site-content home-offers__inner">
     <header class="home-offers__header">
@@ -277,5 +255,4 @@
     </div>
   </div>
 </section>
-{% endif %}
 {% endblock %}

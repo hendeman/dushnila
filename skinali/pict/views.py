@@ -1,18 +1,26 @@
-from django.core.paginator import Paginator
+from urllib.parse import urlencode
+
 from django.db import transaction
 from django.db.models import Count, Q
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_POST
-from django.views.generic import ListView
+from django.views.generic import ListView, TemplateView
 
 from .forms import (
     CallbackContactForm,
+    CatalogSearchForm,
     EmailCommentContactForm,
     ImagePurchaseContactForm,
     QuestionContactForm,
 )
 from .models import *
+from .search import (
+    SEARCH_QUERY_PARAMETER,
+    apply_catalog_search,
+    format_image_count,
+)
 
 # menu = ["Каталог скинали", "Услуги дизайнера", "Связаться с нами", "Главная страница"]
 menu = [{'title': "Главная страница", 'url_name': 'home'},
@@ -25,6 +33,7 @@ menu = [{'title': "Главная страница", 'url_name': 'home'},
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
 CONTACT_SUCCESS_MESSAGE = 'Спасибо! Мы получили заявку и скоро свяжемся с вами'
 IMAGE_PURCHASE_SUCCESS_MESSAGE = 'Спасибо! Заявка на покупку изображения принята'
+CATALOG_PAGE_SIZE = 30
 CONTACT_FORM_CLASSES = {
     CallbackContactForm.form_kind: CallbackContactForm,
     QuestionContactForm.form_kind: QuestionContactForm,
@@ -80,69 +89,71 @@ class FavoritesContextMixin:
         return context
 
 
-class PictHome(FavoritesContextMixin, ListView):
-    # model = Pict
+class PictHome(FavoritesContextMixin, TemplateView):
     template_name = 'pict/index.html'
-    paginate_by = 6
 
-    def get_context_data(self, *, object_list=None, **kwargs):
+    def get(self, request, *args, **kwargs):
+        if 'product-number' in request.GET:
+            query_string = urlencode({
+                SEARCH_QUERY_PARAMETER: request.GET.get('product-number', ''),
+            })
+            return redirect(f'{reverse("skinali")}?{query_string}')
+        return super().get(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        get_find = self.request.GET.get('product-number')
-        if len(context['object_list']) == 0 and get_find:
-            context['list_pict'] = 0
-        context['title'] = 'Результаты поиска' if get_find else 'Главная страница'
+        context['title'] = 'Главная страница'
         context['menu'] = menu
-        context['col_tag'] = f"&product-number={get_find}" if get_find else ""
-        if context['col_tag']:
-            context['get_find'] = self.request.GET.get('product-number')
-        else:
-            context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
+        context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
         return context
 
-    def get_queryset(self):
-        if self.request.GET.get('product-number'):
-            search_elem = self.request.GET.get('product-number')
-            if search_elem.isdigit():
-                return Pict.objects.published().filter(name=search_elem)
-            else:
-                if len(search_elem) >= 3:
-                    request_cap = search_elem.lower()[:-1]
-                    return Pict.objects.published().filter(tags__tag__contains=request_cap)
-                # Короткий текстовый запрос показывает обычную пустую выдачу.
-                return Pict.objects.none()
-        else:
-            return ""
-
-
-# def index(request):
-#     if request.GET.get('product-number'):
-#         search_elem = request.GET.get('product-number')
-#         if search_elem.isdigit():
-#             list_cat = Pict.objects.filter(name=search_elem)
-#         else:
-#             if len(search_elem) >= 3:
-#                 request_cap = search_elem.capitalize()[:-1]
-#                 list_cat = Pict.objects.filter(title__startswith=request_cap)
-#             else:
-#                 list_cat = ""
-#         list_cat = 0 if len(list_cat) == 0 else list_cat
-#         return render(request, 'pict/index.html', {'menu': menu, 'title': 'Главная страница', 'list_cat': list_cat})
-#     return render(request, 'pict/index.html', {'menu': menu, 'title': 'Главная страница'})
 
 class SkinaliMix(FavoritesContextMixin, ListView):
     template_name = 'pict/skinali.html'
-    paginate_by = 6
+    paginate_by = CATALOG_PAGE_SIZE
 
     @staticmethod
     def get_catalog_queryset():
         # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
         return Pict.objects.published().prefetch_related('tags', 'cat')
 
-    def get_popular_tags(self):
+    def is_search_requested(self):
+        return SEARCH_QUERY_PARAMETER in self.request.GET
+
+    def get_search_form(self):
+        if not hasattr(self, 'search_form'):
+            data = self.request.GET if self.is_search_requested() else None
+            self.search_form = CatalogSearchForm(data=data)
+        return self.search_form
+
+    def filter_catalog_queryset(self, queryset):
+        return queryset
+
+    def get_route_category(self):
         category_slug = self.kwargs.get('slug_cat')
+        if not category_slug:
+            return None
+        if not hasattr(self, 'route_category'):
+            self.route_category = get_object_or_404(Category, slug=category_slug)
+        return self.route_category
+
+    def get_queryset(self):
+        # URL категории остается валидируемым ресурсом даже при глобальном поиске.
+        self.get_route_category()
+        queryset = self.get_catalog_queryset()
+        if not self.is_search_requested():
+            return self.filter_catalog_queryset(queryset)
+
+        search_form = self.get_search_form()
+        if not search_form.is_valid():
+            return queryset.none()
+        return apply_catalog_search(queryset, search_form.parsed_query)
+
+    def get_popular_tags(self):
+        route_category = self.get_route_category()
         publication_filter = Q(tags__is_published=True)
-        if category_slug:
-            publication_filter &= Q(tags__cat__slug=category_slug)
+        if route_category:
+            publication_filter &= Q(tags__cat=route_category)
 
         return TagPict.objects.annotate(
             total=Count('tags', filter=publication_filter, distinct=True)
@@ -150,83 +161,84 @@ class SkinaliMix(FavoritesContextMixin, ListView):
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        get_color = self.request.GET.get('color')
-        selected_category = (
-            Category.objects.get(slug=self.kwargs['slug_cat'])
-            if self.kwargs else None
-        )
-        context['title'] = 'Каталог скинали'
+        is_search = self.is_search_requested()
+        search_form = self.get_search_form()
+        search_is_valid = is_search and search_form.is_valid()
+        get_color = None if is_search else self.request.GET.get('color')
+        route_category = self.get_route_category()
+        selected_category = None if is_search else route_category
+        context['title'] = 'Результаты поиска' if is_search else 'Каталог скинали'
         context['cat_name'] = selected_category or 'Каталог скинали'
         context['selected_category'] = selected_category
-        # context['slug_cat'] = self.kwargs['slug_cat']
         context['menu'] = menu
+        context['search_form'] = search_form
+        context['is_search'] = is_search
+        context['search_is_valid'] = search_is_valid
         context['col'] = get_color if get_color else ""
-        context['col_tag'] = f"&color={get_color}" if get_color else ""
-        context['color_list'] = Color.objects.all()
-        context['list_cat'] = Category.objects.all()
-        context['list_tag'] = self.get_popular_tags()
-        try:
-            context['col_ru'] = Color.objects.get(slug_color=context['col'])
-        except:
-            context['col_ru'] = ""
+        context['color_list'] = Color.objects.none() if is_search else Color.objects.all()
+        context['list_cat'] = Category.objects.none() if is_search else Category.objects.all()
+        context['list_tag'] = () if is_search else self.get_popular_tags()
+
+        if search_is_valid:
+            parsed_query = search_form.parsed_query
+            context['search_query'] = self.request.GET.get(SEARCH_QUERY_PARAMETER, '')
+            context['col_tag'] = '&' + urlencode({
+                SEARCH_QUERY_PARAMETER: parsed_query.normalized,
+            })
+            context['search_result_count'] = context['paginator'].count
+            context['search_result_summary'] = format_image_count(
+                context['search_result_count'],
+            )
+            context['search_terms'] = self.get_search_term_links(parsed_query.terms)
+        else:
+            context['search_query'] = self.request.GET.get(SEARCH_QUERY_PARAMETER, '')
+            context['col_tag'] = f"&color={get_color}" if get_color else ""
+            context['search_result_count'] = 0
+            context['search_terms'] = ()
+
+        context['col_ru'] = (
+            Color.objects.filter(slug_color=context['col']).first()
+            if context['col'] else ''
+        )
         return context
+
+    @staticmethod
+    def get_search_term_links(terms):
+        catalog_url = reverse('skinali')
+        links = []
+        for index, term in enumerate(terms):
+            remaining_terms = terms[:index] + terms[index + 1:]
+            remove_url = catalog_url
+            if remaining_terms:
+                remove_url += '?' + urlencode({
+                    SEARCH_QUERY_PARAMETER: ' '.join(remaining_terms),
+                })
+            links.append({'label': term, 'remove_url': remove_url})
+        return links
 
 
 class SkinaliAll(SkinaliMix):
 
-    def get_queryset(self):
-        queryset = self.get_catalog_queryset()
+    def filter_catalog_queryset(self, queryset):
         if self.request.GET.get('color'):
             return queryset.filter(color__slug_color=self.request.GET.get('color'))
-        else:
-            return queryset
-
-# def skinaliall(request):
-#
-#     list_cat = Category.objects.all()
-#     col = col_tag = col_ru = ""
-#     cat_name = "Каталог скинали"
-#     if request.GET.get('color'):
-#         col = request.GET.get('color')
-#         col_tag = f"&color={request.GET.get('color')}"
-#         try:
-#             col_ru = Color.objects.get(slug_color=col)
-#             list_pict = Pict.objects.filter(color__slug_color=col)
-#         except:
-#             list_pict = Pict.objects.all()
-#     else:
-#         list_pict = Pict.objects.all()
-#
-#     color_list = Color.objects.all()
-#     paginator = Paginator(list_pict, 6)
-#
-#     page_number = request.GET.get('page')
-#     page_obj = paginator.get_page(page_number)
-#     return render(request, 'pict/skinali.html', {'page_obj': page_obj,
-#                                                  'list_pict': list_pict,
-#                                                  'menu': menu,
-#                                                  'title': 'Каталог скинали',
-#                                                  'list_cat': list_cat,
-#                                                  'color_list': color_list,
-#                                                  'col_tag': col_tag,
-#                                                  'col': col,
-#                                                  'col_ru': col_ru,
-#                                                  'cat_name': cat_name})
+        return queryset
 
 
 class SkinaliSlug(SkinaliMix):
 
-    def get_queryset(self):
-        queryset = self.get_catalog_queryset()
+    def filter_catalog_queryset(self, queryset):
         if self.request.GET.get('color'):
-            return queryset.filter(color__slug_color=self.request.GET.get('color'), cat__slug=self.kwargs['slug_cat'])
-        else:
-            return queryset.filter(cat__slug=self.kwargs['slug_cat'])
+            return queryset.filter(
+                color__slug_color=self.request.GET.get('color'),
+                cat=self.get_route_category(),
+            )
+        return queryset.filter(cat=self.get_route_category())
 
 
 class PictTag(FavoritesContextMixin, ListView):
     template_name = 'pict/tag.html'
-    paginate_by = 6
+    paginate_by = CATALOG_PAGE_SIZE
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -235,7 +247,9 @@ class PictTag(FavoritesContextMixin, ListView):
         return context
 
     def get_queryset(self):
-        return Pict.objects.published().filter(tags__slug=self.kwargs['tag_slug'])
+        return Pict.objects.published().filter(
+            tags__slug=self.kwargs['tag_slug'],
+        )
 
 
 class FinishedWorkList(FavoritesContextMixin, ListView):
@@ -407,39 +421,6 @@ def submit_contact_form(request):
         'form_kind': form_kind,
         'suppress_callback_dialog': True,
     }, status=422)
-
-# def skinali(request, slug_cat):
-#     cat_name = Category.objects.get(slug=slug_cat)
-#     # list_pict = cat_name.pict_set.all()
-#     col = col_tag = col_ru = ""
-#     if request.GET.get('color'):
-#         col_tag = f"&color={request.GET.get('color')}"
-#         col = request.GET.get('color')
-#         try:
-#             col_ru = Color.objects.get(slug_color=col)
-#             list_pict = Pict.objects.filter(color__slug_color=col, cat__slug=slug_cat)
-#         except:
-#             list_pict = Pict.objects.filter(cat__slug=slug_cat)
-#     else:
-#         list_pict = Pict.objects.filter(cat__slug=slug_cat)
-#
-#     color_list = Color.objects.all()
-#
-#     list_cat = Category.objects.all()
-#     paginator = Paginator(list_pict, 6)
-#
-#     page_number = request.GET.get('page')
-#     page_obj = paginator.get_page(page_number)
-#     return render(request, 'pict/skinali.html', {'page_obj': page_obj,
-#                                                  'list_pict': list_pict,
-#                                                  'menu': menu,
-#                                                  'title': 'Каталог скинали',
-#                                                  'list_cat': list_cat,
-#                                                  'cat_name': cat_name,
-#                                                  'color_list': color_list,
-#                                                  'col_tag': col_tag,
-#                                                  'col': col,
-#                                                  'col_ru': col_ru})
 
 
 def about(request):

@@ -18,6 +18,7 @@ from pict.models import (
     Integration,
     IntegrationRevision,
     Pict,
+    TagAlias,
     TagPict,
 )
 
@@ -130,11 +131,32 @@ class CategoryAdmin(admin.ModelAdmin):
     prepopulated_fields = {"slug": ("cat",)}
 
 
+class TagAliasInline(admin.TabularInline):
+    model = TagAlias
+    extra = 1
+    fields = ['alias', 'normalized_alias']
+    readonly_fields = ['normalized_alias']
+
+
 class TagPictAdmin(admin.ModelAdmin):
-    list_display = ['tag', 'slug']
+    list_display = ['tag', 'normalized_tag', 'slug', 'get_search_aliases']
     list_display_links = ['tag']
-    search_fields = ['tag']
+    search_fields = [
+        'tag',
+        'normalized_tag',
+        'search_aliases__alias',
+        'search_aliases__normalized_alias',
+    ]
     prepopulated_fields = {"slug": ("tag",)}
+    readonly_fields = ['normalized_tag']
+    inlines = [TagAliasInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('search_aliases')
+
+    @admin.display(description='Синонимы')
+    def get_search_aliases(self, obj):
+        return ', '.join(alias.alias for alias in obj.search_aliases.all()) or '—'
 
 
 class ColorAdmin(admin.ModelAdmin):

@@ -259,6 +259,11 @@ ul.mainmenu li a.is-active::after {
 	box-shadow: 0 6px 18px rgba(31, 35, 31, 0.025);
 }
 
+.site-search__form:focus-within {
+	border-color: #60785c;
+	box-shadow: 0 0 0 3px rgba(96, 120, 92, .14);
+}
+
 .site-search__icon {
 	flex: 0 0 auto;
 	width: 23px;
@@ -309,6 +314,105 @@ ul.mainmenu li a.is-active::after {
 	margin: 9px 0 0 22px;
 	color: #7d817a;
 	font-size: 12px;
+}
+
+.site-search__errors {
+	margin: 9px 0 0 22px;
+	color: #9b332c;
+	font-size: 13px;
+}
+
+.site-search__errors p {
+	margin: 0;
+	color: inherit;
+}
+
+.search-results__header {
+	margin-bottom: 30px;
+}
+
+.search-results__count {
+	margin: -10px 0 18px;
+	color: #6d736c;
+	font-size: 15px;
+}
+
+.search-query-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 9px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.search-query-chip {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	min-height: 40px;
+	padding: 7px 13px 7px 16px;
+	gap: 9px;
+	border: 1px solid #c8cbc2;
+	border-radius: 999px;
+	color: #1f231f;
+	background: #fbfaf6;
+	font-size: 14px;
+	font-weight: 600;
+	text-decoration: none;
+	transition: border-color .16s, background .16s;
+}
+
+.search-query-chip:hover,
+.search-query-chip:focus-visible {
+	border-color: #60785c;
+	color: #1f231f;
+	background: #eef1e8;
+}
+
+.search-query-chip__remove {
+	font-size: 20px;
+	font-weight: 400;
+	line-height: 1;
+}
+
+.search-empty {
+	box-sizing: border-box;
+	max-width: 720px;
+	padding: 30px;
+	border: 1px solid #d8d8cf;
+	border-radius: 18px;
+	background: #fbfaf6;
+}
+
+.search-empty h2 {
+	margin: 0 0 10px;
+	font-size: 25px;
+}
+
+.search-empty p {
+	margin: 0 0 20px;
+	color: #6d736c;
+}
+
+.search-empty a {
+	display: inline-flex;
+	align-items: center;
+	min-height: 42px;
+	padding: 0 18px;
+	border-radius: 999px;
+	color: #fff;
+	background: #1f2722;
+	font-size: 14px;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.search-empty a:hover,
+.search-empty a:focus-visible {
+	color: #fff;
+	background: #60785c;
 }
 
 .home-hero {
@@ -1584,12 +1688,6 @@ ul.mainmenu li a.is-active::after {
 	color: #858c86;
 	font-size: 11px;
 	letter-spacing: 0.04em;
-}
-.search-back-link {
-	display: inline-flex;
-	align-items: center;
-	gap: 8px;
-	margin-bottom: 16px;
 }
 
 .container {
@@ -3071,6 +3169,19 @@ background-color: coral;
 
 	.site-search__hint {
 		margin-left: 18px;
+	}
+
+	.site-search__errors {
+		margin-left: 18px;
+	}
+
+	.search-results__header {
+		margin-bottom: 24px;
+	}
+
+	.search-empty {
+		padding: 24px 20px;
+		border-radius: 14px;
 	}
 
 	.home-hero {

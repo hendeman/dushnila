@@ -64,22 +64,27 @@
 ## Остальные admin-классы
 
 - `CategoryAdmin`: показывает `cat`, `slug`; поиск по `cat`; slug автозаполняется из названия.
-- `TagPictAdmin`: показывает `tag`, `slug`; поиск по `tag`; slug автозаполняется из тега.
+- `TagPictAdmin`: показывает основной тег, его не редактируемое `normalized_tag`, slug и собранный через запятую список синонимов; при отсутствии синонимов выводится `—`. Поиск охватывает исходное и нормализованное значение тега, а также исходные и нормализованные значения связанных синонимов. Slug автозаполняется из тега.
+- `TagAliasInline`: табличный inline внутри формы `TagPict`. Администратор вводит одно слово в `alias`, а `normalized_alias` видит только для чтения; по умолчанию предлагается одна пустая строка. Отдельной таблицей в меню admin `TagAlias` не регистрируется.
+- `TagPictAdmin.get_queryset()` заранее загружает `search_aliases`, чтобы колонка синонимов не создавала N+1 запросов.
 - `ColorAdmin`: показывает `color`, `slug_color`; сортирует по названию цвета. Автозаполнение slug закомментировано.
 
 ## Регистрация
 
-Зарегистрированы пары `Pict/PictAdmin`, `FinishedWork/FinishedWorkAdmin`, `ContactRequest/ContactRequestAdmin`, `Category/CategoryAdmin`, `Color/ColorAdmin`, `TagPict/TagPictAdmin`. Модель `ContactRequestDelivery` намеренно не зарегистрирована.
+Зарегистрированы пары `Pict/PictAdmin`, `FinishedWork/FinishedWorkAdmin`, `ContactRequest/ContactRequestAdmin`, `Category/CategoryAdmin`, `Color/ColorAdmin`, `TagPict/TagPictAdmin`. `TagAlias` управляется только inline-формой основного тега. Модель `ContactRequestDelivery` намеренно не зарегистрирована.
 
 ## Зависимости
 
 - [models.py](models.md).
 - [forms.py](forms.md).
+- [search.py](search.md): правила вычисления значений, которые admin показывает только для чтения.
 - Заголовки всего admin задаются в [корневом urls.py](../project/urls.md).
 
 ## Особенности и риски
 
 - `PictAdmin.get_queryset()` заранее загружает категории, цвета и готовые работы; `FinishedWorkAdmin` заранее загружает связанное изображение и его категории; `ContactRequestAdmin` заранее загружает изображение покупки и доставки.
+- `TagPictAdmin.get_queryset()` заранее загружает поисковые синонимы.
+- Совпадение нормализованного синонима с основным тегом из другой таблицы запрещается валидацией моделей, но отдельного межтабличного ограничения БД нет.
 - Аргумент методов назван `object`, перекрывая встроенный тип Python, но на работу это не влияет.
 
 ## Когда читать исходник

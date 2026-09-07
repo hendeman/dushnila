@@ -4,6 +4,8 @@ from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 
+from .search import normalize_search_value
+
 
 class PublicationQuerySet(models.QuerySet):
     """Единая выборка контента, разрешённого к показу на публичном сайте."""
@@ -26,7 +28,41 @@ class Color(models.Model):
 
 class TagPict(models.Model):
     tag = models.CharField(max_length=100, db_index=True, verbose_name='Ключевое слово')
+    normalized_tag = models.CharField(
+        max_length=200,
+        unique=True,
+        editable=False,
+        verbose_name='Нормализованное значение',
+    )
     slug = models.SlugField(max_length=100, db_index=True, unique=True, verbose_name="Slug")
+
+    def clean(self):
+        super().clean()
+        self.normalized_tag = normalize_search_value(self.tag)
+        if not any(character.isalnum() for character in self.normalized_tag):
+            raise ValidationError({
+                'tag': 'Тег должен содержать хотя бы одну букву или цифру.',
+            })
+        duplicate_tag = TagPict.objects.filter(
+            normalized_tag=self.normalized_tag,
+        ).exclude(pk=self.pk)
+        if duplicate_tag.exists():
+            raise ValidationError({
+                'tag': 'Такой тег уже существует с учетом регистра и разделителей.',
+            })
+        if TagAlias.objects.filter(normalized_alias=self.normalized_tag).exists():
+            raise ValidationError({
+                'tag': 'Такое поисковое значение уже используется синонимом.',
+            })
+
+    def save(self, *args, **kwargs):
+        self.normalized_tag = normalize_search_value(self.tag)
+        # Проверяем инварианты и при сохранении вне ModelForm.
+        self.clean()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'tag' in update_fields:
+            kwargs['update_fields'] = set(update_fields) | {'normalized_tag'}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.tag
@@ -37,6 +73,62 @@ class TagPict(models.Model):
     class Meta:
         verbose_name = 'Ключевое слово'
         verbose_name_plural = 'Ключевые слова'
+
+
+class TagAlias(models.Model):
+    tag = models.ForeignKey(
+        TagPict,
+        on_delete=models.CASCADE,
+        related_name='search_aliases',
+        verbose_name='Основной тег',
+    )
+    alias = models.CharField(max_length=100, verbose_name='Синоним')
+    normalized_alias = models.CharField(
+        max_length=200,
+        unique=True,
+        editable=False,
+        verbose_name='Нормализованное значение',
+    )
+
+    def clean(self):
+        super().clean()
+        self.normalized_alias = normalize_search_value(self.alias)
+        if not any(character.isalnum() for character in self.normalized_alias):
+            raise ValidationError({
+                'alias': 'Синоним должен содержать хотя бы одну букву или цифру.',
+            })
+        if ' ' in self.normalized_alias:
+            raise ValidationError({
+                'alias': 'Укажите один синоним без пробелов и разделителей.',
+            })
+        duplicate_alias = TagAlias.objects.filter(
+            normalized_alias=self.normalized_alias,
+        ).exclude(pk=self.pk)
+        if duplicate_alias.exists():
+            raise ValidationError({
+                'alias': 'Такой поисковый синоним уже существует.',
+            })
+        if TagPict.objects.filter(normalized_tag=self.normalized_alias).exists():
+            raise ValidationError({
+                'alias': 'Такое поисковое значение уже используется основным тегом.',
+            })
+
+    def save(self, *args, **kwargs):
+        self.normalized_alias = normalize_search_value(self.alias)
+        # Прямое сохранение модели не должно обходить правила поискового словаря.
+        self.clean()
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and 'alias' in update_fields:
+            kwargs['update_fields'] = set(update_fields) | {'normalized_alias'}
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.alias
+
+    class Meta:
+        verbose_name = 'Поисковый синоним'
+        verbose_name_plural = 'Поисковые синонимы'
+        ordering = ['alias']
 
 
 class Category(models.Model):
