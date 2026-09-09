@@ -1,0 +1,13 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Интеграция: <strong>{{ revision.integration.name }}</strong>.</p>
+<p>Будут восстановлены все настройки, включая код, страницы, порядок и состояние:
+    <strong>{{ revision.snapshot.is_enabled|yesno:"включена,выключена" }}</strong>.
+    История сохранится, восстановление создаст новую версию.</p>
+{{ snapshot_display }}
+<form method="post">
+    {% csrf_token %}
+    <input type="submit" value="Восстановить версию">
+    <a href="{{ integration_url }}">Отмена</a>
+</form>
+{% endblock %}

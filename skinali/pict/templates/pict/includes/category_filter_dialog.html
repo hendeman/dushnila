@@ -1,0 +1,39 @@
+<dialog class="mobile-filter-dialog"
+        id="mobile-category-filter"
+        aria-labelledby="mobile-category-filter-title">
+  <div class="mobile-filter-dialog__content">
+    <header class="mobile-filter-dialog__header">
+      <h2 id="mobile-category-filter-title">Категории</h2>
+      <button type="button"
+              class="mobile-filter-dialog__close"
+              data-mobile-filter-close
+              aria-label="Закрыть список категорий">&times;</button>
+    </header>
+    <ul class="mobile-filter-dialog__list">
+      <li>
+        {% if not selected_category %}
+          <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+            <span>Все категории</span>
+            <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+          </span>
+        {% else %}
+          <a class="mobile-filter-dialog__item"
+             href="{% if finished_works_filter %}{% url 'finished_works' %}{% else %}{% url 'skinali' %}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">Все категории</a>
+        {% endif %}
+      </li>
+      {% for category in categories %}
+        <li>
+          {% if category.slug == selected_category.slug %}
+            <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+              <span>{{ category.cat }}</span>
+              <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
+            </span>
+          {% else %}
+            <a class="mobile-filter-dialog__item"
+               href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">{{ category.cat }}</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+</dialog>

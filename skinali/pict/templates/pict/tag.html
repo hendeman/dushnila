@@ -1,16 +1,28 @@
 {% extends 'pict/base.html' %}
 
 {% block content %}
-<h1>Изображения по тегу: {{ title }}</h1>
+<h1>{{ title }}</h1>
+{% if tag_intro %}
+  <p class="catalog-intro catalog-intro--managed">{{ tag_intro|linebreaksbr }}</p>
+{% endif %}
+<p class="search-results__count">{{ result_summary }}</p>
 
-<div class="container">
-  {% for p in page_obj %}
-    <div class="item-block">
-      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids %}
-    </div>
-  {% endfor %}
-</div>
+{% if page_obj.object_list %}
+  <div class="container catalog-gallery">
+    {% for p in page_obj %}
+      <div class="item-block">
+        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <section class="search-empty" aria-labelledby="tag-empty-title">
+    <h2 id="tag-empty-title">Пока нет изображений</h2>
+    <p>Для этого тега ещё не опубликовано ни одного изображения.</p>
+    <a href="{% url 'skinali' %}">Показать весь каталог</a>
+  </section>
+{% endif %}
 
-{% include  'pict/includes/paginator.html' %}
+{% include 'pict/includes/paginator.html' %}
 
 {% endblock %}

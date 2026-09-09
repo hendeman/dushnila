@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 
@@ -97,6 +98,25 @@ def get_environment_url_prefix(name, default):
     return f'{value}/'
 
 
+def get_environment_origin(name, default):
+    """Проверяет публичный origin без пути, параметров и учётных данных."""
+    value = os.environ.get(name, default).strip().rstrip('/')
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {'http', 'https'}
+        or not parsed.netloc
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or parsed.username
+        or parsed.password
+    ):
+        raise ImproperlyConfigured(
+            f'{name} должен иметь вид https://example.com без пути и параметров.'
+        )
+    return value
+
+
 ENVIRONMENT = os.environ.get('DJANGO_ENVIRONMENT', 'development').strip().lower()
 if ENVIRONMENT not in {'development', 'production'}:
     raise ImproperlyConfigured(
@@ -139,6 +159,14 @@ INTERNAL_IPS = get_environment_list(
     default=('127.0.0.1',) if not IS_PRODUCTION else (),
 )
 ADMIN_URL = get_environment_url_prefix('DJANGO_ADMIN_PATH', 'admin')
+PUBLIC_SITE_ORIGIN = get_environment_origin(
+    'DJANGO_PUBLIC_SITE_ORIGIN',
+    'https://odium.by',
+)
+if IS_PRODUCTION and not PUBLIC_SITE_ORIGIN.startswith('https://'):
+    raise ImproperlyConfigured(
+        'DJANGO_PUBLIC_SITE_ORIGIN должен использовать HTTPS в production.'
+    )
 ENABLE_DJANGO_EXTENSIONS = get_environment_bool(
     'DJANGO_ENABLE_DJANGO_EXTENSIONS',
     not IS_PRODUCTION,
@@ -160,7 +188,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sitemaps',
     'pict.apps.PictConfig',
+    'sitecontent.apps.SiteContentConfig',
     'sorl.thumbnail',
 ]
 
@@ -196,6 +226,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'pict.context_processors.contact_forms',
+                'sitecontent.context_processors.site_navigation',
             ],
         },
     },

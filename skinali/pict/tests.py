@@ -1,3 +1,4 @@
+import json
 import time
 from datetime import timedelta
 from io import BytesIO, StringIO
@@ -23,15 +24,17 @@ from django.template import RequestContext, Template
 from django.template.loader import render_to_string
 from django.test import Client, RequestFactory, SimpleTestCase, TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
-from django.urls import reverse
+from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
 
 from .admin import (
+    CategoryAdmin,
     ContactRequestAdmin,
     ContactRequestDeliveryInline,
     FinishedWorkAdmin,
     PictAdmin,
+    TagPictAdmin,
 )
 from .forms import (
     CONTACT_FORM_TOKEN_SALT,
@@ -57,7 +60,7 @@ from .models import (
     TagPict,
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
-from .views import SkinaliAll
+from .views import SkinaliAll, set_page_metadata
 
 
 TEST_MEDIA_DIRECTORY = TemporaryDirectory()
@@ -85,7 +88,15 @@ def create_test_image_file(filename, size=(1000, 200)):
     )
 
 
-class PopularTagsByCategoryTests(TestCase):
+def get_breadcrumb_structured_data(response):
+    html = response.content.decode()
+    marker = '<script id="breadcrumb-structured-data" type="application/ld+json">'
+    start = html.index(marker) + len(marker)
+    end = html.index('</script>', start)
+    return json.loads(html[start:end])
+
+
+class PopularTagsTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.first_category = Category.objects.create(cat='Первая', slug='first')
@@ -127,26 +138,32 @@ class PopularTagsByCategoryTests(TestCase):
             pictures.append(picture)
         return pictures
 
-    def test_category_contains_only_its_tags_sorted_and_limited_to_ten(self):
+    def test_category_uses_global_tags_sorted_and_limited_to_ten(self):
         response = self.client.get(
             reverse('skinali', kwargs={'slug_cat': self.first_category.slug})
         )
 
         tags = list(response.context['list_tag'])
         totals = [tag.total for tag in tags]
+        tag_slugs = {tag.slug for tag in tags}
 
         self.assertEqual(len(tags), 10)
         self.assertEqual(totals, sorted(totals, reverse=True))
-        self.assertEqual(tags[0].slug, self.first_tag.slug)
-        self.assertEqual(tags[0].total, 3)
-        self.assertEqual(tags[1].slug, self.cross_category_tag.slug)
-        self.assertEqual(tags[1].total, 2)
+        self.assertEqual(tags[0].slug, self.cross_category_tag.slug)
+        self.assertEqual(tags[0].total, 4)
         self.assertTrue(any(tag.total == 1 for tag in tags))
-        self.assertNotIn(self.second_tag.slug, {tag.slug for tag in tags})
+        self.assertIn(self.first_tag.slug, tag_slugs)
+        self.assertIn(self.second_tag.slug, tag_slugs)
         self.assertContains(response, f'>{self.first_tag.tag}</a>', html=False)
-        self.assertNotContains(response, f'{self.first_tag.tag} ({tags[0].total})')
+        self.assertNotContains(response, f'{self.first_tag.tag} (3)')
+        self.assertContains(response, 'Популярные темы:')
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
+        self.assertContains(
+            response,
+            '<span class="catalog-thumbnail__image-number">№100</span>',
+            html=True,
+        )
         self.assertContains(response, 'class="catalog-modal__title"')
         self.assertContains(response, 'Описание изображения 100')
         self.assertContains(response, '<span>#Первый тег</span>', html=True)
@@ -156,9 +173,26 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, 'class="catalog-modal__nav catalog-modal__nav--next"')
         self.assertNotContains(response, 'catalog-modal__counter')
         self.assertContains(response, 'data-favorite-toggle')
+        self.assertContains(response, 'class="catalog-modal__share"')
+        self.assertContains(response, 'data-share-kind="image"')
+        self.assertContains(response, 'data-share-toggle')
+        first_picture = Pict.objects.get(name=100)
+        self.assertContains(
+            response,
+            f'data-share-image-url="{first_picture.photo.url}"',
+        )
+        self.assertContains(response, 'data-share-service="telegram"')
+        self.assertContains(response, 'data-share-service="viber"')
+        self.assertContains(response, 'data-share-service="whatsapp"')
+        self.assertContains(response, 'skinali/js/image-sharing.js')
         self.assertContains(response, 'class="catalog-modal__purchase"')
         self.assertContains(response, 'data-image-purchase-open')
         self.assertContains(response, 'data-image-number="100"')
+        response_html = response.content.decode()
+        self.assertGreater(
+            response_html.index('class="catalog-modal__share"'),
+            response_html.index('class="catalog-modal__purchase"'),
+        )
         self.assertContains(
             response,
             f'<a href="{reverse("skinali")}">Все</a>',
@@ -191,7 +225,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=63')
+        self.assertContains(response, 'skinali/css/styles.css?v=72')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
@@ -217,7 +251,7 @@ class PopularTagsByCategoryTests(TestCase):
         self.assertContains(response, '<main class="site-main">')
         self.assertContains(response, '<div class="site-content">')
         self.assertContains(response, 'class="site-search__form"')
-        self.assertContains(response, 'Популярные запросы:')
+        self.assertContains(response, 'Популярные темы:')
         self.assertContains(response, 'class="container catalog-gallery"')
         self.assertContains(
             response,
@@ -370,6 +404,401 @@ class PopularTagsByCategoryTests(TestCase):
         )
 
 
+class TagPageAndSitemapTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(cat='Цветы', slug='tag-page-flowers')
+        cls.empty_category = Category.objects.create(
+            cat='Пустая категория',
+            slug='sitemap-empty-category',
+        )
+        cls.hidden_category = Category.objects.create(
+            cat='Скрытая категория',
+            slug='sitemap-hidden-category',
+        )
+        cls.tag = TagPict.objects.create(tag='Розы', slug='tag-page-roses')
+        cls.empty_tag = TagPict.objects.create(
+            tag='Пустая тема',
+            slug='tag-page-empty',
+        )
+        cls.hidden_tag = TagPict.objects.create(
+            tag='Скрытая тема',
+            slug='tag-page-hidden',
+        )
+        cls.picture = Pict.objects.create(
+            name=650,
+            alt='Красные розы',
+            photo=create_test_image_file('tag-page-roses.jpg'),
+        )
+        cls.picture.cat.add(cls.category)
+        cls.picture.tags.add(cls.tag)
+        cls.hidden_picture = Pict.objects.create(
+            name=651,
+            alt='Скрытые цветы',
+            photo=create_test_image_file('tag-page-hidden.jpg'),
+            is_published=False,
+        )
+        cls.hidden_picture.cat.add(cls.hidden_category)
+        cls.hidden_picture.tags.add(cls.hidden_tag)
+
+    def test_tag_page_uses_catalog_cards_and_seo_metadata(self):
+        response = self.client.get(self.tag.get_absolute_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context['object_list']), [self.picture])
+        self.assertEqual(response.context['tag'], self.tag)
+        self.assertEqual(response.context['result_count'], 1)
+        self.assertEqual(response.context['result_summary'], 'Найдено 1 изображение')
+        self.assertContains(response, 'Изображения с тегом «Розы»')
+        self.assertContains(
+            response,
+            '<title>Изображения для скинали: Розы | ОДИУМ</title>',
+            html=True,
+        )
+        self.assertContains(response, '<meta name="description"')
+        self.assertContains(
+            response,
+            f'<link rel="canonical" href="http://testserver{self.tag.get_absolute_url()}">',
+            html=True,
+        )
+        self.assertNotContains(response, '<meta name="robots"')
+        self.assertNotContains(response, 'class="site-search"')
+        self.assertContains(response, 'class="container catalog-gallery"')
+        self.assertContains(response, 'Hash: false', count=1)
+        self.assertContains(
+            response,
+            '<span class="catalog-thumbnail__image-number">№650</span>',
+            html=True,
+        )
+        self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
+        self.assertContains(response, 'data-catalog-favorite-toggle')
+        self.assertContains(response, 'class="catalog-modal__purchase"')
+        self.assertContains(response, '<span>#Розы</span>', html=True)
+        self.assertNotContains(
+            response,
+            f'<a href="{self.tag.get_absolute_url()}">#Розы</a>',
+            html=True,
+        )
+
+    def test_tag_page_uses_managed_seo_content(self):
+        self.tag.seo_h1 = 'Панорамные розы для кухни'
+        self.tag.seo_title = 'Розы для стеклянного фартука'
+        self.tag.seo_description = 'Подборка изображений роз для кухонного фартука.'
+        self.tag.intro_text = 'Красные и светлые розы.\nВыберите подходящий сюжет.'
+        self.tag.save(update_fields=[
+            'seo_h1',
+            'seo_title',
+            'seo_description',
+            'intro_text',
+        ])
+
+        response = self.client.get(self.tag.get_absolute_url())
+
+        self.assertContains(response, '<h1>Панорамные розы для кухни</h1>', html=True)
+        self.assertContains(
+            response,
+            '<title>Розы для стеклянного фартука | ОДИУМ</title>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<meta name="description" '
+            'content="Подборка изображений роз для кухонного фартука.">',
+            html=True,
+        )
+        self.assertContains(response, 'Красные и светлые розы.<br>')
+        self.assertContains(response, 'Выберите подходящий сюжет.')
+
+    def test_category_page_uses_managed_seo_content(self):
+        self.category.seo_h1 = 'Каталог изображений цветов'
+        self.category.seo_title = 'Цветы для скинали'
+        self.category.seo_description = 'Изображения цветов для печати на стекле.'
+        self.category.intro_text = 'Коллекция цветочных панорам для кухни.'
+        self.category.save(update_fields=[
+            'seo_h1',
+            'seo_title',
+            'seo_description',
+            'intro_text',
+        ])
+
+        response = self.client.get(self.category.get_absolute_url())
+
+        self.assertContains(response, '<h1>Каталог изображений цветов</h1>', html=True)
+        self.assertContains(response, '<title>Цветы для скинали | ОДИУМ</title>', html=True)
+        self.assertContains(
+            response,
+            '<meta name="description" '
+            'content="Изображения цветов для печати на стекле.">',
+            html=True,
+        )
+        self.assertContains(response, 'Коллекция цветочных панорам для кухни.')
+        self.assertNotContains(response, '<p>Цветы</p>', html=True)
+
+    def test_empty_tag_page_is_available_and_missing_tag_returns_404(self):
+        response = self.client.get(self.empty_tag.get_absolute_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['result_count'], 0)
+        self.assertContains(response, 'Пока нет изображений')
+        self.assertContains(
+            response,
+            '<meta name="robots" content="noindex,follow">',
+            html=True,
+        )
+        self.assertNotContains(response, 'class="container catalog-gallery"')
+        self.assertEqual(
+            self.client.get('/tag/missing-tag/').status_code,
+            404,
+        )
+
+    def test_sitemap_contains_static_pages_and_only_nonempty_taxonomies(self):
+        response = self.client.get(reverse('sitemap'))
+        xml = response.content.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response['Content-Type'].startswith('application/xml'))
+        for view_name in ('home', 'skinali', 'finished_works', 'designer', 'about'):
+            self.assertIn(
+                f'<loc>http://testserver{reverse(view_name)}</loc>',
+                xml,
+            )
+        self.assertIn(self.category.get_absolute_url(), xml)
+        self.assertNotIn(self.empty_category.get_absolute_url(), xml)
+        self.assertNotIn(self.hidden_category.get_absolute_url(), xml)
+        self.assertIn(self.tag.get_absolute_url(), xml)
+        self.assertNotIn(self.empty_tag.get_absolute_url(), xml)
+        self.assertNotIn(self.hidden_tag.get_absolute_url(), xml)
+
+    def test_catalog_navigation_contains_only_categories_with_published_pictures(self):
+        with self.assertNumQueries(1):
+            categories = list(SkinaliAll.get_catalog_categories())
+
+        self.assertEqual(categories, [self.category])
+
+        response = self.client.get(reverse('skinali'))
+
+        self.assertEqual(list(response.context['list_cat']), [self.category])
+        self.assertContains(response, self.category.get_absolute_url())
+        self.assertNotContains(response, self.empty_category.get_absolute_url())
+        self.assertNotContains(response, self.hidden_category.get_absolute_url())
+
+    def test_public_pages_render_visible_breadcrumbs_and_json_ld(self):
+        cases = (
+            (
+                reverse('skinali'),
+                ('Главная', 'Каталог'),
+                (reverse('home'), reverse('skinali')),
+            ),
+            (
+                self.category.get_absolute_url(),
+                ('Главная', 'Каталог', self.category.cat),
+                (reverse('home'), reverse('skinali'), self.category.get_absolute_url()),
+            ),
+            (
+                self.tag.get_absolute_url(),
+                ('Главная', 'Каталог', self.tag.tag),
+                (reverse('home'), reverse('skinali'), self.tag.get_absolute_url()),
+            ),
+            (
+                reverse('finished_works'),
+                ('Главная', 'Наши работы'),
+                (reverse('home'), reverse('finished_works')),
+            ),
+            (
+                reverse('designer'),
+                ('Главная', 'Услуги дизайнера'),
+                (reverse('home'), reverse('designer')),
+            ),
+            (
+                reverse('about'),
+                ('Главная', 'Связаться с нами'),
+                (reverse('home'), reverse('about')),
+            ),
+        )
+
+        for path, expected_names, expected_paths in cases:
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertContains(
+                    response,
+                    '<nav class="breadcrumbs" aria-label="Хлебные крошки">',
+                )
+                structured_data = get_breadcrumb_structured_data(response)
+                self.assertEqual(structured_data['@context'], 'https://schema.org')
+                self.assertEqual(structured_data['@type'], 'BreadcrumbList')
+                items = structured_data['itemListElement']
+                self.assertEqual(
+                    [item['position'] for item in items],
+                    list(range(1, len(expected_names) + 1)),
+                )
+                self.assertEqual([item['name'] for item in items], list(expected_names))
+                self.assertEqual(
+                    [item['item'] for item in items],
+                    [f'http://testserver{item_path}' for item_path in expected_paths],
+                )
+
+        home_response = self.client.get(reverse('home'))
+        self.assertNotContains(home_response, 'class="breadcrumbs"')
+        self.assertNotContains(home_response, 'id="breadcrumb-structured-data"')
+
+    def test_noindex_pages_keep_visible_breadcrumbs_without_json_ld(self):
+        for path in (
+            self.empty_tag.get_absolute_url(),
+            f'{reverse("skinali")}?q=розы',
+            reverse('favorites'),
+        ):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+                self.assertContains(response, 'class="breadcrumbs"')
+                self.assertContains(
+                    response,
+                    '<meta name="robots" content="noindex,follow">',
+                    html=True,
+                )
+                self.assertNotContains(response, 'id="breadcrumb-structured-data"')
+
+    def test_breadcrumb_metadata_is_query_free_and_escapes_dynamic_names(self):
+        request = RequestFactory().get('/skinali/?page=2')
+        with self.assertNumQueries(0):
+            context = set_page_metadata(
+                {},
+                request,
+                page_title='Каталог — страница 2',
+                meta_description='Каталог',
+                canonical_path='/skinali/',
+                page_number=2,
+                breadcrumbs=(('Главная', '/'), ('Каталог', None)),
+            )
+        self.assertEqual(
+            context['breadcrumbs'][1]['absolute_url'],
+            'http://testserver/skinali/?page=2',
+        )
+
+        unsafe_name = 'Розы </script><script>alert(1)</script>'
+        self.tag.tag = unsafe_name
+        self.tag.save()
+
+        response = self.client.get(self.tag.get_absolute_url())
+        structured_data = get_breadcrumb_structured_data(response)
+
+        self.assertEqual(structured_data['itemListElement'][-1]['name'], unsafe_name)
+        self.assertNotIn(unsafe_name, response.content.decode())
+
+    def test_public_sitemap_pages_have_metadata_and_filters_are_noindex(self):
+        for view_name in ('home', 'skinali', 'finished_works', 'designer', 'about'):
+            with self.subTest(view_name=view_name):
+                path = reverse(view_name)
+                response = self.client.get(path)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.context['page_title'])
+                self.assertTrue(response.context['meta_description'])
+                self.assertEqual(
+                    response.context['canonical_url'],
+                    f'http://testserver{path}',
+                )
+                self.assertFalse(response.context['meta_robots'])
+
+        catalog_response = self.client.get(reverse('skinali'))
+        self.assertContains(
+            catalog_response,
+            '<h1>Каталог изображений для скинали</h1>',
+            html=True,
+        )
+
+        category_response = self.client.get(self.category.get_absolute_url())
+        self.assertContains(
+            category_response,
+            '<title>Изображения для скинали: Цветы | ОДИУМ</title>',
+            html=True,
+        )
+        self.assertContains(
+            category_response,
+            '<h1>Изображения для скинали: Цветы</h1>',
+            html=True,
+        )
+        self.assertEqual(
+            category_response.context['canonical_url'],
+            f'http://testserver{self.category.get_absolute_url()}',
+        )
+        self.assertFalse(category_response.context['meta_robots'])
+
+        search_response = self.client.get(reverse('skinali'), {'q': 'розы'})
+        self.assertEqual(search_response.context['meta_robots'], 'noindex,follow')
+        self.assertEqual(
+            search_response.context['canonical_url'],
+            f'http://testserver{reverse("skinali")}',
+        )
+
+        color_response = self.client.get(
+            self.category.get_absolute_url(),
+            {'color': 'missing'},
+        )
+        self.assertEqual(color_response.context['meta_robots'], 'noindex,follow')
+        self.assertEqual(
+            color_response.context['canonical_url'],
+            f'http://testserver{self.category.get_absolute_url()}',
+        )
+
+
+class RobotsTxtTests(SimpleTestCase):
+    @override_settings(
+        ADMIN_URL='private-admin/',
+        PUBLIC_SITE_ORIGIN='https://odium.by',
+    )
+    def test_robots_txt_exposes_crawl_rules_and_sitemap(self):
+        response = self.client.get(reverse('robots_txt'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/plain; charset=utf-8')
+        self.assertEqual(response['Cache-Control'], 'public, max-age=3600')
+        self.assertEqual(
+            response.content.decode(),
+            'User-agent: *\n'
+            'Disallow: /private-admin/\n'
+            f'Disallow: {reverse("contact_submit")}\n'
+            'Clean-param: '
+            'utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid\n'
+            '\n'
+            f'Sitemap: https://odium.by{reverse("sitemap")}\n',
+        )
+
+    def test_robots_txt_allows_only_safe_methods(self):
+        self.assertEqual(self.client.head(reverse('robots_txt')).status_code, 200)
+
+        response = self.client.post(reverse('robots_txt'))
+
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response['Allow'], 'GET, HEAD')
+
+
+class TaxonomySeoAdminTests(SimpleTestCase):
+    def test_category_and_tag_admin_expose_shared_seo_fields(self):
+        expected_fields = {
+            'seo_h1',
+            'seo_title',
+            'seo_description',
+            'intro_text',
+        }
+
+        for model_admin in (
+            CategoryAdmin(Category, AdminSite()),
+            TagPictAdmin(TagPict, AdminSite()),
+        ):
+            with self.subTest(model_admin=model_admin.__class__.__name__):
+                fieldsets = model_admin.get_fieldsets(request=None)
+                seo_fields = set(fieldsets[1][1]['fields'])
+                self.assertEqual(seo_fields, expected_fields)
+
+
+class RemovedTestRouteTests(SimpleTestCase):
+    def test_legacy_numeric_category_route_is_not_available(self):
+        with self.assertRaises(NoReverseMatch):
+            reverse('cat', kwargs={'catid': 1})
+
+        self.assertEqual(self.client.get('/cats/1/').status_code, 404)
+
+
 class PaginatorTemplateTests(SimpleTestCase):
     @staticmethod
     def render_paginator(page_number, num_pages):
@@ -487,8 +916,13 @@ class CatalogSearchTests(TestCase):
         self.assertEqual(valid_form.parsed_query.terms, ('море', 'закат'))
         self.assertEqual(valid_form.cleaned_data['q'], 'море закат')
 
+        number_form = CatalogSearchForm({'q': '1'})
+        self.assertTrue(number_form.is_valid())
+        self.assertEqual(number_form.parsed_query.image_number, 1)
+
         invalid_queries = (
             'я',
+            'мо',
             '..',
             '#, : ; -',
             'один два три четыре пять шесть',
@@ -539,6 +973,12 @@ class CatalogSearchTests(TestCase):
         self.assertContains(response, 'Найдено 1 изображение')
         self.assertContains(response, 'name="q"')
         self.assertContains(response, 'value="#ОКЕАН, ЗАКАТ"')
+        self.assertContains(response, 'Hash: false', count=1)
+        self.assertContains(
+            response,
+            f'<span class="catalog-thumbnail__image-number">№{self.both_picture.name}</span>',
+            html=True,
+        )
         self.assertNotContains(response, 'data-mobile-filter-open')
         self.assertNotContains(response, 'Популярные запросы:')
 
@@ -1507,7 +1947,12 @@ class DesignerPageTests(TestCase):
             f'<a class="designer-page__contact-link" href="{reverse("about")}">Напишите нам</a> номер изображения из каталога.',
         )
         self.assertContains(response, 'class="designer-price-card"')
-        self.assertContains(response, '<strong>30</strong> BYN', html=True)
+        self.assertContains(
+            response,
+            '<strong data-price-code="designer-original-image-usd">5</strong>$',
+            html=True,
+        )
+        self.assertNotContains(response, '<strong>30</strong> BYN', html=True)
         self.assertContains(response, 'Эксклюзивное изображение с нуля.')
         self.assertContains(response, 'skinali/images/designer-exclusive-reference.jpg')
         self.assertContains(response, 'Обсудить идею')
@@ -1568,6 +2013,26 @@ class SessionFavoritesTests(TestCase):
         self.assertFalse(removed_response.json()['is_favorite'])
         self.assertEqual(self.client.session['favorite_pict_ids'], [])
 
+    def test_favorites_page_is_noindex_with_self_canonical(self):
+        response = self.client.get(reverse('favorites'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<meta name="robots" content="noindex,follow">',
+            html=True,
+        )
+        self.assertEqual(
+            response.context['canonical_url'],
+            f'http://testserver{reverse("favorites")}',
+        )
+        self.assertContains(
+            response,
+            f'<link rel="canonical" '
+            f'href="http://testserver{reverse("favorites")}">',
+            html=True,
+        )
+
     def test_favorites_are_isolated_between_browser_sessions(self):
         first_browser = Client()
         second_browser = Client()
@@ -1607,13 +2072,26 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'Изображение № 301')
         self.assertContains(response, self.first_picture.alt)
         self.assertContains(response, 'data-favorite-row')
-        self.assertContains(response, 'class="favorite-card__preview"')
+        self.assertContains(response, 'class="catalog-thumbnail favorite-card__preview"')
+        self.assertContains(
+            response,
+            '<span class="catalog-thumbnail__image-number">№301</span>',
+            html=True,
+        )
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
         self.assertContains(response, 'class="catalog-modal__title"')
         self.assertContains(response, 'class="catalog-modal__favorite is-active"')
         self.assertContains(response, 'class="catalog-modal__purchase"')
         self.assertContains(response, 'data-image-purchase-open')
+        self.assertContains(response, 'data-share-kind="favorites"')
+        self.assertContains(response, 'Поделиться изображениями')
+        self.assertContains(response, 'data-image-number="302"')
+        response_html = response.content.decode()
+        self.assertGreater(
+            response_html.index('class="favorites-share"'),
+            response_html.rindex('class="favorite-card"'),
+        )
         self.assertContains(response, '#Тег избранного')
         self.assertContains(response, 'Категория избранного')
         self.assertNotContains(response, 'class="catalog-favorite-toggle')
@@ -1662,6 +2140,17 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, "content.classList.add('is-catalog-ready')")
         self.assertContains(response, 'enableCatalogCaptionSelection(caption)')
         self.assertContains(response, "caption.addEventListener('mousedown', stopImageNavigation)")
+        self.assertContains(response, "event.target.closest('[data-clickable]')")
+        self.assertContains(
+            response,
+            'data-fancybox-prev\n              data-clickable',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            'data-fancybox-next\n              data-clickable',
+            count=2,
+        )
         self.assertContains(response, "document.getElementById(templateId)")
         self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
         self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")

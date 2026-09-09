@@ -1,0 +1,20 @@
+<nav class="list-pages catalog-categories" aria-label="Категории">
+  <ul>
+    {% if not selected_category %}
+      <li class="page-num page-num-selected">Все</li>
+    {% else %}
+      <li class="page-num">
+        <a href="{% if finished_works_filter %}{% url 'finished_works' %}{% else %}{% url 'skinali' %}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">Все</a>
+      </li>
+    {% endif %}
+    {% for category in categories %}
+      {% if category.slug == selected_category.slug %}
+        <li class="page-num page-num-selected">{{ category.cat }}</li>
+      {% else %}
+        <li class="page-num">
+          <a href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">{{ category.cat }}</a>
+        </li>
+      {% endif %}
+    {% endfor %}
+  </ul>
+</nav>

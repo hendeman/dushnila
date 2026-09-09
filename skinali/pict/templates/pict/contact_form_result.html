@@ -1,0 +1,15 @@
+{% extends 'pict/base.html' %}
+
+{% block content %}
+<section class="contact-form-fallback">
+  {% if submission_success %}
+    <h1>Заявка принята</h1>
+    <p>{{ success_message }}</p>
+    <a href="{% url 'home' %}">Вернуться на главную страницу</a>
+  {% else %}
+    <h1>Отправить заявку</h1>
+    <p>Проверьте введённые данные и отправьте форму повторно.</p>
+    {% include 'pict/includes/contact_form.html' with form=submission_form form_kind=form_kind submit_label='Отправить' %}
+  {% endif %}
+</section>
+{% endblock %}

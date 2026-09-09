@@ -16,6 +16,7 @@
 | `USE_TZ` | `True` |
 | Профиль | `DJANGO_ENVIRONMENT`: `development` по умолчанию или `production` |
 | Разрешенные хосты | development: `127.0.0.1`, `localhost`; production: обязательный `DJANGO_ALLOWED_HOSTS` |
+| Публичный origin | `DJANGO_PUBLIC_SITE_ORIGIN`, по умолчанию `https://odium.by`; используется техническими публичными URL без зависимости от текущего `Host` |
 | Режим отладки | development: включён по умолчанию; production: принудительно выключен |
 | Корневой URLconf | `skinali.urls` |
 | WSGI | `skinali.wsgi.application` |
@@ -44,6 +45,7 @@
 - `SESSION_COOKIE_SECURE` и `CSRF_COOKIE_SECURE` включены автоматически; HTTPS-redirect включён по умолчанию и может быть отключён, если его полностью выполняет внешний веб-сервер.
 - `django_extensions` и Debug Toolbar не загружаются по умолчанию.
 - `DJANGO_ADMIN_PATH` задаёт URL-префикс admin без начального слеша; изменение адреса является только дополнительной мерой.
+- `DJANGO_PUBLIC_SITE_ORIGIN` задаёт схему и основной домен без пути; значение по умолчанию — `https://odium.by`, а production-профиль разрешает только HTTPS. Сейчас origin используется строкой `Sitemap` в `/robots.txt` и подготовлен для последующей унификации canonical URL.
 - `DJANGO_CSRF_TRUSTED_ORIGINS` принимает список HTTPS-origin через запятую.
 - `DJANGO_TRUST_X_FORWARDED_PROTO=True` допустим только за контролируемым reverse proxy, который перезаписывает `X-Forwarded-Proto`.
 - HSTS по умолчанию равен нулю. После проверки HTTPS значение `DJANGO_SECURE_HSTS_SECONDS` повышается постепенно; флаги поддоменов и preload включаются отдельно.
@@ -54,7 +56,9 @@
 
 Помимо стандартных приложений Django всегда зарегистрированы:
 
+- `django.contrib.sitemaps` — формирование XML-карты индексируемых публичных страниц;
 - `pict.apps.PictConfig` — каталог изображений;
+- `sitecontent.apps.SiteContentConfig` — редактируемые элементы интерфейса и отдельная группа «Управление сайтом» в admin;
 - `sorl.thumbnail` — генерация и учёт кешированных превью.
 
 В development по умолчанию дополнительно подключаются `django_extensions`, `debug_toolbar` и `debug_toolbar.middleware.DebugToolbarMiddleware`. В production они исключены, а `INTERNAL_IPS` пуст.
@@ -69,7 +73,12 @@
 
 ## Шаблоны
 
-`APP_DIRS = True`, поэтому Django ищет шаблоны внутри приложений. Дополнительные каталоги в `TEMPLATES[0]['DIRS']` не заданы. Помимо стандартных context processors для debug, request, auth и messages зарегистрирован `pict.context_processors.contact_forms`, добавляющий глобальную форму обратного звонка без запросов к базе данных.
+`APP_DIRS = True`, поэтому Django ищет шаблоны внутри приложений. Дополнительные каталоги в `TEMPLATES[0]['DIRS']` не заданы. Помимо стандартных context processors для debug, request, auth и messages зарегистрированы:
+
+- `pict.context_processors.contact_forms` — добавляет глобальные формы обратного звонка и покупки без запросов к базе данных;
+- `sitecontent.context_processors.site_navigation` — передаёт ленивый QuerySet видимых пунктов основного меню. Публичный базовый шаблон вычисляет его одним SQL-запросом и повторно использует в шапке и подвале без кеширования между запросами.
+
+Контракт управляемого меню описан в [sitecontent/overview.md](../sitecontent/overview.md).
 
 ## Сессии
 
@@ -101,6 +110,7 @@
 ## Особенности и риски
 
 - В репозитории остается только development-ключ; production-профиль технически не может использовать его и требует отдельный `DJANGO_SECRET_KEY`.
+- `DJANGO_PUBLIC_SITE_ORIGIN` валидируется отдельно от `ALLOWED_HOSTS`: значение с путём, query-параметрами, fragment или учётными данными останавливает запуск настроек.
 - SQLite продолжает использоваться в обоих профилях. Для текущей небольшой нагрузки это допустимо, но перед ростом параллельных записей потребуется пересмотреть СУБД и стратегию резервного копирования.
 - Часовой пояс среды пользователя может отличаться от Django `TIME_ZONE='UTC'`.
 - HSTS намеренно не активируется автоматически: ошибочная длительная настройка может заблокировать HTTP-доступ к домену и поддоменам.

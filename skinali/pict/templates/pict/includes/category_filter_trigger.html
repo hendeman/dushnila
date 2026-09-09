@@ -1,0 +1,8 @@
+<button type="button"
+        class="mobile-catalog-filters__trigger{% if selected_category %} is-selected{% endif %}"
+        data-mobile-filter-open="mobile-category-filter"
+        aria-controls="mobile-category-filter"
+        aria-expanded="false">
+  <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
+  <span>{% if selected_category %}{{ selected_category.cat }}{% else %}Все категории{% endif %}</span>
+</button>

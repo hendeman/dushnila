@@ -4,9 +4,12 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>{{ title }}</title>
+	<title>{{ page_title|default:title }}</title>
+	{% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
+	{% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
+	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=63" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=72" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -53,11 +56,11 @@
 
             <nav class="main-navigation" id="mobile-site-menu" aria-label="Главное меню">
                 <ul class="mainmenu">
-                {% for m in menu %}
-                    <li><a href="{% url m.url_name %}"{% if request.resolver_match.url_name == m.url_name %} class="is-active"{% endif %}>{{ m.title }}</a></li>
+                {% for menu_item in site_menu_items %}
+                    <li><a href="{{ menu_item.url }}"{% if menu_item.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ menu_item.title }}</a></li>
                 {% endfor %}
                     <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
-                        <a href="{% url 'favorites' %}"{% if request.resolver_match.url_name == 'favorites' %} class="is-active"{% endif %}>
+                        <a href="{% url 'favorites' %}">
                             Избранное
                             <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
                         </a>
@@ -123,6 +126,39 @@
 
 <main class="site-main">
 <div class="site-content">
+{% if breadcrumbs %}
+<nav class="breadcrumbs" aria-label="Хлебные крошки">
+    <ol>
+    {% for breadcrumb in breadcrumbs %}
+        <li>
+        {% if forloop.last %}
+            <span aria-current="page">{{ breadcrumb.name }}</span>
+        {% else %}
+            <a href="{{ breadcrumb.url }}">{{ breadcrumb.name }}</a>
+        {% endif %}
+        </li>
+    {% endfor %}
+    </ol>
+</nav>
+{% if not meta_robots %}
+<script id="breadcrumb-structured-data" type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+  {% for breadcrumb in breadcrumbs %}
+    {
+      "@type": "ListItem",
+      "position": {{ forloop.counter }},
+      "name": "{{ breadcrumb.name|escapejs }}",
+      "item": "{{ breadcrumb.absolute_url|escapejs }}"
+    }{% if not forloop.last %},{% endif %}
+  {% endfor %}
+  ]
+}
+</script>
+{% endif %}
+{% endif %}
 {% block content %}
 {% endblock %}
 </div>
@@ -145,8 +181,8 @@
         </div>
         <nav class="site-footer__nav" aria-label="Навигация в подвале">
             <strong>Навигация</strong>
-            {% for m in menu %}
-                <a href="{% url m.url_name %}">{{ m.title }}</a>
+            {% for menu_item in site_menu_items %}
+                <a href="{{ menu_item.url }}"{% if menu_item.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ menu_item.title }}</a>
             {% endfor %}
         </nav>
         <div class="site-footer__contacts">
@@ -170,6 +206,7 @@
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
     <script src="{% static 'skinali/js/site-menu.js' %}?v=3" defer></script>
     <script src="{% static 'skinali/js/contact-forms.js' %}?v=2" defer></script>
+    <script src="{% static 'skinali/js/image-sharing.js' %}?v=2" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
       Fancybox.bind('[data-fancybox="catalog-gallery"]', {
@@ -179,6 +216,8 @@
         closeButton: true,
         Toolbar: false,
         Thumbs: false,
+        // Просмотр изображений не должен добавлять записи в историю браузера.
+        Hash: false,
         contentClick: false,
         Images: {
           zoom: false
@@ -283,7 +322,11 @@
           return;
         }
 
-        const stopImageNavigation = (event) => event.stopPropagation();
+        const stopImageNavigation = (event) => {
+          if (!event.target.closest('[data-clickable]')) {
+            event.stopPropagation();
+          }
+        };
         caption.addEventListener('mousedown', stopImageNavigation);
         caption.addEventListener('touchstart', stopImageNavigation, { passive: true });
         caption.dataset.catalogSelectionEnabled = 'true';
@@ -377,7 +420,12 @@
             const row = document.querySelector(`[data-favorite-row][data-pict-id="${result.pict_id}"]`);
             if (row) {
               row.remove();
-              if (!document.querySelector('[data-favorite-row]')) {
+              const hasFavoriteRows = Boolean(document.querySelector('[data-favorite-row]'));
+              const favoritesShare = document.querySelector('[data-favorites-share]');
+              if (favoritesShare) {
+                favoritesShare.hidden = !hasFavoriteRows;
+              }
+              if (!hasFavoriteRows) {
                 document.querySelector('[data-favorites-empty]').hidden = false;
               }
             }

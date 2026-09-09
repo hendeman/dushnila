@@ -9,6 +9,7 @@
 | Модуль | Ответственность |
 |---|---|
 | [models.py](models.md) | `Pict`, `FinishedWork`, `ContactRequest`, `ContactRequestDelivery`, `Category`, `Color`, `TagPict` и связи ORM |
+| [sitemaps.py](sitemaps.md) | XML-карта постоянных страниц, непустых категорий и тегов |
 | [views.py](views.md) | поиск, каталог, готовые работы, избранное, фильтрация, теги, статические страницы и 404 |
 | [urls.py](urls.md) | публичные URL приложения |
 | [forms.py](forms.md) | `PictAdminForm` и публичные контактные формы с валидацией |
@@ -30,4 +31,4 @@
 
 ## Направление зависимостей
 
-`urls.py → views.py → models.py`; отдельно `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery → Telegram Bot API`.
+`urls.py → views.py → models.py`; корневой URLconf также вызывает `sitemaps.py → models.py`. Отдельно действует `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery → Telegram Bot API`.

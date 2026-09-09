@@ -14,6 +14,41 @@ class PublicationQuerySet(models.QuerySet):
         return self.filter(is_published=True)
 
 
+class SeoLandingContent(models.Model):
+    """Общие редактируемые SEO-поля страниц справочников каталога."""
+
+    seo_h1 = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='SEO-заголовок H1',
+        help_text='Оставьте пустым, чтобы использовать стандартный заголовок.',
+    )
+    seo_title = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='SEO-title',
+        help_text='Без «| ОДИУМ»: бренд и номер страницы добавятся автоматически.',
+    )
+    seo_description = models.CharField(
+        max_length=320,
+        blank=True,
+        verbose_name='Meta description',
+        help_text='Оставьте пустым, чтобы использовать стандартное описание.',
+    )
+    intro_text = models.TextField(
+        blank=True,
+        verbose_name='Вводный текст',
+        help_text='Отображается под заголовком страницы.',
+    )
+
+    def resolve_seo_value(self, field_name, default):
+        """Возвращает заполненное SEO-поле или переданное стандартное значение."""
+        return getattr(self, field_name).strip() or default
+
+    class Meta:
+        abstract = True
+
+
 class Color(models.Model):
     color = models.CharField(max_length=100, verbose_name='Цвет')
     slug_color = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
@@ -26,7 +61,7 @@ class Color(models.Model):
         verbose_name_plural = 'Цвета'
 
 
-class TagPict(models.Model):
+class TagPict(SeoLandingContent):
     tag = models.CharField(max_length=100, db_index=True, verbose_name='Ключевое слово')
     normalized_tag = models.CharField(
         max_length=200,
@@ -131,7 +166,7 @@ class TagAlias(models.Model):
         ordering = ['alias']
 
 
-class Category(models.Model):
+class Category(SeoLandingContent):
     cat = models.CharField(max_length=100, verbose_name='Категория')
     slug = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
 

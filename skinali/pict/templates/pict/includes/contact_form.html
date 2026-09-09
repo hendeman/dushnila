@@ -1,0 +1,45 @@
+<form class="contact-form"
+      method="post"
+      action="{% url 'contact_submit' %}"
+      data-contact-form>
+  {% csrf_token %}
+  {% for hidden_field in form.hidden_fields %}
+    {{ hidden_field }}
+    <div class="contact-form__errors contact-form__errors--hidden-field"
+         data-form-errors="{{ hidden_field.name }}"
+         aria-live="polite"{% if not hidden_field.errors %} hidden{% endif %}>
+      {% for error in hidden_field.errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endfor %}
+  <input type="hidden" name="form_kind" value="{{ form_kind }}">
+
+  <div class="contact-form__errors"
+       data-form-errors="__all__"
+       aria-live="polite"{% if not form.non_field_errors %} hidden{% endif %}>
+    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+  </div>
+
+  {% for field in form.visible_fields %}
+    {% if field.name != 'website' %}
+      <div class="contact-form__field{% if field.field.widget.attrs.rows %} contact-form__field--wide{% endif %}"
+           data-form-field="{{ field.name }}">
+        <div class="contact-form__errors"
+             data-form-errors="{{ field.name }}"
+             aria-live="polite"{% if not field.errors %} hidden{% endif %}>
+          {% for error in field.errors %}<p>{{ error }}</p>{% endfor %}
+        </div>
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+      </div>
+    {% endif %}
+  {% endfor %}
+
+  <div class="contact-form__honeypot" aria-hidden="true">
+    <label for="{{ form.website.id_for_label }}">{{ form.website.label }}</label>
+    {{ form.website }}
+  </div>
+
+  <button class="contact-form__submit" type="submit">
+    <span data-contact-submit-label>{{ submit_label|default:'Отправить' }}</span>
+  </button>
+</form>

@@ -22,6 +22,13 @@ from pict.models import (
     TagPict,
 )
 
+SEO_LANDING_FIELDS = (
+    'seo_h1',
+    'seo_title',
+    'seo_description',
+    'intro_text',
+)
+
 
 class AdminImagePreviewMixin:
     @staticmethod
@@ -127,8 +134,12 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
 class CategoryAdmin(admin.ModelAdmin):
     list_display = ['cat', 'slug']
     list_display_links = ['cat']
-    search_fields = ['cat']
+    search_fields = ['cat', *SEO_LANDING_FIELDS]
     prepopulated_fields = {"slug": ("cat",)}
+    fieldsets = (
+        (None, {'fields': ('cat', 'slug')}),
+        ('SEO и текст страницы', {'fields': SEO_LANDING_FIELDS}),
+    )
 
 
 class TagAliasInline(admin.TabularInline):
@@ -146,10 +157,15 @@ class TagPictAdmin(admin.ModelAdmin):
         'normalized_tag',
         'search_aliases__alias',
         'search_aliases__normalized_alias',
+        *SEO_LANDING_FIELDS,
     ]
     prepopulated_fields = {"slug": ("tag",)}
     readonly_fields = ['normalized_tag']
     inlines = [TagAliasInline]
+    fieldsets = (
+        (None, {'fields': ('tag', 'normalized_tag', 'slug')}),
+        ('SEO и текст страницы', {'fields': SEO_LANDING_FIELDS}),
+    )
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('search_aliases')

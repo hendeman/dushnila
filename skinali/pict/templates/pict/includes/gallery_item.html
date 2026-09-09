@@ -1,5 +1,5 @@
 {% load static thumbnail %}
-<a{% if gallery_link_class %} class="{{ gallery_link_class }}"{% endif %}
+<a class="catalog-thumbnail{% if gallery_link_class %} {{ gallery_link_class }}{% endif %}"
    data-fancybox="{% if show_catalog_favorite or use_catalog_modal %}catalog-gallery{% else %}gallery{% endif %}"
    data-favorite-item
    data-pict-id="{{ p.pk }}"
@@ -25,6 +25,7 @@
            loading="lazy"
            decoding="async">
     {% endthumbnail %}
+    <span class="catalog-thumbnail__image-number">№{{ p.name }}</span>
 </a>
 {% if show_catalog_favorite or use_catalog_modal %}
   <template id="catalog-gallery-caption-{{ p.pk }}">
@@ -34,6 +35,7 @@
       <button type="button"
               class="catalog-modal__nav catalog-modal__nav--prev"
               data-fancybox-prev
+              data-clickable
               aria-label="Предыдущее изображение">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m15 18-6-6 6-6"></path>
@@ -42,6 +44,7 @@
       <button type="button"
               class="catalog-modal__nav catalog-modal__nav--next"
               data-fancybox-next
+              data-clickable
               aria-label="Следующее изображение">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="m9 18 6-6-6-6"></path>
@@ -81,6 +84,7 @@
         <button type="button"
                 class="catalog-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}"
                 data-favorite-toggle
+                data-clickable
                 data-pict-id="{{ p.pk }}"
                 data-favorite-url="{% url 'favorite_toggle' p.pk %}"
                 aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}">
@@ -93,12 +97,35 @@
         <button type="button"
                 class="catalog-modal__purchase"
                 data-image-purchase-open
+                data-clickable
                 data-pict-id="{{ p.pk }}"
                 data-image-number="{{ p.name }}"
                 aria-haspopup="dialog"
                 aria-controls="image-purchase-dialog">
           Купить изображение
         </button>
+        <div class="catalog-modal__share"
+             data-share
+             data-share-kind="image"
+             data-share-image-url="{{ p.photo.url }}"
+             data-image-number="{{ p.name }}">
+          <button type="button"
+                  class="share-toggle"
+                  data-share-toggle
+                  data-clickable
+                  aria-expanded="false"
+                  aria-controls="catalog-image-share-{{ p.pk }}">
+            Поделиться изображением
+          </button>
+          <div class="share-services catalog-modal__share-services"
+               id="catalog-image-share-{{ p.pk }}"
+               data-share-services
+               role="group"
+               aria-label="Выберите сервис"
+               hidden>
+            {% include 'pict/includes/share_service_links.html' with share_clickable=True only %}
+          </div>
+        </div>
       </div>
     </div>
   </template>

@@ -5,7 +5,10 @@
 
 <div class="favorites-list" data-favorites-list>
   {% for p in favorite_pictures %}
-    <article class="favorite-card" data-favorite-row data-pict-id="{{ p.pk }}">
+    <article class="favorite-card"
+             data-favorite-row
+             data-pict-id="{{ p.pk }}"
+             data-image-number="{{ p.name }}">
       {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids use_catalog_modal=True gallery_link_class='favorite-card__preview' gallery_image_class='favorite-card__image' %}
       <div class="favorite-card__content">
         <h2>Изображение № {{ p.name }}</h2>
@@ -29,6 +32,28 @@
       </div>
     </article>
   {% endfor %}
+
+  <div class="favorites-share"
+       data-share
+       data-share-kind="favorites"
+       data-favorites-share
+       {% if not favorite_pictures %}hidden{% endif %}>
+    <button type="button"
+            class="share-toggle"
+            data-share-toggle
+            aria-expanded="false"
+            aria-controls="favorites-share-services">
+      Поделиться изображениями
+    </button>
+    <div class="share-services favorites-share__services"
+         id="favorites-share-services"
+         data-share-services
+         role="group"
+         aria-label="Выберите сервис"
+         hidden>
+      {% include 'pict/includes/share_service_links.html' only %}
+    </div>
+  </div>
 
   <p class="favorites-list__empty" data-favorites-empty{% if favorite_pictures %} hidden{% endif %}>
     В избранном пока нет изображений. Добавьте их из модального окна галереи.

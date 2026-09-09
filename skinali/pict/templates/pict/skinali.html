@@ -51,14 +51,17 @@
     </header>
   </section>
 {% else %}
-<h1>{{ title }}</h1>
+<h1>{{ catalog_heading }}</h1>
 
 {% if cat_name == title and not col_ru %}
   <p class="catalog-intro">Выберите сюжет по теме и цвету. Нажмите на изображение, чтобы увидеть его номер, теги и раздел каталога.</p>
 {% elif col_ru %}
   <p>{{cat_name}}, {{col_ru}} оттенок</p>
-{% else %}
+{% elif not catalog_intro %}
   <p>{{cat_name}}</p>
+{% endif %}
+{% if catalog_intro %}
+  <p class="catalog-intro catalog-intro--managed">{{ catalog_intro|linebreaksbr }}</p>
 {% endif %}
 
 <nav class="mobile-catalog-filters" aria-label="Фильтры каталога">
@@ -170,7 +173,7 @@
 </nav>
 
 <nav class="list-pages-tags" aria-labelledby="popular-tags-title">
-  <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные запросы:</h2>
+  <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные темы:</h2>
   <ul>
         {% for p in list_tag %}
             <li class="page-num">

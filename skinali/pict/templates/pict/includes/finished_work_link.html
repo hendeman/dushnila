@@ -1,0 +1,9 @@
+<a class="{{ link_class }}"
+   data-fancybox="finished-works"
+   href="{{ work.photo.url }}"
+   data-caption="<div class='finished-work-modal__caption'><div class='finished-work-modal__meta'><span class='finished-work-modal__name'>{{ work.name }}</span>{% if work.catalog_image %}<span class='finished-work-modal__number'>Изображение № {{ work.catalog_image.name }}</span>{% endif %}</div></div>">
+  <img class="{{ image_class }}"
+       src="{{ work.photo.url }}"
+       alt="{{ work.name }}"
+       loading="lazy">
+</a>

@@ -57,7 +57,7 @@ class CatalogSearchForm(forms.Form):
         if parsed_query.image_number is None and (short_terms or invalid_terms):
             raise ValidationError(
                 'Каждое поисковое слово должно содержать букву или цифру '
-                'и не менее 2 символов.'
+                f'и не менее {SEARCH_TERM_MIN_LENGTH} символов.'
             )
 
         self.parsed_query = parsed_query

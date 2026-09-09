@@ -1,8 +1,8 @@
 from urllib.parse import urlencode
 
 from django.db import transaction
-from django.db.models import Count, Q
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
+from django.db.models import Count, Exists, OuterRef, Q
+from django.http import HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.views.decorators.http import require_POST
@@ -21,15 +21,6 @@ from .search import (
     apply_catalog_search,
     format_image_count,
 )
-
-# menu = ["Каталог скинали", "Услуги дизайнера", "Связаться с нами", "Главная страница"]
-menu = [{'title': "Главная страница", 'url_name': 'home'},
-        {'title': "Каталог скинали", 'url_name': 'skinali'},
-        {'title': "Наши работы", 'url_name': 'finished_works'},
-        {'title': "Услуги дизайнера", 'url_name': 'designer'},
-        {'title': "Связаться с нами", 'url_name': 'about'}]
-
-
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
 CONTACT_SUCCESS_MESSAGE = 'Спасибо! Мы получили заявку и скоро свяжемся с вами'
 IMAGE_PURCHASE_SUCCESS_MESSAGE = 'Спасибо! Заявка на покупку изображения принята'
@@ -40,6 +31,35 @@ CONTACT_FORM_CLASSES = {
     EmailCommentContactForm.form_kind: EmailCommentContactForm,
     ImagePurchaseContactForm.form_kind: ImagePurchaseContactForm,
 }
+
+
+def set_page_metadata(
+    context,
+    request,
+    *,
+    page_title,
+    meta_description,
+    canonical_path,
+    page_number=1,
+    noindex=False,
+    breadcrumbs=(),
+):
+    """Добавляет единообразные SEO-метаданные и хлебные крошки странице."""
+    if page_number > 1:
+        canonical_path += '?' + urlencode({'page': page_number})
+    context['page_title'] = page_title
+    context['meta_description'] = meta_description
+    context['canonical_url'] = request.build_absolute_uri(canonical_path)
+    context['meta_robots'] = 'noindex,follow' if noindex else ''
+    context['breadcrumbs'] = tuple(
+        {
+            'name': name,
+            'url': path or canonical_path,
+            'absolute_url': request.build_absolute_uri(path or canonical_path),
+        }
+        for name, path in breadcrumbs
+    )
+    return context
 
 
 def get_favorite_ids(request):
@@ -103,9 +123,17 @@ class PictHome(FavoritesContextMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Главная страница'
-        context['menu'] = menu
         context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
-        return context
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title='Скинали из стекла для кухни | ОДИУМ',
+            meta_description=(
+                'Скинали из стекла для кухни: каталог изображений, '
+                'услуги дизайнера и примеры готовых работ ОДИУМ.'
+            ),
+            canonical_path=reverse('home'),
+        )
 
 
 class SkinaliMix(FavoritesContextMixin, ListView):
@@ -150,14 +178,18 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         return apply_catalog_search(queryset, search_form.parsed_query)
 
     def get_popular_tags(self):
-        route_category = self.get_route_category()
         publication_filter = Q(tags__is_published=True)
-        if route_category:
-            publication_filter &= Q(tags__cat=route_category)
 
         return TagPict.objects.annotate(
             total=Count('tags', filter=publication_filter, distinct=True)
         ).filter(total__gt=0).order_by('-total', 'tag')[:10]
+
+    @staticmethod
+    def get_catalog_categories():
+        published_pictures = Pict.objects.published().filter(cat=OuterRef('pk'))
+        return Category.objects.filter(
+            Exists(published_pictures),
+        ).order_by('pk')
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -168,15 +200,28 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         route_category = self.get_route_category()
         selected_category = None if is_search else route_category
         context['title'] = 'Результаты поиска' if is_search else 'Каталог скинали'
+        default_catalog_heading = (
+            f'Изображения для скинали: {selected_category}'
+            if selected_category else 'Каталог изображений для скинали'
+        )
+        context['catalog_heading'] = (
+            selected_category.resolve_seo_value('seo_h1', default_catalog_heading)
+            if selected_category else default_catalog_heading
+        )
+        context['catalog_intro'] = (
+            selected_category.intro_text.strip() if selected_category else ''
+        )
         context['cat_name'] = selected_category or 'Каталог скинали'
         context['selected_category'] = selected_category
-        context['menu'] = menu
         context['search_form'] = search_form
         context['is_search'] = is_search
         context['search_is_valid'] = search_is_valid
         context['col'] = get_color if get_color else ""
         context['color_list'] = Color.objects.none() if is_search else Color.objects.all()
-        context['list_cat'] = Category.objects.none() if is_search else Category.objects.all()
+        context['list_cat'] = (
+            Category.objects.none()
+            if is_search else self.get_catalog_categories()
+        )
         context['list_tag'] = () if is_search else self.get_popular_tags()
 
         if search_is_valid:
@@ -200,7 +245,57 @@ class SkinaliMix(FavoritesContextMixin, ListView):
             Color.objects.filter(slug_color=context['col']).first()
             if context['col'] else ''
         )
-        return context
+
+        result_count = context['paginator'].count
+        is_empty_category = bool(selected_category) and result_count == 0
+        noindex = is_search or bool(get_color) or is_empty_category
+        if selected_category:
+            category_name = str(selected_category)
+            canonical_path = selected_category.get_absolute_url()
+            page_title = selected_category.resolve_seo_value(
+                'seo_title',
+                default_catalog_heading,
+            )
+            default_meta_description = (
+                f'Изображения для скинали в категории «{category_name}». '
+                'Выберите подходящий вариант в каталоге ОДИУМ.'
+            )
+            meta_description = selected_category.resolve_seo_value(
+                'seo_description',
+                default_meta_description,
+            )
+        else:
+            canonical_path = reverse('skinali')
+            page_title = context['catalog_heading']
+            meta_description = (
+                'Каталог изображений для скинали из стекла: '
+                'сюжеты по темам, категориям и цветам.'
+            )
+
+        page_number = context['page_obj'].number if not noindex else 1
+        if page_number > 1:
+            page_title += f' — страница {page_number}'
+        breadcrumbs = [
+            ('Главная', reverse('home')),
+            (
+                'Каталог',
+                None if not selected_category and not is_search else reverse('skinali'),
+            ),
+        ]
+        if is_search:
+            breadcrumbs.append(('Результаты поиска', None))
+        elif selected_category:
+            breadcrumbs.append((str(selected_category), None))
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=f'{page_title} | ОДИУМ',
+            meta_description=meta_description,
+            canonical_path=canonical_path,
+            page_number=page_number,
+            noindex=noindex,
+            breadcrumbs=breadcrumbs,
+        )
 
     @staticmethod
     def get_search_term_links(terms):
@@ -240,15 +335,60 @@ class PictTag(FavoritesContextMixin, ListView):
     template_name = 'pict/tag.html'
     paginate_by = CATALOG_PAGE_SIZE
 
+    def get_tag(self):
+        if not hasattr(self, 'tag'):
+            self.tag = get_object_or_404(
+                TagPict,
+                slug=self.kwargs['tag_slug'],
+            )
+        return self.tag
+
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['title'] = TagPict.objects.get(slug=self.kwargs['tag_slug'])
-        context['menu'] = menu
-        return context
+        tag = self.get_tag()
+        result_count = context['paginator'].count
+        page_number = context['page_obj'].number
+        page_suffix = f' — страница {page_number}' if page_number > 1 else ''
+
+        default_heading = f'Изображения с тегом «{tag.tag}»'
+        default_page_title = f'Изображения для скинали: {tag.tag}'
+        default_meta_description = (
+            f'{format_image_count(result_count)} для скинали '
+            f'по теме «{tag.tag}». '
+            'Выберите подходящий вариант из каталога ОДИУМ.'
+        )
+        context['title'] = tag.resolve_seo_value('seo_h1', default_heading)
+        context['tag'] = tag
+        context['tag_intro'] = tag.intro_text.strip()
+        context['result_count'] = result_count
+        context['result_summary'] = format_image_count(result_count)
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=(
+                f'{tag.resolve_seo_value("seo_title", default_page_title)}'
+                f'{page_suffix} | ОДИУМ'
+            ),
+            meta_description=tag.resolve_seo_value(
+                'seo_description',
+                default_meta_description,
+            ),
+            canonical_path=tag.get_absolute_url(),
+            page_number=page_number,
+            noindex=result_count == 0,
+            breadcrumbs=(
+                ('Главная', reverse('home')),
+                ('Каталог', reverse('skinali')),
+                (tag.tag, None),
+            ),
+        )
 
     def get_queryset(self):
         return Pict.objects.published().filter(
-            tags__slug=self.kwargs['tag_slug'],
+            tags=self.get_tag(),
+        ).prefetch_related(
+            'tags',
+            'cat',
         )
 
 
@@ -280,14 +420,41 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Наши работы'
-        context['menu'] = menu
         context['categories'] = Category.objects.all()
         context['selected_category'] = self.get_selected_category()
         context['col_tag'] = (
             f'&category={context["selected_category"].slug}'
             if context['selected_category'] else ''
         )
-        return context
+        page_number = context['page_obj'].number
+        is_filtered = context['selected_category'] is not None
+        canonical_page = 1 if is_filtered else page_number
+        page_suffix = (
+            f' — страница {canonical_page}'
+            if canonical_page > 1 else ''
+        )
+        breadcrumbs = [
+            ('Главная', reverse('home')),
+            (
+                'Наши работы',
+                reverse('finished_works') if is_filtered else None,
+            ),
+        ]
+        if is_filtered:
+            breadcrumbs.append((str(context['selected_category']), None))
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=f'Фото скинали из стекла — наши работы{page_suffix} | ОДИУМ',
+            meta_description=(
+                'Фотографии готовых скинали из стекла и примеры '
+                'реализованных кухонных проектов ОДИУМ.'
+            ),
+            canonical_path=reverse('finished_works'),
+            page_number=canonical_page,
+            noindex=is_filtered,
+            breadcrumbs=breadcrumbs,
+        )
 
 
 def favorites(request):
@@ -304,13 +471,25 @@ def favorites(request):
         request.session[FAVORITES_SESSION_KEY] = valid_ids
 
     favorite_pictures = [pictures_by_id[pict_id] for pict_id in reversed(valid_ids)]
-    return render(request, 'pict/favorites.html', {
-        'menu': menu,
+    context = {
         'title': 'Избранное',
         'favorite_pictures': favorite_pictures,
         'favorite_ids': valid_ids,
         'favorites_count': len(valid_ids),
-    })
+    }
+    set_page_metadata(
+        context,
+        request,
+        page_title='Избранные изображения для скинали | ОДИУМ',
+        meta_description='Изображения для скинали, сохранённые в избранном.',
+        canonical_path=reverse('favorites'),
+        noindex=True,
+        breadcrumbs=(
+            ('Главная', reverse('home')),
+            ('Избранное', None),
+        ),
+    )
+    return render(request, 'pict/favorites.html', context)
 
 
 @require_POST
@@ -357,7 +536,6 @@ def contact_success_response(request, *, form_kind=''):
         })
 
     return render(request, 'pict/contact_form_result.html', {
-        'menu': menu,
         'title': 'Заявка отправлена',
         'favorites_count': len(get_favorite_ids(request)),
         'submission_success': True,
@@ -414,7 +592,6 @@ def submit_contact_form(request):
         }, status=422)
 
     return render(request, 'pict/contact_form_result.html', {
-        'menu': menu,
         'title': 'Отправить заявку',
         'favorites_count': len(get_favorite_ids(request)),
         'submission_form': form,
@@ -424,35 +601,52 @@ def submit_contact_form(request):
 
 
 def about(request):
-    # context = {
-    #     'menu': menu,
-    #     'title': 'Связаться с нами'
-    # }
     favorite_ids = get_favorite_ids(request)
-    return render(request, 'pict/about.html', {
-        'menu': menu,
+    context = {
         'title': 'Связаться с нами',
         'favorites_count': len(favorite_ids),
         'question_form': QuestionContactForm(prefix='question'),
         'email_message_form': EmailCommentContactForm(prefix='email_message'),
-    })
+    }
+    set_page_metadata(
+        context,
+        request,
+        page_title='Контакты ОДИУМ — заказать скинали из стекла',
+        meta_description=(
+            'Свяжитесь с ОДИУМ, чтобы заказать скинали из стекла, '
+            'задать вопрос или обсудить изображение.'
+        ),
+        canonical_path=reverse('about'),
+        breadcrumbs=(
+            ('Главная', reverse('home')),
+            ('Связаться с нами', None),
+        ),
+    )
+    return render(request, 'pict/about.html', context)
 
 
 def designer(request):
-    # context = {
-    #     'menu': menu,
-    #     'title': 'Услуги дизайнера'
-    # }
     favorite_ids = get_favorite_ids(request)
-    return render(request, 'pict/designer.html', {
-        'menu': menu,
+    context = {
         'title': 'Услуги дизайнера',
         'favorites_count': len(favorite_ids),
-    })
+    }
+    set_page_metadata(
+        context,
+        request,
+        page_title='Услуги дизайнера для скинали | ОДИУМ',
+        meta_description=(
+            'Подготовка изображения и индивидуальный дизайн '
+            'для скинали из стекла от ОДИУМ.'
+        ),
+        canonical_path=reverse('designer'),
+        breadcrumbs=(
+            ('Главная', reverse('home')),
+            ('Услуги дизайнера', None),
+        ),
+    )
+    return render(request, 'pict/designer.html', context)
 
 
 def pageNotFound(request, exception):
     return HttpResponseNotFound('<h1>Ops...Страница не найдена</h1>')
-
-def cat(request, catid):
-    return HttpResponse(f'<h1>Страница найдена {catid}</h1>')
