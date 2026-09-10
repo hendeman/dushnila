@@ -1,0 +1,30 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ page_title }}</title>
+    <meta name="robots" content="{{ meta_robots }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{% static 'skinali/css/styles.css' %}?v=74">
+    <link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon">
+</head>
+<body>
+<header class="site-info-panel">
+    <div class="site-header">
+        <a class="site-header__logo" href="{% url 'home' %}" aria-label="{{ site_identity.name }} — на главную">
+            <img class="site-header__logo-image"
+                 src="{% static site_identity.logo_static_path %}"
+                 width="{{ site_identity.logo_width }}"
+                 height="{{ site_identity.logo_height }}"
+                 alt="{{ site_identity.name }} — скинали и арт">
+        </a>
+    </div>
+</header>
+<main class="site-main">
+    <div class="site-content">
+        {% block error_content %}{% endblock %}
+    </div>
+</main>
+</body>
+</html>
