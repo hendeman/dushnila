@@ -8,8 +8,9 @@
 	{% if meta_description %}<meta name="description" content="{{ meta_description }}">{% endif %}
 	{% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}">{% endif %}
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
+	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=72" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=74" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -25,19 +26,19 @@
         <div class="site-header">
             <a class="site-header__logo" href="{% url 'home' %}" aria-label="ОДИУМ — на главную">
                 <img class="site-header__logo-image"
-                     src="{% static 'skinali/images/logo_skinali.png' %}"
-                     width="300"
-                     height="120"
-                     alt="ОДИУМ — скинали и арт">
+                     src="{% static site_identity.logo_static_path %}"
+                     width="{{ site_identity.logo_width }}"
+                     height="{{ site_identity.logo_height }}"
+                     alt="{{ site_identity.name }} — скинали и арт">
             </a>
 
             <span class="site-header__schedule">
                 <small>ПН–ВС · ПРИЁМ ЗАКАЗОВ</small>
                 <span>10:00–21:00</span>
             </span>
-            <a class="site-header__phone" href="tel:+375291498838">
+            <a class="site-header__phone" href="tel:{{ site_identity.phone }}">
                 <span class="site-header__phone-icon" aria-hidden="true">☎</span>
-                <span>+375 (29) 149-88-38</span>
+                <span>{{ site_identity.phone_display }}</span>
             </a>
         </div>
     </div>
@@ -187,8 +188,11 @@
         </nav>
         <div class="site-footer__contacts">
             <strong>Контакты</strong>
-            <a href="tel:+375291498838">+375 (29) 149-88-38</a>
-            <a href="mailto:odiumglass@gmail.com">odiumglass@gmail.com</a>
+            <a href="tel:{{ site_identity.phone }}">{{ site_identity.phone_display }}</a>
+            <a href="mailto:{{ site_identity.email }}">{{ site_identity.email }}</a>
+            {% for profile in site_identity.social_profiles %}
+                <a href="{{ profile.url }}" target="_blank" rel="noopener noreferrer">{{ profile.name }}</a>
+            {% endfor %}
         </div>
         <div class="site-footer__hours">
             <strong>Время работы</strong>

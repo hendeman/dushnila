@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import reverse
 
-from .models import MenuItem, SiteMenu
+from .models import MenuItem, SiteMenu, SitePage
 
 
 class SuperuserSiteContentAdminMixin:
@@ -26,6 +26,24 @@ class MenuItemInline(admin.TabularInline):
     extra = 1
     fields = ('position', 'title', 'url', 'open_in_new_tab', 'is_visible')
     ordering = ('position', 'pk')
+
+
+@admin.register(SitePage)
+class SitePageAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+    fields = ('seo_title', 'seo_description')
+    list_display = ('page_name', 'seo_title', 'seo_description')
+    search_fields = ('seo_title', 'seo_description')
+    actions = None
+
+    @admin.display(description='Страница', ordering='code')
+    def page_name(self, obj):
+        return obj.get_code_display()
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(SiteMenu)

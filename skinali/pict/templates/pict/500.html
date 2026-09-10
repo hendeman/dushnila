@@ -1,0 +1,13 @@
+{% extends 'pict/error_base.html' %}
+
+{% block error_content %}
+<section class="search-empty" aria-labelledby="server-error-title">
+    <h1 id="server-error-title">Что-то пошло не так</h1>
+    <p>
+        Не удалось обработать запрос. Попробуйте обновить страницу через несколько минут.
+    </p>
+    <nav aria-label="Переход со страницы ошибки">
+        <a href="{% url 'home' %}">Перейти на главную</a>
+    </nav>
+</section>
+{% endblock %}

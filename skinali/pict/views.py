@@ -1,12 +1,15 @@
 from urllib.parse import urlencode
 
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, Exists, OuterRef, Q
-from django.http import HttpResponseBadRequest, HttpResponseNotFound, JsonResponse
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, TemplateView
+from sitecontent.models import SitePage
 
 from .forms import (
     CallbackContactForm,
@@ -47,19 +50,60 @@ def set_page_metadata(
     """Добавляет единообразные SEO-метаданные и хлебные крошки странице."""
     if page_number > 1:
         canonical_path += '?' + urlencode({'page': page_number})
+    public_origin = settings.PUBLIC_SITE_ORIGIN.rstrip('/')
+
+    # Видимые ссылки остаются относительными, а поисковые сигналы всегда указывают
+    # на единственный публичный домен независимо от Host входящего запроса.
+    def public_url(path):
+        return f'{public_origin}/{path.lstrip("/")}'
+
     context['page_title'] = page_title
     context['meta_description'] = meta_description
-    context['canonical_url'] = request.build_absolute_uri(canonical_path)
+    context['canonical_url'] = public_url(canonical_path)
     context['meta_robots'] = 'noindex,follow' if noindex else ''
     context['breadcrumbs'] = tuple(
         {
             'name': name,
             'url': path or canonical_path,
-            'absolute_url': request.build_absolute_uri(path or canonical_path),
+            'absolute_url': public_url(path or canonical_path),
         }
         for name, path in breadcrumbs
     )
     return context
+
+
+def resolve_site_page_metadata(
+    page_code,
+    *,
+    default_page_title,
+    default_meta_description,
+    page_number=1,
+):
+    """Подставляет управляемые SEO-поля постоянной страницы при их наличии."""
+    site_page = (
+        SitePage.objects
+        .only('seo_title', 'seo_description')
+        .filter(pk=page_code)
+        .first()
+    )
+    if site_page is None:
+        return default_page_title, default_meta_description
+
+    custom_title = site_page.seo_title.strip()
+    if custom_title:
+        if page_number > 1:
+            custom_title += f' — страница {page_number}'
+        page_title = f'{custom_title} | ОДИУМ'
+    else:
+        page_title = default_page_title
+
+    return (
+        page_title,
+        site_page.resolve_seo_value(
+            'seo_description',
+            default_meta_description,
+        ),
+    )
 
 
 def get_favorite_ids(request):
@@ -124,14 +168,19 @@ class PictHome(FavoritesContextMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context['title'] = 'Главная страница'
         context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
-        return set_page_metadata(
-            context,
-            self.request,
-            page_title='Скинали из стекла для кухни | ОДИУМ',
-            meta_description=(
+        page_title, meta_description = resolve_site_page_metadata(
+            SitePage.Code.HOME,
+            default_page_title='Скинали из стекла для кухни | ОДИУМ',
+            default_meta_description=(
                 'Скинали из стекла для кухни: каталог изображений, '
                 'услуги дизайнера и примеры готовых работ ОДИУМ.'
             ),
+        )
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=page_title,
+            meta_description=meta_description,
             canonical_path=reverse('home'),
         )
 
@@ -275,6 +324,14 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         page_number = context['page_obj'].number if not noindex else 1
         if page_number > 1:
             page_title += f' — страница {page_number}'
+        full_page_title = f'{page_title} | ОДИУМ'
+        if not selected_category:
+            full_page_title, meta_description = resolve_site_page_metadata(
+                SitePage.Code.CATALOG,
+                default_page_title=full_page_title,
+                default_meta_description=meta_description,
+                page_number=page_number,
+            )
         breadcrumbs = [
             ('Главная', reverse('home')),
             (
@@ -289,7 +346,7 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         return set_page_metadata(
             context,
             self.request,
-            page_title=f'{page_title} | ОДИУМ',
+            page_title=full_page_title,
             meta_description=meta_description,
             canonical_path=canonical_path,
             page_number=page_number,
@@ -442,14 +499,22 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
         ]
         if is_filtered:
             breadcrumbs.append((str(context['selected_category']), None))
-        return set_page_metadata(
-            context,
-            self.request,
-            page_title=f'Фото скинали из стекла — наши работы{page_suffix} | ОДИУМ',
-            meta_description=(
+        page_title, meta_description = resolve_site_page_metadata(
+            SitePage.Code.FINISHED_WORKS,
+            default_page_title=(
+                f'Фото скинали из стекла — наши работы{page_suffix} | ОДИУМ'
+            ),
+            default_meta_description=(
                 'Фотографии готовых скинали из стекла и примеры '
                 'реализованных кухонных проектов ОДИУМ.'
             ),
+            page_number=canonical_page,
+        )
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=page_title,
+            meta_description=meta_description,
             canonical_path=reverse('finished_works'),
             page_number=canonical_page,
             noindex=is_filtered,
@@ -608,14 +673,19 @@ def about(request):
         'question_form': QuestionContactForm(prefix='question'),
         'email_message_form': EmailCommentContactForm(prefix='email_message'),
     }
-    set_page_metadata(
-        context,
-        request,
-        page_title='Контакты ОДИУМ — заказать скинали из стекла',
-        meta_description=(
+    page_title, meta_description = resolve_site_page_metadata(
+        SitePage.Code.ABOUT,
+        default_page_title='Контакты ОДИУМ — заказать скинали из стекла',
+        default_meta_description=(
             'Свяжитесь с ОДИУМ, чтобы заказать скинали из стекла, '
             'задать вопрос или обсудить изображение.'
         ),
+    )
+    set_page_metadata(
+        context,
+        request,
+        page_title=page_title,
+        meta_description=meta_description,
         canonical_path=reverse('about'),
         breadcrumbs=(
             ('Главная', reverse('home')),
@@ -631,14 +701,19 @@ def designer(request):
         'title': 'Услуги дизайнера',
         'favorites_count': len(favorite_ids),
     }
-    set_page_metadata(
-        context,
-        request,
-        page_title='Услуги дизайнера для скинали | ОДИУМ',
-        meta_description=(
+    page_title, meta_description = resolve_site_page_metadata(
+        SitePage.Code.DESIGNER,
+        default_page_title='Услуги дизайнера для скинали | ОДИУМ',
+        default_meta_description=(
             'Подготовка изображения и индивидуальный дизайн '
             'для скинали из стекла от ОДИУМ.'
         ),
+    )
+    set_page_metadata(
+        context,
+        request,
+        page_title=page_title,
+        meta_description=meta_description,
         canonical_path=reverse('designer'),
         breadcrumbs=(
             ('Главная', reverse('home')),
@@ -648,5 +723,32 @@ def designer(request):
     return render(request, 'pict/designer.html', context)
 
 
+def render_error_page(template_name, *, status, page_title, meta_robots):
+    """Рендерит страницу ошибки без context processors и обращений к БД."""
+    content = render_to_string(
+        template_name,
+        {
+            'page_title': page_title,
+            'meta_robots': meta_robots,
+            'site_identity': settings.SITE_IDENTITY,
+        },
+    )
+    return HttpResponse(content, status=status)
+
+
 def pageNotFound(request, exception):
-    return HttpResponseNotFound('<h1>Ops...Страница не найдена</h1>')
+    return render_error_page(
+        'pict/404.html',
+        status=404,
+        page_title='Страница не найдена | ОДИУМ',
+        meta_robots='noindex,follow',
+    )
+
+
+def serverError(request):
+    return render_error_page(
+        'pict/500.html',
+        status=500,
+        page_title='Ошибка сервера | ОДИУМ',
+        meta_robots='noindex,nofollow',
+    )

@@ -6,6 +6,56 @@ from django.core.validators import URLValidator, validate_email
 from django.db import models
 
 
+class SeoMetadataFields(models.Model):
+    """Общие редактируемые поля SEO без собственной таблицы."""
+
+    seo_title = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name='SEO-title',
+        help_text='Без «| ОДИУМ»: бренд и номер страницы добавятся автоматически.',
+    )
+    seo_description = models.CharField(
+        max_length=320,
+        blank=True,
+        verbose_name='Meta description',
+        help_text='Оставьте пустым, чтобы использовать стандартное описание.',
+    )
+
+    def resolve_seo_value(self, field_name, default):
+        """Возвращает заполненное SEO-поле или стандартное значение."""
+        return getattr(self, field_name).strip() or default
+
+    class Meta:
+        abstract = True
+
+
+class SitePage(SeoMetadataFields):
+    """SEO-настройки постоянной внутренней страницы сайта."""
+
+    class Code(models.TextChoices):
+        HOME = 'home', 'Главная страница'
+        CATALOG = 'skinali', 'Каталог скинали'
+        FINISHED_WORKS = 'finished_works', 'Наши работы'
+        DESIGNER = 'designer', 'Услуги дизайнера'
+        ABOUT = 'about', 'Связаться с нами'
+
+    code = models.CharField(
+        'Системный код',
+        max_length=50,
+        choices=Code.choices,
+        primary_key=True,
+        editable=False,
+    )
+
+    class Meta:
+        verbose_name = 'Страница сайта'
+        verbose_name_plural = 'Страницы сайта'
+
+    def __str__(self):
+        return self.get_code_display()
+
+
 class SiteMenu(models.Model):
     """Единственное общее меню, используемое в шапке и подвале сайта."""
 

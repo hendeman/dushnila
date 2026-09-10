@@ -163,6 +163,25 @@ PUBLIC_SITE_ORIGIN = get_environment_origin(
     'DJANGO_PUBLIC_SITE_ORIGIN',
     'https://odium.by',
 )
+SITE_IDENTITY = {
+    'name': 'ОДИУМ',
+    'phone': '+375291498838',
+    'phone_display': '+375 (29) 149-88-38',
+    'email': 'odiumglass@gmail.com',
+    'logo_static_path': 'skinali/images/logo_skinali.png',
+    'logo_width': 300,
+    'logo_height': 120,
+    'social_profiles': (
+        {
+            'name': 'Instagram',
+            'url': 'https://instagram.com/odium.steklo',
+        },
+        {
+            'name': 'ВКонтакте',
+            'url': 'https://vk.com/odium.steklo',
+        },
+    ),
+}
 if IS_PRODUCTION and not PUBLIC_SITE_ORIGIN.startswith('https://'):
     raise ImproperlyConfigured(
         'DJANGO_PUBLIC_SITE_ORIGIN должен использовать HTTPS в production.'
@@ -225,6 +244,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'pict.context_processors.site_identity',
                 'pict.context_processors.contact_forms',
                 'sitecontent.context_processors.site_navigation',
             ],

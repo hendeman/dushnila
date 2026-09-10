@@ -9,7 +9,7 @@ from django.urls import include, path, reverse
 from django.views.decorators.http import require_safe
 
 from pict.sitemaps import CategorySitemap, StaticViewSitemap, TagSitemap
-from pict.views import pageNotFound
+from pict.views import pageNotFound, serverError
 
 admin.site.site_header = "Админка skinali"
 admin.site.index_title = "Админка"
@@ -70,3 +70,4 @@ if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 handler404 = pageNotFound
+handler500 = serverError

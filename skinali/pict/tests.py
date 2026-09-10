@@ -27,6 +27,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
+from sitecontent.models import SitePage
 
 from .admin import (
     CategoryAdmin,
@@ -36,6 +37,7 @@ from .admin import (
     PictAdmin,
     TagPictAdmin,
 )
+from .context_processors import site_identity
 from .forms import (
     CONTACT_FORM_TOKEN_SALT,
     BaseContactForm,
@@ -60,7 +62,7 @@ from .models import (
     TagPict,
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
-from .views import SkinaliAll, set_page_metadata
+from .views import SkinaliAll, serverError, set_page_metadata
 
 
 TEST_MEDIA_DIRECTORY = TemporaryDirectory()
@@ -88,12 +90,16 @@ def create_test_image_file(filename, size=(1000, 200)):
     )
 
 
-def get_breadcrumb_structured_data(response):
+def get_json_ld(response, element_id):
     html = response.content.decode()
-    marker = '<script id="breadcrumb-structured-data" type="application/ld+json">'
+    marker = f'<script id="{element_id}" type="application/ld+json">'
     start = html.index(marker) + len(marker)
     end = html.index('</script>', start)
     return json.loads(html[start:end])
+
+
+def get_breadcrumb_structured_data(response):
+    return get_json_ld(response, 'breadcrumb-structured-data')
 
 
 class PopularTagsTests(TestCase):
@@ -159,6 +165,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'Популярные темы:')
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
+        self.assertContains(response, 'data-caption="Описание изображения 100"')
         self.assertContains(
             response,
             '<span class="catalog-thumbnail__image-number">№100</span>',
@@ -225,7 +232,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=72')
+        self.assertContains(response, 'skinali/css/styles.css?v=74')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
@@ -350,6 +357,71 @@ class PopularTagsTests(TestCase):
             fetch_redirect_response=False,
         )
 
+    @override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
+    def test_homepage_exposes_website_and_organization_structured_data(self):
+        with self.assertNumQueries(0):
+            identity = site_identity(RequestFactory().get('/'))['site_identity']
+
+        self.assertEqual(identity['url'], 'https://odium.by/')
+        self.assertEqual(
+            identity['logo_url'],
+            'https://odium.by/static/skinali/images/logo_skinali.png',
+        )
+
+        response = self.client.get(reverse('home'))
+        structured_data = get_json_ld(response, 'site-structured-data')
+        graph = {
+            item['@type']: item
+            for item in structured_data['@graph']
+        }
+        website = graph['WebSite']
+        organization = graph['Organization']
+
+        self.assertEqual(structured_data['@context'], 'https://schema.org')
+        self.assertEqual(website['@id'], 'https://odium.by/#website')
+        self.assertEqual(website['url'], 'https://odium.by/')
+        self.assertEqual(website['name'], 'ОДИУМ')
+        self.assertEqual(website['publisher']['@id'], organization['@id'])
+        self.assertEqual(organization['@id'], 'https://odium.by/#organization')
+        self.assertEqual(organization['name'], 'ОДИУМ')
+        self.assertEqual(organization['telephone'], '+375291498838')
+        self.assertEqual(organization['email'], 'odiumglass@gmail.com')
+        self.assertEqual(
+            organization['logo'],
+            {
+                '@type': 'ImageObject',
+                'url': 'https://odium.by/static/skinali/images/logo_skinali.png',
+                'width': 300,
+                'height': 120,
+            },
+        )
+        self.assertEqual(
+            organization['sameAs'],
+            [
+                'https://instagram.com/odium.steklo',
+                'https://vk.com/odium.steklo',
+            ],
+        )
+        self.assertNotIn('address', organization)
+        self.assertContains(
+            response,
+            'href="https://instagram.com/odium.steklo" '
+            'target="_blank" rel="noopener noreferrer">Instagram</a>',
+        )
+        self.assertContains(
+            response,
+            'href="https://vk.com/odium.steklo" '
+            'target="_blank" rel="noopener noreferrer">ВКонтакте</a>',
+        )
+        response_html = response.content.decode()
+        self.assertLess(
+            response_html.index('id="site-structured-data"'),
+            response_html.index('</head>'),
+        )
+
+        category_response = self.client.get(self.first_category.get_absolute_url())
+        self.assertNotContains(category_response, 'id="site-structured-data"')
+
     def test_category_links_keep_selected_color(self):
         selected_color = self.selected_color.slug_color
         response = self.client.get(
@@ -404,6 +476,7 @@ class PopularTagsTests(TestCase):
         )
 
 
+@override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
 class TagPageAndSitemapTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -458,7 +531,7 @@ class TagPageAndSitemapTests(TestCase):
         self.assertContains(response, '<meta name="description"')
         self.assertContains(
             response,
-            f'<link rel="canonical" href="http://testserver{self.tag.get_absolute_url()}">',
+            f'<link rel="canonical" href="https://odium.by{self.tag.get_absolute_url()}">',
             html=True,
         )
         self.assertNotContains(response, '<meta name="robots"')
@@ -619,6 +692,10 @@ class TagPageAndSitemapTests(TestCase):
         for path, expected_names, expected_paths in cases:
             with self.subTest(path=path):
                 response = self.client.get(path)
+                self.assertEqual(
+                    tuple(item['url'] for item in response.context['breadcrumbs']),
+                    expected_paths,
+                )
                 self.assertContains(
                     response,
                     '<nav class="breadcrumbs" aria-label="Хлебные крошки">',
@@ -634,7 +711,7 @@ class TagPageAndSitemapTests(TestCase):
                 self.assertEqual([item['name'] for item in items], list(expected_names))
                 self.assertEqual(
                     [item['item'] for item in items],
-                    [f'http://testserver{item_path}' for item_path in expected_paths],
+                    [f'https://odium.by{item_path}' for item_path in expected_paths],
                 )
 
         home_response = self.client.get(reverse('home'))
@@ -658,7 +735,10 @@ class TagPageAndSitemapTests(TestCase):
                 self.assertNotContains(response, 'id="breadcrumb-structured-data"')
 
     def test_breadcrumb_metadata_is_query_free_and_escapes_dynamic_names(self):
-        request = RequestFactory().get('/skinali/?page=2')
+        request = RequestFactory().get(
+            '/skinali/?page=2',
+            HTTP_HOST='preview.example',
+        )
         with self.assertNumQueries(0):
             context = set_page_metadata(
                 {},
@@ -670,8 +750,12 @@ class TagPageAndSitemapTests(TestCase):
                 breadcrumbs=(('Главная', '/'), ('Каталог', None)),
             )
         self.assertEqual(
+            context['canonical_url'],
+            'https://odium.by/skinali/?page=2',
+        )
+        self.assertEqual(
             context['breadcrumbs'][1]['absolute_url'],
-            'http://testserver/skinali/?page=2',
+            'https://odium.by/skinali/?page=2',
         )
 
         unsafe_name = 'Розы </script><script>alert(1)</script>'
@@ -695,7 +779,7 @@ class TagPageAndSitemapTests(TestCase):
                 self.assertTrue(response.context['meta_description'])
                 self.assertEqual(
                     response.context['canonical_url'],
-                    f'http://testserver{path}',
+                    f'https://odium.by{path}',
                 )
                 self.assertFalse(response.context['meta_robots'])
 
@@ -719,7 +803,7 @@ class TagPageAndSitemapTests(TestCase):
         )
         self.assertEqual(
             category_response.context['canonical_url'],
-            f'http://testserver{self.category.get_absolute_url()}',
+            f'https://odium.by{self.category.get_absolute_url()}',
         )
         self.assertFalse(category_response.context['meta_robots'])
 
@@ -727,7 +811,7 @@ class TagPageAndSitemapTests(TestCase):
         self.assertEqual(search_response.context['meta_robots'], 'noindex,follow')
         self.assertEqual(
             search_response.context['canonical_url'],
-            f'http://testserver{reverse("skinali")}',
+            f'https://odium.by{reverse("skinali")}',
         )
 
         color_response = self.client.get(
@@ -737,7 +821,7 @@ class TagPageAndSitemapTests(TestCase):
         self.assertEqual(color_response.context['meta_robots'], 'noindex,follow')
         self.assertEqual(
             color_response.context['canonical_url'],
-            f'http://testserver{self.category.get_absolute_url()}',
+            f'https://odium.by{self.category.get_absolute_url()}',
         )
 
 
@@ -797,6 +881,178 @@ class RemovedTestRouteTests(SimpleTestCase):
             reverse('cat', kwargs={'catid': 1})
 
         self.assertEqual(self.client.get('/cats/1/').status_code, 404)
+
+
+@override_settings(DEBUG=False)
+class NotFoundPageTests(TestCase):
+    def test_unknown_url_returns_branded_noindex_page(self):
+        with self.assertNumQueries(0):
+            response = self.client.get('/missing-public-page/')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(
+            response,
+            '<title>Страница не найдена | ОДИУМ</title>',
+            status_code=404,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<meta name="robots" content="noindex,follow">',
+            status_code=404,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<h1 id="not-found-title">Страница не найдена</h1>',
+            status_code=404,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<a href="{reverse("home")}">Вернуться на главную</a>',
+            status_code=404,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<a href="{reverse("skinali")}">Перейти в каталог</a>',
+            status_code=404,
+            html=True,
+        )
+        self.assertNotContains(
+            response,
+            'rel="canonical"',
+            status_code=404,
+        )
+        self.assertNotContains(
+            response,
+            'type="application/ld+json"',
+            status_code=404,
+        )
+        self.assertNotContains(
+            response,
+            'class="site-footer"',
+            status_code=404,
+        )
+
+
+@override_settings(DEBUG=False)
+class ServerErrorPageTests(SimpleTestCase):
+    def test_handler500_returns_autonomous_noindex_page(self):
+        from skinali.urls import handler500
+
+        self.assertIs(handler500, serverError)
+
+        response = handler500(RequestFactory().get('/broken-public-page/'))
+
+        self.assertEqual(response.status_code, 500)
+        self.assertContains(
+            response,
+            '<title>Ошибка сервера | ОДИУМ</title>',
+            status_code=500,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<meta name="robots" content="noindex,nofollow">',
+            status_code=500,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<h1 id="server-error-title">Что-то пошло не так</h1>',
+            status_code=500,
+            html=True,
+        )
+        self.assertContains(
+            response,
+            'Попробуйте обновить страницу через несколько минут.',
+            status_code=500,
+        )
+        self.assertContains(
+            response,
+            f'<a href="{reverse("home")}">Перейти на главную</a>',
+            status_code=500,
+            html=True,
+        )
+        self.assertNotContains(response, 'rel="canonical"', status_code=500)
+        self.assertNotContains(
+            response,
+            'type="application/ld+json"',
+            status_code=500,
+        )
+        self.assertNotContains(response, 'Traceback', status_code=500)
+        self.assertNotContains(response, 'Exception', status_code=500)
+
+
+class SitePageSeoTests(TestCase):
+    def test_custom_seo_is_used_by_all_internal_menu_pages(self):
+        page_routes = (
+            (SitePage.Code.HOME, 'home'),
+            (SitePage.Code.CATALOG, 'skinali'),
+            (SitePage.Code.FINISHED_WORKS, 'finished_works'),
+            (SitePage.Code.DESIGNER, 'designer'),
+            (SitePage.Code.ABOUT, 'about'),
+        )
+
+        for index, (page_code, route_name) in enumerate(page_routes, start=1):
+            with self.subTest(page_code=page_code):
+                page = SitePage.objects.get(pk=page_code)
+                page.seo_title = f'Управляемый заголовок {index}'
+                page.seo_description = f'Управляемое описание {index}'
+                page.save(update_fields=['seo_title', 'seo_description'])
+
+                response = self.client.get(reverse(route_name))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    response.context['page_title'],
+                    f'Управляемый заголовок {index} | ОДИУМ',
+                )
+                self.assertEqual(
+                    response.context['meta_description'],
+                    f'Управляемое описание {index}',
+                )
+                self.assertContains(
+                    response,
+                    f'<title>Управляемый заголовок {index} | ОДИУМ</title>',
+                    html=True,
+                )
+                self.assertContains(
+                    response,
+                    f'<meta name="description" content="Управляемое описание {index}">',
+                    html=True,
+                )
+
+    def test_empty_site_page_seo_preserves_existing_defaults(self):
+        response = self.client.get(reverse('home'))
+
+        self.assertEqual(
+            response.context['page_title'],
+            'Скинали из стекла для кухни | ОДИУМ',
+        )
+        self.assertEqual(
+            response.context['meta_description'],
+            'Скинали из стекла для кухни: каталог изображений, '
+            'услуги дизайнера и примеры готовых работ ОДИУМ.',
+        )
+
+    def test_custom_paginated_title_gets_page_number_and_brand(self):
+        SitePage.objects.filter(pk=SitePage.Code.FINISHED_WORKS).update(
+            seo_title='Фото выполненных работ',
+        )
+        FinishedWork.objects.bulk_create([
+            FinishedWork(name=f'Работа {index}', photo=f'finished_works/seo-{index}.jpg')
+            for index in range(7)
+        ])
+
+        response = self.client.get(reverse('finished_works'), {'page': 2})
+
+        self.assertEqual(
+            response.context['page_title'],
+            'Фото выполненных работ — страница 2 | ОДИУМ',
+        )
 
 
 class PaginatorTemplateTests(SimpleTestCase):
@@ -2013,6 +2269,7 @@ class SessionFavoritesTests(TestCase):
         self.assertFalse(removed_response.json()['is_favorite'])
         self.assertEqual(self.client.session['favorite_pict_ids'], [])
 
+    @override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
     def test_favorites_page_is_noindex_with_self_canonical(self):
         response = self.client.get(reverse('favorites'))
 
@@ -2024,12 +2281,12 @@ class SessionFavoritesTests(TestCase):
         )
         self.assertEqual(
             response.context['canonical_url'],
-            f'http://testserver{reverse("favorites")}',
+            f'https://odium.by{reverse("favorites")}',
         )
         self.assertContains(
             response,
             f'<link rel="canonical" '
-            f'href="http://testserver{reverse("favorites")}">',
+            f'href="https://odium.by{reverse("favorites")}">',
             html=True,
         )
 
@@ -2063,6 +2320,10 @@ class SessionFavoritesTests(TestCase):
         ))
 
         response = self.client.get(reverse('favorites'))
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
@@ -2095,6 +2356,19 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, '#Тег избранного')
         self.assertContains(response, 'Категория избранного')
         self.assertNotContains(response, 'class="catalog-favorite-toggle')
+        self.assertEqual(styles.count('.favorite-card__image {'), 1)
+        favorite_image_styles = styles.split(
+            '.favorite-card__image {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        self.assertIn('height: auto;', favorite_image_styles)
+        self.assertNotIn('object-fit:', favorite_image_styles)
+        self.assertNotIn('background:', favorite_image_styles)
+        self.assertIn(
+            '.catalog-thumbnail:hover::after,\n'
+            '.catalog-thumbnail:focus-visible::after {\n\topacity: 1;',
+            styles,
+        )
 
     def test_favorites_menu_link_and_modal_button_are_rendered(self):
         empty_response = self.client.get(reverse('skinali'))

@@ -1,6 +1,45 @@
 {% extends 'pict/base.html' %}
 {% load static %}
 
+{% block structured_data %}
+<script id="site-structured-data" type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "{{ site_identity.website_id|escapejs }}",
+      "url": "{{ site_identity.url|escapejs }}",
+      "name": "{{ site_identity.name|escapejs }}",
+      "inLanguage": "ru",
+      "publisher": {
+        "@id": "{{ site_identity.organization_id|escapejs }}"
+      }
+    },
+    {
+      "@type": "Organization",
+      "@id": "{{ site_identity.organization_id|escapejs }}",
+      "name": "{{ site_identity.name|escapejs }}",
+      "url": "{{ site_identity.url|escapejs }}",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "{{ site_identity.logo_url|escapejs }}",
+        "width": {{ site_identity.logo_width }},
+        "height": {{ site_identity.logo_height }}
+      },
+      "telephone": "{{ site_identity.phone|escapejs }}",
+      "email": "{{ site_identity.email|escapejs }}",
+      "sameAs": [
+      {% for profile in site_identity.social_profiles %}
+        "{{ profile.url|escapejs }}"{% if not forloop.last %},{% endif %}
+      {% endfor %}
+      ]
+    }
+  ]
+}
+</script>
+{% endblock %}
+
 {% block content %}
   <section class="home-hero" aria-labelledby="home-hero-title">
     <img class="home-hero__image"
@@ -248,10 +287,13 @@
         </article>
       {% endfor %}
 
-      <a class="home-recent-work-card home-recent-work-card--all"
-         href="{% url 'finished_works' %}">
-        <span>Смотреть все фото<br>наших работ</span>
-      </a>
+      {% url 'finished_works' as finished_works_url %}
+      {% if finished_works_url in visible_site_menu_urls %}
+        <a class="home-recent-work-card home-recent-work-card--all"
+           href="{{ finished_works_url }}">
+          <span>Смотреть все фото<br>наших работ</span>
+        </a>
+      {% endif %}
     </div>
   </div>
 </section>

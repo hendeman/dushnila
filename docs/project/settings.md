@@ -17,6 +17,7 @@
 | Профиль | `DJANGO_ENVIRONMENT`: `development` по умолчанию или `production` |
 | Разрешенные хосты | development: `127.0.0.1`, `localhost`; production: обязательный `DJANGO_ALLOWED_HOSTS` |
 | Публичный origin | `DJANGO_PUBLIC_SITE_ORIGIN`, по умолчанию `https://odium.by`; используется техническими публичными URL без зависимости от текущего `Host` |
+| Идентичность сайта | `SITE_IDENTITY`: название «ОДИУМ», основной телефон, email, логотип и официальные профили Instagram и ВКонтакте |
 | Режим отладки | development: включён по умолчанию; production: принудительно выключен |
 | Корневой URLconf | `skinali.urls` |
 | WSGI | `skinali.wsgi.application` |
@@ -45,7 +46,7 @@
 - `SESSION_COOKIE_SECURE` и `CSRF_COOKIE_SECURE` включены автоматически; HTTPS-redirect включён по умолчанию и может быть отключён, если его полностью выполняет внешний веб-сервер.
 - `django_extensions` и Debug Toolbar не загружаются по умолчанию.
 - `DJANGO_ADMIN_PATH` задаёт URL-префикс admin без начального слеша; изменение адреса является только дополнительной мерой.
-- `DJANGO_PUBLIC_SITE_ORIGIN` задаёт схему и основной домен без пути; значение по умолчанию — `https://odium.by`, а production-профиль разрешает только HTTPS. Сейчас origin используется строкой `Sitemap` в `/robots.txt` и подготовлен для последующей унификации canonical URL.
+- `DJANGO_PUBLIC_SITE_ORIGIN` задаёт схему и основной домен без пути; значение по умолчанию — `https://odium.by`, а production-профиль разрешает только HTTPS. Origin используется строкой `Sitemap` в `/robots.txt`, всеми canonical, абсолютными URL JSON-LD-хлебных крошек, а также идентификаторами сайта, организации и логотипа в JSON-LD главной страницы.
 - `DJANGO_CSRF_TRUSTED_ORIGINS` принимает список HTTPS-origin через запятую.
 - `DJANGO_TRUST_X_FORWARDED_PROTO=True` допустим только за контролируемым reverse proxy, который перезаписывает `X-Forwarded-Proto`.
 - HSTS по умолчанию равен нулю. После проверки HTTPS значение `DJANGO_SECURE_HSTS_SECONDS` повышается постепенно; флаги поддоменов и preload включаются отдельно.
@@ -75,8 +76,9 @@
 
 `APP_DIRS = True`, поэтому Django ищет шаблоны внутри приложений. Дополнительные каталоги в `TEMPLATES[0]['DIRS']` не заданы. Помимо стандартных context processors для debug, request, auth и messages зарегистрированы:
 
+- `pict.context_processors.site_identity` — без запросов к БД передаёт единые публичные реквизиты из `SITE_IDENTITY` и абсолютные URL сайта, организации и логотипа, построенные от `PUBLIC_SITE_ORIGIN`;
 - `pict.context_processors.contact_forms` — добавляет глобальные формы обратного звонка и покупки без запросов к базе данных;
-- `sitecontent.context_processors.site_navigation` — передаёт ленивый QuerySet видимых пунктов основного меню. Публичный базовый шаблон вычисляет его одним SQL-запросом и повторно использует в шапке и подвале без кеширования между запросами.
+- `sitecontent.context_processors.site_navigation` — передаёт ленивый QuerySet видимых пунктов основного меню и связанную с ним ленивую коллекцию URL. QuerySet вычисляется только при использовании, повторно применяется в шапке, подвале и связанных блоках без дополнительных запросов и межзапросного кеша.
 
 Контракт управляемого меню описан в [sitecontent/overview.md](../sitecontent/overview.md).
 

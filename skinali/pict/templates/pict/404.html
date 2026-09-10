@@ -1,0 +1,15 @@
+{% extends 'pict/error_base.html' %}
+
+{% block error_content %}
+<section class="search-empty" aria-labelledby="not-found-title">
+    <h1 id="not-found-title">Страница не найдена</h1>
+    <p>
+        Возможно, адрес изменился или в ссылке допущена ошибка.
+        Вы можете вернуться на главную страницу или продолжить выбор изображения.
+    </p>
+    <nav aria-label="Переходы со страницы ошибки">
+        <a href="{% url 'home' %}">Вернуться на главную</a>
+        <a href="{% url 'skinali' %}">Перейти в каталог</a>
+    </nav>
+</section>
+{% endblock %}

@@ -6,7 +6,43 @@ from django.template import RequestContext, Template
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from .models import MenuItem, SiteMenu
+from .admin import SitePageAdmin
+from .models import MenuItem, SiteMenu, SitePage
+
+
+class SitePageModelTests(TestCase):
+    def test_migration_creates_all_internal_site_pages_with_empty_seo(self):
+        self.assertEqual(
+            {
+                page.code: (
+                    str(page),
+                    page.seo_title,
+                    page.seo_description,
+                )
+                for page in SitePage.objects.all()
+            },
+            {
+                SitePage.Code.HOME: ('Главная страница', '', ''),
+                SitePage.Code.CATALOG: ('Каталог скинали', '', ''),
+                SitePage.Code.FINISHED_WORKS: ('Наши работы', '', ''),
+                SitePage.Code.DESIGNER: ('Услуги дизайнера', '', ''),
+                SitePage.Code.ABOUT: ('Связаться с нами', '', ''),
+            },
+        )
+
+    def test_empty_and_whitespace_seo_values_use_defaults(self):
+        page = SitePage.objects.get(pk=SitePage.Code.HOME)
+        page.seo_title = '  Новый заголовок  '
+        page.seo_description = '   '
+
+        self.assertEqual(
+            page.resolve_seo_value('seo_title', 'Стандартный заголовок'),
+            'Новый заголовок',
+        )
+        self.assertEqual(
+            page.resolve_seo_value('seo_description', 'Стандартное описание'),
+            'Стандартное описание',
+        )
 
 
 class SiteMenuModelTests(TestCase):
@@ -135,6 +171,35 @@ class SiteMenuRenderingTests(TestCase):
 
         self.assertContains(self.client.get(reverse('home')), item.title, count=2)
 
+    def test_hidden_finished_works_item_hides_only_homepage_link_card(self):
+        item = MenuItem.objects.create(
+            menu=self.menu,
+            title='Наши работы',
+            url=reverse('finished_works'),
+            position=10,
+        )
+
+        visible_response = self.client.get(reverse('home'))
+
+        self.assertContains(visible_response, 'class="home-recent-works"')
+        self.assertContains(visible_response, 'home-recent-work-card--all')
+        self.assertIn(
+            reverse('finished_works'),
+            visible_response.context['visible_site_menu_urls'],
+        )
+
+        item.is_visible = False
+        item.save(update_fields=['is_visible'])
+        hidden_response = self.client.get(reverse('home'))
+
+        self.assertContains(hidden_response, 'class="home-recent-works"')
+        self.assertNotContains(hidden_response, 'home-recent-work-card--all')
+        self.assertNotContains(hidden_response, 'Смотреть все фото')
+        self.assertNotIn(
+            reverse('finished_works'),
+            hidden_response.context['visible_site_menu_urls'],
+        )
+
     def test_same_queryset_is_reused_for_header_and_footer(self):
         MenuItem.objects.create(
             menu=self.menu,
@@ -186,6 +251,40 @@ class SiteMenuAdminTests(TestCase):
         self.assertContains(editor, 'Открывать в новой вкладке')
         self.assertContains(editor, 'Отображать')
         self.assertNotContains(editor, 'Удалить</a>')
+
+    def test_site_pages_admin_exposes_only_two_editable_seo_fields(self):
+        self.client.force_login(self.superuser)
+
+        changelist = self.client.get(reverse('admin:sitecontent_sitepage_changelist'))
+        editor_url = reverse(
+            'admin:sitecontent_sitepage_change',
+            args=[SitePage.Code.HOME],
+        )
+        editor = self.client.get(editor_url)
+
+        self.assertEqual(changelist.status_code, 200)
+        for page_name in dict(SitePage.Code.choices).values():
+            self.assertContains(changelist, page_name)
+        self.assertEqual(SitePageAdmin.fields, ('seo_title', 'seo_description'))
+        self.assertContains(editor, 'SEO-title')
+        self.assertContains(editor, 'Meta description')
+        self.assertNotContains(editor, 'Системный код')
+        self.assertNotContains(editor, 'Удалить</a>')
+        self.assertEqual(
+            self.client.get(reverse('admin:sitecontent_sitepage_add')).status_code,
+            403,
+        )
+
+        response = self.client.post(editor_url, {
+            'seo_title': 'Новый SEO-title',
+            'seo_description': 'Новое описание страницы',
+            '_save': 'Сохранить',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        page = SitePage.objects.get(pk=SitePage.Code.HOME)
+        self.assertEqual(page.seo_title, 'Новый SEO-title')
+        self.assertEqual(page.seo_description, 'Новое описание страницы')
 
     def test_staff_cannot_open_menu_even_with_model_permissions(self):
         self.client.force_login(self.staff_user)

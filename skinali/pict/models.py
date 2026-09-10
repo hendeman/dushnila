@@ -3,6 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
+from sitecontent.models import SeoMetadataFields
 
 from .search import normalize_search_value
 
@@ -14,7 +15,7 @@ class PublicationQuerySet(models.QuerySet):
         return self.filter(is_published=True)
 
 
-class SeoLandingContent(models.Model):
+class SeoLandingContent(SeoMetadataFields):
     """Общие редактируемые SEO-поля страниц справочников каталога."""
 
     seo_h1 = models.CharField(
@@ -23,27 +24,11 @@ class SeoLandingContent(models.Model):
         verbose_name='SEO-заголовок H1',
         help_text='Оставьте пустым, чтобы использовать стандартный заголовок.',
     )
-    seo_title = models.CharField(
-        max_length=200,
-        blank=True,
-        verbose_name='SEO-title',
-        help_text='Без «| ОДИУМ»: бренд и номер страницы добавятся автоматически.',
-    )
-    seo_description = models.CharField(
-        max_length=320,
-        blank=True,
-        verbose_name='Meta description',
-        help_text='Оставьте пустым, чтобы использовать стандартное описание.',
-    )
     intro_text = models.TextField(
         blank=True,
         verbose_name='Вводный текст',
         help_text='Отображается под заголовком страницы.',
     )
-
-    def resolve_seo_value(self, field_name, default):
-        """Возвращает заполненное SEO-поле или переданное стандартное значение."""
-        return getattr(self, field_name).strip() or default
 
     class Meta:
         abstract = True
