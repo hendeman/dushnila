@@ -29,7 +29,7 @@ ContactRequest  1───*  ContactRequestDelivery
 
 ## `SeoLandingContent`
 
-Абстрактная модель с общими редактируемыми полями SEO-посадочных страниц. Собственной таблицы в БД не создаёт; поля входят непосредственно в таблицы `Category` и `TagPict`. Модель наследует `seo_title`, `seo_description` и `resolve_seo_value()` от общей абстрактной `sitecontent.models.SeoMetadataFields`, а сама определяет только поля, специфичные для страниц справочников.
+Абстрактная модель с общими редактируемыми полями SEO-посадочных страниц. Собственной таблицы в БД не создаёт; поля входят непосредственно в таблицы `Category` и `TagPict`. Модель наследует `seo_title`, `seo_description`, служебный `updated_at`, `resolve_seo_value()` и гарантированное обновление timestamp при `save(update_fields=...)` от общей абстрактной `sitecontent.models.SeoMetadataFields`, а сама определяет только поля, специфичные для страниц справочников.
 
 | Поле | Тип | Ограничения и смысл |
 |---|---|---|
@@ -37,6 +37,7 @@ ContactRequest  1───*  ContactRequestDelivery
 | `seo_title` | `CharField(200)` | необязательная основа `<title>` без бренда и номера страницы |
 | `seo_description` | `CharField(320)` | необязательный `meta description` |
 | `intro_text` | `TextField` | необязательный вводный текст под H1 |
+| `updated_at` | `DateTimeField` | не редактируемое формой время последнего изменения публичного содержимого |
 
 Унаследованный `resolve_seo_value(field_name, default)` обрезает внешние пробелы и возвращает заполненное поле либо стандартное значение. Поэтому существующие категории и теги после миграции сохраняют прежние автоматически сформированные метаданные. Общий базовый класс также используется отдельной моделью постоянных страниц `sitecontent.SitePage`; таблицы и связи приложений при этом не объединяются.
 
@@ -56,7 +57,7 @@ ContactRequest  1───*  ContactRequestDelivery
 | `tag` | `CharField(100)` | индексированный текст ключевого слова |
 | `normalized_tag` | `CharField(200)` | автоматически вычисляемое, не редактируемое формой, уникальное нормализованное значение |
 | `slug` | `SlugField(100)` | уникальный, индексированный |
-| `seo_h1`, `seo_title`, `seo_description`, `intro_text` | унаследованы от `SeoLandingContent` | необязательные переопределения содержимого публичной страницы |
+| `seo_h1`, `seo_title`, `seo_description`, `intro_text`, `updated_at` | унаследованы от `SeoLandingContent` | управляемое содержимое страницы и служебное время его изменения |
 
 - `clean()` и `save()` вычисляют `normalized_tag` общей функцией `normalize_search_value()`: NFKC, `casefold()`, замена `ё` на `е`, сведение поддерживаемых разделителей к пробелам.
 - Значение без единой буквы или цифры после нормализации отклоняется. `clean()` также проверяет дубликат среди других `TagPict` и совпадение с `TagAlias.normalized_alias`; `save()` вызывает `clean()` даже при сохранении модели вне формы.
@@ -90,7 +91,7 @@ ContactRequest  1───*  ContactRequestDelivery
 |---|---|---|
 | `cat` | `CharField(100)` | отображаемое название |
 | `slug` | `SlugField(100)` | уникальный, индексированный |
-| `seo_h1`, `seo_title`, `seo_description`, `intro_text` | унаследованы от `SeoLandingContent` | необязательные переопределения содержимого публичной страницы |
+| `seo_h1`, `seo_title`, `seo_description`, `intro_text`, `updated_at` | унаследованы от `SeoLandingContent` | управляемое содержимое страницы и служебное время его изменения |
 
 - `__str__()` возвращает `cat`.
 - `get_absolute_url()` строит именованный URL `skinali` с `slug_cat=self.slug`.
@@ -104,7 +105,8 @@ ContactRequest  1───*  ContactRequestDelivery
 | `alt` | `CharField(250)` | необязательное описание (`blank=True`) |
 | `photo` | `ImageField` | загрузка в `photos/` внутри `MEDIA_ROOT` |
 | `is_published` | `BooleanField` | флаг публичного показа, по умолчанию `True`; verbose name «Опубликовано» |
-| `time_update` | `DateTimeField` | `auto_now_add=True`; фактически время создания, несмотря на имя |
+| `created_at` | `DateTimeField` | неизменяемые дата и время добавления (`auto_now_add=True`) |
+| `updated_at` | `DateTimeField` | дата и время последнего изменения (`auto_now=True`) |
 | `cat` | `ManyToManyField(Category)` | обязательная на уровне формы связь категорий |
 | `tags` | `ManyToManyField(TagPict)` | необязательная, `related_name='tags'` |
 | `color` | `ManyToManyField(Color)` | обязательная на уровне формы связь цветов |
@@ -112,6 +114,7 @@ ContactRequest  1───*  ContactRequestDelivery
 - `__str__()` возвращает строковое представление `name`.
 - `Meta.ordering = ['-id']`: новые записи идут первыми.
 - `__add__(other)` возвращает `int(Pict.objects.first().name) + other`; метод используется формой admin для предложения следующего номера.
+- `save(update_fields=...)` всегда добавляет `updated_at`, поэтому частичное сохранение не оставляет устаревшую дату.
 
 ## `FinishedWork`
 
@@ -123,12 +126,14 @@ ContactRequest  1───*  ContactRequestDelivery
 | `is_published` | `BooleanField` | независимый флаг публичного показа, по умолчанию `True`; verbose name «Опубликовано» |
 | `catalog_image` | `ForeignKey(Pict)` | необязательная связь с изображением каталога; `null=True`, `blank=True`, `SET_NULL`, `related_name='finished_works'` |
 | `created_at` | `DateTimeField` | дата и время создания (`auto_now_add=True`) |
+| `updated_at` | `DateTimeField` | дата и время последнего изменения (`auto_now=True`) |
 
 - `__str__()` возвращает имя и номер связанного изображения; без связи — только имя.
 - `Meta.ordering = ['-created_at', '-id']`: новые работы выводятся первыми.
 - Категория отдельно не хранится. Если выбрано `catalog_image`, категории готовой работы берутся из `catalog_image.cat`; без связи с каталогом категорий у работы нет.
 - При удалении `Pict` готовая работа сохраняется, а `catalog_image` автоматически становится `NULL`.
 - Обратная связь от `Pict` доступна как `pict.finished_works`.
+- `save(update_fields=...)` всегда обновляет `updated_at`; часы главной и полной галереи синхронизируются сигналами.
 
 ## `ContactRequest`
 
@@ -177,6 +182,7 @@ ContactRequest  1───*  ContactRequestDelivery
 
 - [search.py](search.md) строит глобальный поиск опубликованных изображений по `name`, `normalized_tag` и `normalized_alias`.
 - [sitemaps.py](sitemaps.md) выбирает `Category` и `TagPict`, связанные хотя бы с одним опубликованным изображением, и вычисляет их `lastmod`.
+- [signals.py](signals.md) синхронизирует timestamps моделей и постоянных страниц при изменении публичного содержимого и M2M-связей.
 - [views.py](views.md) начинает публичные выборки `Pict` и `FinishedWork` с `objects.published()`, затем передает каталог в поисковый модуль либо фильтрует его по `tags__slug`, `cat__slug` и `color__slug_color`; для страниц категорий и тегов применяет управляемые SEO-поля с автоматическими запасными значениями.
 - [admin.py](admin.md) показывает категории, цвета и превью изображения, а также предоставляет единый SEO-блок для `Category` и `TagPict`.
 - [views.py](views.md) загружает `FinishedWork` вместе со связанным `Pict` и его категориями для публичной галереи.
@@ -194,7 +200,7 @@ ContactRequest  1───*  ContactRequestDelivery
 - Метод `__add__()` выполняет запрос к БД и использует необычную для модели семантику оператора `+`.
 - Для обязательности ManyToMany нет ограничения на уровне БД: она обеспечивается формами/интерфейсом.
 - Межтабличная уникальность поискового значения основного тега и синонима обеспечивается только `clean()`/`save()` моделей; собственного ограничения БД для двух таблиц нет.
-- `time_update` не обновляется при редактировании.
+- `QuerySet.update()`, bulk-операции, ручная запись в промежуточные M2M-таблицы и прямой SQL обходят `save()` и signals; служебный код с такими операциями должен явно обновлять публичные timestamps.
 - Изменение категорий у связанного `Pict` сразу меняет категории готовой работы, поскольку отдельной копии категорий у `FinishedWork` нет.
 - `is_published` управляет ORM-выдачей, но не является файловой авторизацией: известный прямой URL уже загруженного файла остается доступен через текущий обработчик `MEDIA_URL`/веб-сервер.
 

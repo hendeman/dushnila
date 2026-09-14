@@ -16,7 +16,7 @@
 
 При `settings.DEBUG` к `urlpatterns` добавляется обслуживание `MEDIA_URL` из `MEDIA_ROOT`. Маршрут Debug Toolbar полностью отсутствует в production-профиле, а не только скрывает панель.
 
-`/robots.txt` принимает безопасные методы GET и HEAD, возвращает `text/plain; charset=utf-8` и кешируется клиентом на один час. Общая группа роботов запрещает обход текущего `ADMIN_URL` и POST-обработчика `/contact/request/`, но не закрывает `/favorites/`: персональная страница остаётся доступной роботу, чтобы он прочитал её HTML-директиву `noindex,follow`. Директива `Clean-param` перечисляет `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `yclid` и `gclid`; неподдерживающие её роботы игнорируют строку. `Sitemap` всегда строится от проверенного `PUBLIC_SITE_ORIGIN`, по умолчанию `https://odium.by`, а не от домена текущего запроса.
+`/robots.txt` принимает безопасные методы GET и HEAD, возвращает `text/plain; charset=utf-8` и кешируется клиентом на один час. Общая группа роботов запрещает обход текущего `ADMIN_URL` и POST-обработчика `/contact/request/`, но не закрывает `/favorites/`: персональная страница остаётся доступной роботу, чтобы он прочитал её HTML-директиву `noindex,follow`. Директива `Clean-param` перечисляет `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `yclid` и `gclid`; неподдерживающие её роботы игнорируют строку. Адрес карты в `robots.txt` и все `<loc>` внутри XML всегда строятся от проверенного `PUBLIC_SITE_ORIGIN`, по умолчанию `https://odium.by`, а не от домена текущего запроса.
 
 ## Дополнительная конфигурация
 

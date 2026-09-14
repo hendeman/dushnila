@@ -172,12 +172,19 @@ class Pict(models.Model):
     alt = models.CharField(max_length=250, blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to="photos/", verbose_name='Изображение')
     is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
-    time_update = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Время изменения')
     cat = models.ManyToManyField(Category, verbose_name="Категории")
     tags = models.ManyToManyField(TagPict, blank=True, related_name="tags", verbose_name="Теги")
     color = models.ManyToManyField(Color, verbose_name="Цвет")
 
     objects = PublicationQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'updated_at'}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return str(self.name)
@@ -205,8 +212,15 @@ class FinishedWork(models.Model):
         verbose_name='Номер изображения',
     )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Время изменения')
 
     objects = PublicationQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'updated_at'}
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if self.catalog_image:

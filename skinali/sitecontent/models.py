@@ -21,6 +21,16 @@ class SeoMetadataFields(models.Model):
         verbose_name='Meta description',
         help_text='Оставьте пустым, чтобы использовать стандартное описание.',
     )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='Время изменения публичного содержимого',
+    )
+
+    def save(self, *args, **kwargs):
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'updated_at'}
+        super().save(*args, **kwargs)
 
     def resolve_seo_value(self, field_name, default):
         """Возвращает заполненное SEO-поле или стандартное значение."""

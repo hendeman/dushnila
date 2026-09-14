@@ -56,19 +56,25 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     list_editable = ['is_published']
     list_display_links = ['name']
     search_fields = ['=name', 'tags__tag']
-    list_filter = ['is_published', 'time_update', 'cat__cat', 'color__color']
+    list_filter = ['is_published', 'created_at', 'cat__cat', 'color__color']
     fields = [
         'name',
         'is_published',
         'alt',
         'photo',
         'get_html_photo_fields',
-        'time_update',
+        'created_at',
+        'updated_at',
         'color',
         'cat',
         'tags',
     ]
-    readonly_fields = ['time_update', 'get_html_photo_fields', 'get_finished_works']
+    readonly_fields = [
+        'created_at',
+        'updated_at',
+        'get_html_photo_fields',
+        'get_finished_works',
+    ]
     filter_horizontal = ['color', 'cat', 'tags']
     ordering = ["-id"]
     form = PictAdminForm
@@ -82,7 +88,7 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     def get_fields(self, request, obj=None):
         fields = list(self.fields)
         if obj and obj.finished_works.exists():
-            fields.insert(fields.index('time_update'), 'get_finished_works')
+            fields.insert(fields.index('created_at'), 'get_finished_works')
         return fields
 
 
@@ -191,13 +197,14 @@ class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
         'get_catalog_image_number',
         'get_catalog_categories',
         'created_at',
+        'updated_at',
     ]
     list_editable = ['is_published']
     list_display_links = ['name']
     list_filter = ['is_published', 'created_at']
     search_fields = ['name', 'description', '=catalog_image__name']
     autocomplete_fields = ['catalog_image']
-    readonly_fields = ['get_html_photo_fields', 'created_at']
+    readonly_fields = ['get_html_photo_fields', 'created_at', 'updated_at']
     fields = [
         'name',
         'is_published',
@@ -206,6 +213,7 @@ class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
         'get_html_photo_fields',
         'catalog_image',
         'created_at',
+        'updated_at',
     ]
     ordering = ['-created_at', '-id']
     list_per_page = 20

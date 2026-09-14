@@ -25,7 +25,7 @@
 | Флаги публикации изображений и готовых работ | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/forms.md](docs/pict/forms.md), [pict/tests.md](docs/pict/tests.md) |
 | Нормализация, разделители, многословный поиск и релевантность | [pict/search.md](docs/pict/search.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md) |
 | Каталог, фильтры, пагинация и контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/search.md](docs/pict/search.md), [pict/urls.md](docs/pict/urls.md) |
-| SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
+| SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
 | Избранное, Django-сессия, кнопка в модальной галерее | [pict/views.md](docs/pict/views.md) | [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict`, добавление и удаление маршрутов | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
@@ -57,6 +57,7 @@
 | `skinali/pict/forms.py` | [pict/forms.md](docs/pict/forms.md) |
 | `skinali/pict/search.py` | [pict/search.md](docs/pict/search.md) |
 | `skinali/pict/sitemaps.py` | [pict/sitemaps.md](docs/pict/sitemaps.md) |
+| `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
 | `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |

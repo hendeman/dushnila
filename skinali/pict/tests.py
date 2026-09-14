@@ -1,5 +1,6 @@
 import json
 import time
+import xml.etree.ElementTree as ElementTree
 from datetime import timedelta
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -100,6 +101,19 @@ def get_json_ld(response, element_id):
 
 def get_breadcrumb_structured_data(response):
     return get_json_ld(response, 'breadcrumb-structured-data')
+
+
+def get_sitemap_lastmods(response):
+    root = ElementTree.fromstring(response.content)
+    namespace = {'sitemap': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+    return {
+        url.find('sitemap:loc', namespace).text: url.find(
+            'sitemap:lastmod',
+            namespace,
+        ).text
+        for url in root.findall('sitemap:url', namespace)
+        if url.find('sitemap:lastmod', namespace) is not None
+    }
 
 
 class PopularTagsTests(TestCase):
@@ -232,7 +246,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=74')
+        self.assertContains(response, 'skinali/css/styles.css?v=77')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
@@ -287,11 +301,15 @@ class PopularTagsTests(TestCase):
             FinishedWork.objects.create(
                 name=f'Готовая работа {index}',
                 description=f'Описание готовой работы {index}',
-                photo=f'finished_works/home-work-{index}.jpg',
+                photo=create_test_image_file(f'home-work-{index}.jpg'),
             )
             for index in range(1, 5)
         ]
         response = self.client.get(reverse('home'))
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'class="home-hero"')
@@ -320,6 +338,43 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'class="home-benefit-card"', count=6)
         self.assertContains(response, 'skinali/images/home-benefit-strength.jpg')
         self.assertContains(response, 'skinali/images/home-benefit-variants.jpg')
+        expected_home_card_texts = (
+            'Вы можете предварительно до замера примерить несколько изображений на фотографию Вашей кухни.',
+            'Но мы сделаем Вам этот подарок!',
+            'При заказе скинали у нас - монтаж светодиодной подсветки БЕСПЛАТНО.',
+            'УФ-печать не теряет с годами насыщенность красок.',
+            'Надоевшее изображение можно перепечатать на новое в любое время.',
+            'стыковочные швы практически не видны и не нарушают целость всего изображения',
+            'разместив на скинали фотографии семьи или детей, любимые места отдыха и т.д.',
+            'словно ремонт был только вчера.',
+            'Каждый их трех вариантов исполнения подбирается под определенный дизайн кухни.',
+        )
+        for expected_text in expected_home_card_texts:
+            with self.subTest(expected_text=expected_text):
+                self.assertContains(response, expected_text)
+        home_offer_card_styles = styles.split(
+            '.home-offer-card {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        home_offer_grid_styles = styles.split(
+            '.home-offers__cards {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        home_offer_image_styles = styles.split(
+            '.home-offer-card__image {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        self.assertIn('min-height: 405px;', home_offer_card_styles)
+        self.assertNotIn('\n\theight: 405px;', home_offer_card_styles)
+        self.assertIn('grid-auto-rows: 1fr;', home_offer_grid_styles)
+        self.assertIn('flex: 0 0 auto;', home_offer_image_styles)
+        self.assertIn('height: 185px;', home_offer_image_styles)
+        home_offer_text_styles = styles.split(
+            '.home-offer-card > p {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        self.assertIn('margin: 0;', home_offer_text_styles)
+        self.assertNotIn('margin: auto 0 0;', home_offer_text_styles)
         self.assertContains(response, 'class="home-recent-works"')
         self.assertContains(
             response,
@@ -475,6 +530,27 @@ class PopularTagsTests(TestCase):
             html=True,
         )
 
+    def test_nested_category_uses_root_relative_static_urls(self):
+        response = self.client.get(self.first_category.get_absolute_url())
+
+        self.assertEqual(settings.STATIC_URL, '/static/')
+        self.assertContains(
+            response,
+            'href="/static/skinali/css/styles.css',
+        )
+        self.assertContains(
+            response,
+            'src="/static/skinali/js/site-menu.js',
+        )
+        self.assertNotContains(
+            response,
+            'href="static/skinali/',
+        )
+        self.assertNotContains(
+            response,
+            'src="static/skinali/',
+        )
+
 
 @override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
 class TagPageAndSitemapTests(TestCase):
@@ -624,23 +700,170 @@ class TagPageAndSitemapTests(TestCase):
             404,
         )
 
+    @override_settings(ALLOWED_HOSTS=['technical-preview.example'])
     def test_sitemap_contains_static_pages_and_only_nonempty_taxonomies(self):
-        response = self.client.get(reverse('sitemap'))
+        response = self.client.get(
+            reverse('sitemap'),
+            HTTP_HOST='technical-preview.example',
+        )
         xml = response.content.decode()
 
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response['Content-Type'].startswith('application/xml'))
         for view_name in ('home', 'skinali', 'finished_works', 'designer', 'about'):
             self.assertIn(
-                f'<loc>http://testserver{reverse(view_name)}</loc>',
+                f'<loc>https://odium.by{reverse(view_name)}</loc>',
                 xml,
             )
+        self.assertNotIn('technical-preview.example', xml)
+        self.assertNotIn('http://testserver', xml)
         self.assertIn(self.category.get_absolute_url(), xml)
         self.assertNotIn(self.empty_category.get_absolute_url(), xml)
         self.assertNotIn(self.hidden_category.get_absolute_url(), xml)
         self.assertIn(self.tag.get_absolute_url(), xml)
         self.assertNotIn(self.empty_tag.get_absolute_url(), xml)
         self.assertNotIn(self.hidden_tag.get_absolute_url(), xml)
+
+    def test_sitemap_lastmod_uses_freshest_relevant_timestamp(self):
+        taxonomy_changed_at = timezone.now() - timedelta(days=10)
+        picture_changed_at = timezone.now() - timedelta(days=2)
+        home_changed_at = timezone.now() - timedelta(days=4)
+        Category.objects.filter(pk=self.category.pk).update(
+            updated_at=taxonomy_changed_at,
+        )
+        TagPict.objects.filter(pk=self.tag.pk).update(
+            updated_at=taxonomy_changed_at,
+        )
+        Pict.objects.filter(pk=self.picture.pk).update(
+            updated_at=picture_changed_at,
+        )
+        SitePage.objects.filter(pk=SitePage.Code.HOME).update(
+            updated_at=home_changed_at,
+        )
+
+        response = self.client.get(reverse('sitemap'))
+        lastmods = get_sitemap_lastmods(response)
+
+        self.assertEqual(
+            lastmods[f'https://odium.by{self.category.get_absolute_url()}'],
+            timezone.localdate(picture_changed_at).isoformat(),
+        )
+        self.assertEqual(
+            lastmods[f'https://odium.by{self.tag.get_absolute_url()}'],
+            timezone.localdate(picture_changed_at).isoformat(),
+        )
+        self.assertEqual(
+            lastmods[f'https://odium.by{reverse("home")}'],
+            timezone.localdate(home_changed_at).isoformat(),
+        )
+
+        category_changed_at = timezone.now() - timedelta(days=1)
+        Category.objects.filter(pk=self.category.pk).update(
+            updated_at=category_changed_at,
+        )
+
+        updated_lastmods = get_sitemap_lastmods(
+            self.client.get(reverse('sitemap')),
+        )
+
+        self.assertEqual(
+            updated_lastmods[
+                f'https://odium.by{self.category.get_absolute_url()}'
+            ],
+            timezone.localdate(category_changed_at).isoformat(),
+        )
+        self.assertEqual(
+            updated_lastmods[f'https://odium.by{self.tag.get_absolute_url()}'],
+            timezone.localdate(picture_changed_at).isoformat(),
+        )
+
+    def test_picture_save_and_tag_removal_touch_public_clocks(self):
+        old_timestamp = timezone.now() - timedelta(days=30)
+        Pict.objects.filter(pk=self.picture.pk).update(updated_at=old_timestamp)
+        Category.objects.update(updated_at=old_timestamp)
+        TagPict.objects.filter(pk=self.tag.pk).update(updated_at=old_timestamp)
+        SitePage.objects.filter(
+            pk__in=(SitePage.Code.CATALOG, SitePage.Code.FINISHED_WORKS),
+        ).update(updated_at=old_timestamp)
+
+        self.picture.refresh_from_db()
+        self.picture.alt = 'Обновлённое описание роз'
+        self.picture.save(update_fields=['alt'])
+        self.category.refresh_from_db()
+        self.tag.refresh_from_db()
+        catalog_page = SitePage.objects.get(pk=SitePage.Code.CATALOG)
+        finished_works_page = SitePage.objects.get(pk=SitePage.Code.FINISHED_WORKS)
+
+        self.assertGreater(self.picture.updated_at, old_timestamp)
+        self.assertGreater(self.category.updated_at, old_timestamp)
+        self.assertGreater(self.tag.updated_at, old_timestamp)
+        self.assertGreater(catalog_page.updated_at, old_timestamp)
+        self.assertGreater(finished_works_page.updated_at, old_timestamp)
+
+        Pict.objects.filter(pk=self.picture.pk).update(updated_at=old_timestamp)
+        TagPict.objects.filter(pk=self.tag.pk).update(updated_at=old_timestamp)
+        SitePage.objects.filter(pk=SitePage.Code.CATALOG).update(
+            updated_at=old_timestamp,
+        )
+
+        self.picture.tags.remove(self.tag)
+        self.picture.refresh_from_db()
+        self.tag.refresh_from_db()
+        catalog_page.refresh_from_db()
+
+        self.assertGreater(self.picture.updated_at, old_timestamp)
+        self.assertGreater(self.tag.updated_at, old_timestamp)
+        self.assertGreater(catalog_page.updated_at, old_timestamp)
+
+    def test_picture_deletion_touches_previous_taxonomies_and_static_pages(self):
+        old_timestamp = timezone.now() - timedelta(days=30)
+        Category.objects.update(updated_at=old_timestamp)
+        TagPict.objects.filter(pk=self.tag.pk).update(updated_at=old_timestamp)
+        SitePage.objects.filter(
+            pk__in=(SitePage.Code.CATALOG, SitePage.Code.FINISHED_WORKS),
+        ).update(updated_at=old_timestamp)
+
+        self.picture.delete()
+        self.category.refresh_from_db()
+        self.tag.refresh_from_db()
+        catalog_page = SitePage.objects.get(pk=SitePage.Code.CATALOG)
+        finished_works_page = SitePage.objects.get(pk=SitePage.Code.FINISHED_WORKS)
+
+        self.assertGreater(self.category.updated_at, old_timestamp)
+        self.assertGreater(self.tag.updated_at, old_timestamp)
+        self.assertGreater(catalog_page.updated_at, old_timestamp)
+        self.assertGreater(finished_works_page.updated_at, old_timestamp)
+
+    def test_finished_work_save_and_delete_touch_home_and_gallery_clocks(self):
+        work = FinishedWork.objects.create(
+            name='Работа для проверки lastmod',
+            photo='finished_works/sitemap-clock.jpg',
+        )
+        old_timestamp = timezone.now() - timedelta(days=30)
+        FinishedWork.objects.filter(pk=work.pk).update(updated_at=old_timestamp)
+        SitePage.objects.filter(
+            pk__in=(SitePage.Code.HOME, SitePage.Code.FINISHED_WORKS),
+        ).update(updated_at=old_timestamp)
+
+        work.refresh_from_db()
+        work.name = 'Изменённая работа для проверки lastmod'
+        work.save(update_fields=['name'])
+        home_page = SitePage.objects.get(pk=SitePage.Code.HOME)
+        finished_works_page = SitePage.objects.get(pk=SitePage.Code.FINISHED_WORKS)
+
+        self.assertGreater(work.updated_at, old_timestamp)
+        self.assertGreater(home_page.updated_at, old_timestamp)
+        self.assertGreater(finished_works_page.updated_at, old_timestamp)
+
+        SitePage.objects.filter(
+            pk__in=(SitePage.Code.HOME, SitePage.Code.FINISHED_WORKS),
+        ).update(updated_at=old_timestamp)
+        work.delete()
+        home_page.refresh_from_db()
+        finished_works_page.refresh_from_db()
+
+        self.assertGreater(home_page.updated_at, old_timestamp)
+        self.assertGreater(finished_works_page.updated_at, old_timestamp)
 
     def test_catalog_navigation_contains_only_categories_with_published_pictures(self):
         with self.assertNumQueries(1):
@@ -1042,10 +1265,11 @@ class SitePageSeoTests(TestCase):
         SitePage.objects.filter(pk=SitePage.Code.FINISHED_WORKS).update(
             seo_title='Фото выполненных работ',
         )
-        FinishedWork.objects.bulk_create([
-            FinishedWork(name=f'Работа {index}', photo=f'finished_works/seo-{index}.jpg')
-            for index in range(7)
-        ])
+        for index in range(7):
+            FinishedWork.objects.create(
+                name=f'Работа {index}',
+                photo=create_test_image_file(f'seo-work-{index}.jpg'),
+            )
 
         response = self.client.get(reverse('finished_works'), {'page': 2})
 
@@ -2490,7 +2714,7 @@ class FinishedWorkTests(TestCase):
         cls.work = FinishedWork.objects.create(
             name='Кухонный фартук',
             description='Готовая работа с подсветкой',
-            photo='finished_works/kitchen.jpg',
+            photo=create_test_image_file('finished-kitchen.jpg'),
             catalog_image=cls.catalog_image,
         )
 
@@ -2546,11 +2770,47 @@ class FinishedWorkTests(TestCase):
             styles,
         )
 
+    def test_public_gallery_uses_cached_square_thumbnail(self):
+        optimized_work = FinishedWork.objects.create(
+            name='Работа с кешированным превью',
+            photo=create_test_image_file(
+                'finished-work-thumbnail-source.jpg',
+                size=(1000, 1000),
+            ),
+        )
+
+        response = self.client.get(reverse('finished_works'))
+        html = response.content.decode()
+        thumbnail_url_start = html.index('/media/cache/thumbnails/')
+        thumbnail_url_end = html.index('"', thumbnail_url_start)
+        thumbnail_url = html[thumbnail_url_start:thumbnail_url_end]
+        thumbnail_path = Path(settings.MEDIA_ROOT) / thumbnail_url.removeprefix(
+            settings.MEDIA_URL
+        )
+
+        self.assertContains(response, f'href="{optimized_work.photo.url}"')
+        self.assertContains(response, f'src="{thumbnail_url}"')
+        self.assertContains(response, 'width="760"')
+        self.assertContains(response, 'height="760"')
+        self.assertContains(response, 'loading="lazy"')
+        self.assertContains(response, 'decoding="async"')
+        self.assertNotEqual(thumbnail_url, optimized_work.photo.url)
+        self.assertTrue(thumbnail_path.exists())
+
+        with Image.open(thumbnail_path) as thumbnail:
+            self.assertEqual(thumbnail.size, (760, 760))
+
+        initial_mtime = thumbnail_path.stat().st_mtime_ns
+        repeated_response = self.client.get(reverse('finished_works'))
+
+        self.assertContains(repeated_response, f'src="{thumbnail_url}"')
+        self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
+
     def test_public_gallery_is_sorted_by_novelty_and_paginated_by_six(self):
         newer_works = [
             FinishedWork.objects.create(
                 name=f'Работа {index}',
-                photo=f'finished_works/work-{index}.jpg',
+                photo=create_test_image_file(f'finished-work-{index}.jpg'),
             )
             for index in range(1, 7)
         ]
@@ -2608,7 +2868,9 @@ class FinishedWorkTests(TestCase):
         filtered_works = [
             FinishedWork.objects.create(
                 name=f'Архитектурная работа {index}',
-                photo=f'finished_works/architecture-{index}.jpg',
+                photo=create_test_image_file(
+                    f'finished-architecture-{index}.jpg'
+                ),
                 catalog_image=self.catalog_image,
             )
             for index in range(1, 7)

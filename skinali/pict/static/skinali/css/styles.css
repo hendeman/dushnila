@@ -719,6 +719,7 @@ ul.mainmenu li a:focus-visible {
 .home-offers__cards {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
+	grid-auto-rows: 1fr;
 	gap: 12px;
 }
 
@@ -728,7 +729,7 @@ ul.mainmenu li a:focus-visible {
 	box-sizing: border-box;
 	min-width: 0;
 	width: 100%;
-	height: 405px;
+	min-height: 405px;
 	padding: 22px 24px 24px;
 	border: 1px solid rgba(255, 255, 255, 0.14);
 	border-radius: 17px;
@@ -773,9 +774,9 @@ ul.mainmenu li a:focus-visible {
 
 .home-offer-card__image {
 	display: block;
-	flex: 1 0 auto;
+	flex: 0 0 auto;
 	width: 100%;
-	height: 145px;
+	height: 185px;
 	border-radius: 11px;
 	object-fit: cover;
 }
@@ -790,7 +791,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 .home-offer-card > p {
-	margin: auto 0 0;
+	margin: 0;
 	color: rgba(255, 255, 255, 0.58);
 	font-size: 11px;
 	line-height: 1.55;
