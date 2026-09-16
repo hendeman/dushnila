@@ -20,6 +20,7 @@
 | Настройки Django, БД, язык, статика, media | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md) |
 | Профили development/preview/production и HTTPS-защита | [project/settings.md](docs/project/settings.md) | [project/middleware.md](docs/project/middleware.md), [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
 | Развёртывание на Hostland | [project/hostland.md](docs/project/hostland.md) | [project/settings.md](docs/project/settings.md), [project/wsgi.md](docs/project/wsgi.md), [pict/management.md](docs/pict/management.md) |
+| Автоматический деплой из GitHub в production | [project/github-actions-hostland.md](docs/project/github-actions-hostland.md) | [project/hostland.md](docs/project/hostland.md), [project/settings.md](docs/project/settings.md) |
 | Корневые URL, robots.txt, sitemap, admin, debug toolbar, обработчики 404 и 500 | [project/urls.md](docs/project/urls.md) | [project/settings.md](docs/project/settings.md), [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
 | Модели изображений, категорий, цветов, тегов и синонимов | [pict/models.md](docs/pict/models.md) | [pict/search.md](docs/pict/search.md), [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, их связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/urls.md](docs/pict/urls.md) |

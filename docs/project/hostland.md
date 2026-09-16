@@ -96,29 +96,6 @@ touch tmp/restart.txt
 
 ## Автоматическое обновление production из GitHub
 
-Production обновляется workflow-файлом `.github/workflows/deploy-production.yml` после каждого успешного push в ветку `master`. Перед SSH-деплоем GitHub Actions устанавливает зависимости на чистом runner с Python 3.11, выполняет `manage.py check` и полный набор Django-тестов. Одновременные production-деплои запрещены concurrency-группой `odium-production`.
+Production обновляется после каждого push в `master`, если тесты успешны и repository variable `PRODUCTION_DEPLOY_ENABLED` равна `true`. Workflow создаёт резервные копии кода и SQLite, сохраняет `.env`, media и production-базу, применяет миграции, собирает статику, перезапускает Passenger и выполняет health-check.
 
-Деплой имеет отдельный предохранитель: job запускается только при repository variable `PRODUCTION_DEPLOY_ENABLED=true`. Пока переменная отсутствует или имеет другое значение, push запускает проверки, но production не изменяет. Переменная включается только после того, как текущий production-код полностью зафиксирован в `master`, SSH-ключ проверен и первый ручной запуск workflow подготовлен.
-
-Workflow использует GitHub Environment `production`. В нём должны находиться два секрета:
-
-- `HOSTLAND_SSH_PRIVATE_KEY` — закрытая часть отдельного SSH-ключа, созданного только для GitHub Actions;
-- `HOSTLAND_KNOWN_HOSTS` — заранее проверенная строка host key для `[serv11.hostland.ru]:1024`.
-
-Открытая часть deploy-ключа добавляется на Hostland в `/home/host1889656/.ssh/authorized_keys`. Пароль аккаунта, `.env`, `DJANGO_SECRET_KEY` и Telegram-реквизиты в GitHub не передаются.
-
-GitHub Actions подключается как `host1889656` к `serv11.hostland.ru:1024`. На сервере поддерживается отдельная публичная рабочая копия репозитория:
-
-Для SSH-соединения явно зафиксированы `aes256-ctr` и `hmac-sha2-256`. На текущем сервере Hostland автоматический выбор `umac-128@openssh.com` приводит к ошибке `Corrupted MAC on input` сразу после обмена ключами, ещё до проверки пользовательского SSH-ключа. Явные параметры обходят несовместимость транспорта. `StrictHostKeyChecking=yes` запрещает соединение при несовпадении с содержимым `HOSTLAND_KNOWN_HOSTS`, а `IdentitiesOnly=yes` исключает случайное использование другого ключа runner.
-
-```text
-/home/host1889656/odium.by/repositories/dushnila
-```
-
-Workflow получает проверенный commit по его SHA и запускает `ops/deploy_hostland.sh`. Скрипт синхронизирует только `pict/`, `sitecontent/`, внутренний пакет `skinali/`, `manage.py` и `requirements-production.txt`. Он не изменяет production-файлы `.env`, `db.sqlite3`, `public/media/`, `passenger_wsgi.py` и содержимое `tmp/`, кроме контролируемого обновления `tmp/restart.txt`.
-
-Перед изменением кода создаётся online-копия SQLite и копия текущего кода в `/home/host1889656/odium.by/backups/automatic-deploy/`. Хранятся последние пять автоматических резервных копий. Затем выполняются установка production-зависимостей, `check`, `check --deploy`, `collectstatic`, `migrate` и перезапуск Passenger. При ошибке до завершения деплоя предыдущая версия кода восстанавливается автоматически; база не откатывается автоматически, чтобы не потерять заявки, поступившие во время обновления.
-
-После серверной части workflow проверяет главную страницу, `robots.txt` и `sitemap.xml` через публичный HTTPS-домен. Запросы выполняются с самого Hostland через доверенное SSH-соединение: Hostland отвечает кодом `403` на запросы с IP GitHub-hosted runner, хотя те же URL доступны посетителям и с сервера. Проверка с Hostland по-прежнему проходит через публичные DNS, TLS и nginx, поэтому подтверждает запуск production-приложения. Миграции для автоматического деплоя должны быть обратно совместимыми: удаление или переименование используемых полей и таблиц выполняется отдельным согласованным обновлением.
-
-Официальная документация: [Git на Hostland](https://www.hostland.ru/ru/docs/useful/sistema-kontrolya-versiy-git), [управление GitHub Environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments).
+Полная отдельная инструкция по созданию SSH-ключа, GitHub Environment и secrets, первому запуску, ежедневной работе, отключению и диагностике: [«Автоматическое обновление Odium на Hostland через GitHub Actions»](github-actions-hostland.md).
