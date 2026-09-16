@@ -246,7 +246,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=77')
+        self.assertContains(response, 'skinali/css/styles.css?v=79')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
