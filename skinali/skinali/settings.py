@@ -380,6 +380,21 @@ STATIC_URL = '/static/'
 STATIC_ROOT = get_environment_path('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 STATICFILES_DIRS = []
 
+# На развернутых стендах collectstatic добавляет к именам файлов хеш содержимого.
+# Локальная разработка не зависит от заранее собранного staticfiles.json.
+STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
+    'staticfiles': {
+        'BACKEND': (
+            'django.contrib.staticfiles.storage.ManifestStaticFilesStorage'
+            if IS_DEPLOYED
+            else 'django.contrib.staticfiles.storage.StaticFilesStorage'
+        ),
+    },
+}
+
 MEDIA_ROOT = get_environment_path('DJANGO_MEDIA_ROOT', BASE_DIR / 'media')
 MEDIA_URL = '/media/'
 

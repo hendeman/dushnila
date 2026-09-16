@@ -10,7 +10,7 @@
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?v=79" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -208,9 +208,9 @@
 {% endblock footer %}
 
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
-    <script src="{% static 'skinali/js/site-menu.js' %}?v=3" defer></script>
-    <script src="{% static 'skinali/js/contact-forms.js' %}?v=2" defer></script>
-    <script src="{% static 'skinali/js/image-sharing.js' %}?v=2" defer></script>
+    <script src="{% static 'skinali/js/site-menu.js' %}" defer></script>
+    <script src="{% static 'skinali/js/contact-forms.js' %}" defer></script>
+    <script src="{% static 'skinali/js/image-sharing.js' %}" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>
       Fancybox.bind('[data-fancybox="catalog-gallery"]', {

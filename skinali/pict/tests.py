@@ -246,7 +246,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'skinali/css/styles.css?v=79')
+        self.assertContains(response, 'href="/static/skinali/css/styles.css"')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
@@ -285,13 +285,14 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'data-mobile-menu-open')
         self.assertContains(response, 'id="mobile-site-menu"')
         self.assertNotContains(response, 'data-mobile-menu-close')
-        self.assertContains(response, 'skinali/js/site-menu.js?v=3')
+        self.assertContains(response, 'src="/static/skinali/js/site-menu.js"')
         self.assertContains(response, 'data-mobile-filter-open="mobile-category-filter"')
         self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
         self.assertContains(response, 'id="mobile-category-filter"')
         self.assertContains(response, 'id="mobile-color-filter"')
         self.assertContains(response, 'mobile-catalog-filters__chevron')
-        self.assertContains(response, 'skinali/js/mobile-filters.js?v=1')
+        self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
+        self.assertNotContains(response, '?v=')
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
         self.assertContains(response, 'skinali/images/icon-favorite-active.png')
@@ -1821,7 +1822,10 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(home_response, 'name="image_purchase-email"')
         self.assertContains(home_response, 'maxlength="50"')
         self.assertContains(home_response, 'id="contact-success-dialog"')
-        self.assertContains(home_response, 'skinali/js/contact-forms.js?v=2')
+        self.assertContains(
+            home_response,
+            'src="/static/skinali/js/contact-forms.js"',
+        )
         self.assertLess(
             home_response.content.find(b'mainmenu__favorites'),
             home_response.content.find(b'mainmenu__callback'),
@@ -2919,7 +2923,10 @@ class FinishedWorkTests(TestCase):
             html=True,
         )
         self.assertContains(first_page, 'class="mobile-filter-dialog"')
-        self.assertContains(first_page, 'skinali/js/mobile-filters.js?v=1')
+        self.assertContains(
+            first_page,
+            'src="/static/skinali/js/mobile-filters.js"',
+        )
         self.assertContains(first_page, '?page=2&amp;category=architecture')
 
         missing_category = self.client.get(
