@@ -1,0 +1,153 @@
+name: Deploy production
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: odium-production
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Django checks and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run Django system checks
+        working-directory: skinali
+        env:
+          DJANGO_ENVIRONMENT: development
+          DJANGO_DEBUG: "False"
+          DJANGO_ENABLE_DEBUG_TOOLBAR: "False"
+        run: python manage.py check
+
+      - name: Run test suite
+        working-directory: skinali
+        env:
+          DJANGO_ENVIRONMENT: development
+          DJANGO_DEBUG: "False"
+          DJANGO_ENABLE_DEBUG_TOOLBAR: "False"
+        run: python manage.py test --verbosity 2
+
+  deploy:
+    name: Deploy to Hostland
+    if: ${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://odium.by
+
+    env:
+      HOSTLAND_HOST: serv11.hostland.ru
+      HOSTLAND_PORT: "1024"
+      HOSTLAND_USER: host1889656
+      HOSTLAND_SOURCE: /home/host1889656/odium.by/repositories/dushnila
+      SSH_PRIVATE_KEY: ${{ secrets.HOSTLAND_SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.HOSTLAND_KNOWN_HOSTS }}
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -n "$SSH_PRIVATE_KEY"
+          test -n "$SSH_KNOWN_HOSTS"
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/hostland_deploy"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/hostland_deploy" "$HOME/.ssh/known_hosts"
+
+      - name: Fetch tested commit and deploy
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          ssh \
+            -T \
+            -p "$HOSTLAND_PORT" \
+            -i "$HOME/.ssh/hostland_deploy" \
+            -o BatchMode=yes \
+            -o ConnectTimeout=15 \
+            -o Ciphers=aes256-ctr \
+            -o IdentitiesOnly=yes \
+            -o MACs=hmac-sha2-256 \
+            -o ServerAliveInterval=15 \
+            -o ServerAliveCountMax=3 \
+            -o StrictHostKeyChecking=yes \
+            "$HOSTLAND_USER@$HOSTLAND_HOST" \
+            "bash -s -- '$GITHUB_SHA' '$HOSTLAND_SOURCE'" <<'HOSTLAND'
+          set -Eeuo pipefail
+
+          deploy_sha="$1"
+          source_root="$2"
+
+          if [[ ! "$deploy_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Некорректный Git commit: $deploy_sha" >&2
+            exit 1
+          fi
+
+          expected_source="/home/host1889656/odium.by/repositories/dushnila"
+          if [[ "$source_root" != "$expected_source" ]]; then
+            echo "Некорректный каталог исходников: $source_root" >&2
+            exit 1
+          fi
+
+          if [[ ! -d "$source_root/.git" ]]; then
+            mkdir -p "$(dirname "$source_root")"
+            git clone --branch master --single-branch \
+              https://github.com/hendeman/dushnila.git "$source_root"
+          fi
+
+          git -C "$source_root" fetch --prune origin master
+
+          if ! git -C "$source_root" cat-file -e "$deploy_sha^{commit}"; then
+            echo "Commit $deploy_sha отсутствует после git fetch" >&2
+            exit 1
+          fi
+
+          if ! git -C "$source_root" merge-base --is-ancestor "$deploy_sha" origin/master; then
+            echo "Commit $deploy_sha не принадлежит ветке origin/master" >&2
+            exit 1
+          fi
+
+          git -C "$source_root" checkout --detach --force "$deploy_sha"
+          git -C "$source_root" clean -fdx
+          bash "$source_root/ops/deploy_hostland.sh" "$deploy_sha"
+          HOSTLAND
+
+      - name: Check production health
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl --fail --silent --show-error --location \
+            --retry 6 --retry-delay 5 --retry-all-errors \
+            https://odium.by/ > /dev/null
+          curl --fail --silent --show-error \
+            https://odium.by/robots.txt \
+            | grep -F "Sitemap: https://odium.by/sitemap.xml"
+          curl --fail --silent --show-error \
+            https://odium.by/sitemap.xml > /dev/null

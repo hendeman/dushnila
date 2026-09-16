@@ -1,0 +1,12 @@
+# -*- coding: utf-8 -*-
+# Прямые зависимости SKINALI; вложенные зависимости устанавливает pip.
+# Версии сохранены из рабочего окружения Python 3.11.
+Django==5.2.17
+Pillow==12.3.0
+sorl-thumbnail==13.1.0
+requests==2.34.2
+pysqlite3-binary==0.5.4.post2; platform_system == "Linux"
+
+# Инструменты, включённые по умолчанию в режиме разработки.
+django-extensions==4.1
+django-debug-toolbar==7.0.0

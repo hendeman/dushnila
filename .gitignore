@@ -1,0 +1,9 @@
+/.env
+/skinali/db.sqlite3
+/skinali/media/
+/skinali/staticfiles/
+/deployment/
+/odium-hostland-*.zip
+/.idea
+__pycache__/
+*.py[cod]
