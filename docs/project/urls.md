@@ -14,9 +14,11 @@
 | `/` | все маршруты из `pict.urls` |
 | `/__debug__/` | Django Debug Toolbar; добавляется только при `ENABLE_DEBUG_TOOLBAR=True` |
 
-При `settings.DEBUG` к `urlpatterns` добавляется обслуживание `MEDIA_URL` из `MEDIA_ROOT`. Маршрут Debug Toolbar полностью отсутствует в production-профиле, а не только скрывает панель.
+При `settings.DEBUG` к `urlpatterns` добавляется обслуживание `MEDIA_URL` из `MEDIA_ROOT`. Маршрут Debug Toolbar полностью отсутствует в preview- и production-профилях, а не только скрывает панель.
 
 `/robots.txt` принимает безопасные методы GET и HEAD, возвращает `text/plain; charset=utf-8` и кешируется клиентом на один час. Общая группа роботов запрещает обход текущего `ADMIN_URL` и POST-обработчика `/contact/request/`, но не закрывает `/favorites/`: персональная страница остаётся доступной роботу, чтобы он прочитал её HTML-директиву `noindex,follow`. Директива `Clean-param` перечисляет `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `yclid` и `gclid`; неподдерживающие её роботы игнорируют строку. Адрес карты в `robots.txt` и все `<loc>` внутри XML всегда строятся от проверенного `PUBLIC_SITE_ORIGIN`, по умолчанию `https://odium.by`, а не от домена текущего запроса.
+
+В профиле `preview` вместо публичных правил возвращается только `User-agent: *` и `Disallow: /` с `Cache-Control: no-store`; sitemap в этом ответе не раскрывается. Дополнительный middleware ставит `X-Robots-Tag: noindex, nofollow` на все ответы технического сайта.
 
 ## Дополнительная конфигурация
 
@@ -27,7 +29,8 @@
 
 ## Зависимости
 
-- [Настройки](settings.md), особенно `DEBUG`, `MEDIA_URL`, `MEDIA_ROOT`, `ADMIN_URL` и `PUBLIC_SITE_ORIGIN`.
+- [Настройки](settings.md), особенно `DEBUG`, `SITE_NOINDEX`, `MEDIA_URL`, `MEDIA_ROOT`, `ADMIN_URL` и `PUBLIC_SITE_ORIGIN`.
+- [Middleware технического preview](middleware.md).
 - [URL приложения](../pict/urls.md).
 - [Представления](../pict/views.md) для обработчиков 404/500.
 - [Карта индексируемых страниц](../pict/sitemaps.md).

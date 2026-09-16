@@ -1078,6 +1078,25 @@ class RobotsTxtTests(SimpleTestCase):
         self.assertEqual(response.status_code, 405)
         self.assertEqual(response['Allow'], 'GET, HEAD')
 
+    @override_settings(SITE_NOINDEX=True)
+    def test_preview_blocks_crawling_and_marks_every_response_noindex(self):
+        robots_response = self.client.get(reverse('robots_txt'))
+        method_not_allowed_response = self.client.get(reverse('contact_submit'))
+
+        self.assertEqual(
+            robots_response.content.decode(),
+            'User-agent: *\nDisallow: /\n',
+        )
+        self.assertEqual(robots_response['Cache-Control'], 'no-store')
+        self.assertEqual(
+            robots_response['X-Robots-Tag'],
+            'noindex, nofollow',
+        )
+        self.assertEqual(
+            method_not_allowed_response['X-Robots-Tag'],
+            'noindex, nofollow',
+        )
+
 
 class TaxonomySeoAdminTests(SimpleTestCase):
     def test_category_and_tag_admin_expose_shared_seo_fields(self):

@@ -18,7 +18,8 @@
 |---|---|---|
 | Понять устройство проекта целиком | [architecture.md](docs/architecture.md) | [pict/overview.md](docs/pict/overview.md) |
 | Настройки Django, БД, язык, статика, media | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md) |
-| Разделение development/production и HTTPS-защита | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
+| Профили development/preview/production и HTTPS-защита | [project/settings.md](docs/project/settings.md) | [project/middleware.md](docs/project/middleware.md), [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
+| Развёртывание на Hostland | [project/hostland.md](docs/project/hostland.md) | [project/settings.md](docs/project/settings.md), [project/wsgi.md](docs/project/wsgi.md), [pict/management.md](docs/pict/management.md) |
 | Корневые URL, robots.txt, sitemap, admin, debug toolbar, обработчики 404 и 500 | [project/urls.md](docs/project/urls.md) | [project/settings.md](docs/project/settings.md), [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
 | Модели изображений, категорий, цветов, тегов и синонимов | [pict/models.md](docs/pict/models.md) | [pict/search.md](docs/pict/search.md), [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, их связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/urls.md](docs/pict/urls.md) |
@@ -49,6 +50,7 @@
 |---|---|
 | `skinali/manage.py` | [project/manage.md](docs/project/manage.md) |
 | `skinali/skinali/settings.py` | [project/settings.md](docs/project/settings.md) |
+| `skinali/skinali/middleware.py` | [project/middleware.md](docs/project/middleware.md) |
 | `skinali/skinali/urls.py` | [project/urls.md](docs/project/urls.md) |
 | `skinali/skinali/asgi.py` | [project/asgi.md](docs/project/asgi.md) |
 | `skinali/skinali/wsgi.py` | [project/wsgi.md](docs/project/wsgi.md) |

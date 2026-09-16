@@ -18,6 +18,14 @@ admin.site.index_title = "Админка"
 @require_safe
 def robots_txt(request):
     """Возвращает правила обхода и адрес XML-карты для поисковых роботов."""
+    if settings.SITE_NOINDEX:
+        response = HttpResponse(
+            'User-agent: *\nDisallow: /\n',
+            content_type='text/plain; charset=utf-8',
+        )
+        response['Cache-Control'] = 'no-store'
+        return response
+
     tracking_parameters = '&'.join((
         'utm_source',
         'utm_medium',

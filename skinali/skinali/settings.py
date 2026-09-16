@@ -11,14 +11,38 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 import os
 import re
+import sqlite3
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from django.core.exceptions import ImproperlyConfigured
 
+
+MINIMUM_SQLITE_VERSION = (3, 31, 0)
+if sqlite3.sqlite_version_info < MINIMUM_SQLITE_VERSION:
+    try:
+        import pysqlite3
+    except ImportError as error:
+        installed_version = '.'.join(map(str, sqlite3.sqlite_version_info))
+        raise ImproperlyConfigured(
+            'Для Django 5.2 требуется SQLite 3.31 или новее; '
+            f'доступна версия {installed_version}. Установите '
+            'production-зависимости проекта.'
+        ) from error
+    sys.modules['sqlite3'] = pysqlite3
+    sqlite3 = pysqlite3
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-ENV_FILE = BASE_DIR.parent / '.env'
+ENV_FILE_CANDIDATES = (
+    BASE_DIR.parent / '.env',
+    BASE_DIR / '.env',
+)
+ENV_FILE = next(
+    (path for path in ENV_FILE_CANDIDATES if path.exists()),
+    ENV_FILE_CANDIDATES[0],
+)
 
 
 def load_environment_file(path):
@@ -88,6 +112,17 @@ def get_environment_int(name, default, *, minimum=0):
     return value
 
 
+def get_environment_path(name, default):
+    """Читает абсолютный путь файловой системы из окружения."""
+    raw_value = os.environ.get(name, '').strip()
+    if not raw_value:
+        return Path(default)
+    value = Path(raw_value).expanduser()
+    if not value.is_absolute():
+        raise ImproperlyConfigured(f'{name} должен содержать абсолютный путь.')
+    return value
+
+
 def get_environment_url_prefix(name, default):
     """Нормализует безопасный URL-префикс без начального слеша."""
     value = os.environ.get(name, default).strip().strip('/')
@@ -118,11 +153,13 @@ def get_environment_origin(name, default):
 
 
 ENVIRONMENT = os.environ.get('DJANGO_ENVIRONMENT', 'development').strip().lower()
-if ENVIRONMENT not in {'development', 'production'}:
+if ENVIRONMENT not in {'development', 'preview', 'production'}:
     raise ImproperlyConfigured(
-        'DJANGO_ENVIRONMENT должен быть development или production.'
+        'DJANGO_ENVIRONMENT должен быть development, preview или production.'
     )
+IS_PREVIEW = ENVIRONMENT == 'preview'
 IS_PRODUCTION = ENVIRONMENT == 'production'
+IS_DEPLOYED = IS_PREVIEW or IS_PRODUCTION
 
 
 # Quick-start development settings - unsuitable for production
@@ -131,32 +168,41 @@ IS_PRODUCTION = ENVIRONMENT == 'production'
 # Этот ключ предназначен только для локальной разработки и никогда не используется в production.
 DEVELOPMENT_SECRET_KEY = 'django-insecure-)c)veha1$umvb5__q!oq8eei!03my0xn(gw+vhgnwt2k%pq-@3'
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '').strip()
-if IS_PRODUCTION and not SECRET_KEY:
-    raise ImproperlyConfigured('В production необходимо задать DJANGO_SECRET_KEY.')
-if IS_PRODUCTION and SECRET_KEY.startswith('django-insecure-'):
+if IS_DEPLOYED and not SECRET_KEY:
     raise ImproperlyConfigured(
-        'Production-ключ DJANGO_SECRET_KEY не должен начинаться с django-insecure-.'
+        'В preview и production необходимо задать DJANGO_SECRET_KEY.'
+    )
+if IS_DEPLOYED and SECRET_KEY.startswith('django-insecure-'):
+    raise ImproperlyConfigured(
+        'Ключ DJANGO_SECRET_KEY для preview и production не должен начинаться '
+        'с django-insecure-.'
     )
 if not SECRET_KEY:
     SECRET_KEY = DEVELOPMENT_SECRET_KEY
 
 # Production-профиль запрещает DEBUG даже при ошибочно заданной переменной окружения.
-DEBUG = get_environment_bool('DJANGO_DEBUG', not IS_PRODUCTION)
-if IS_PRODUCTION and DEBUG:
-    raise ImproperlyConfigured('DJANGO_DEBUG нельзя включать в production.')
+DEBUG = get_environment_bool('DJANGO_DEBUG', not IS_DEPLOYED)
+if IS_DEPLOYED and DEBUG:
+    raise ImproperlyConfigured(
+        'DJANGO_DEBUG нельзя включать в preview и production.'
+    )
 
 ALLOWED_HOSTS = get_environment_list(
     'DJANGO_ALLOWED_HOSTS',
-    default=('127.0.0.1', 'localhost') if not IS_PRODUCTION else (),
+    default=('127.0.0.1', 'localhost') if not IS_DEPLOYED else (),
 )
-if IS_PRODUCTION and not ALLOWED_HOSTS:
-    raise ImproperlyConfigured('В production необходимо задать DJANGO_ALLOWED_HOSTS.')
-if IS_PRODUCTION and '*' in ALLOWED_HOSTS:
-    raise ImproperlyConfigured('Значение * запрещено в production DJANGO_ALLOWED_HOSTS.')
+if IS_DEPLOYED and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        'В preview и production необходимо задать DJANGO_ALLOWED_HOSTS.'
+    )
+if IS_DEPLOYED and '*' in ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        'Значение * запрещено в preview и production DJANGO_ALLOWED_HOSTS.'
+    )
 
 INTERNAL_IPS = get_environment_list(
     'DJANGO_INTERNAL_IPS',
-    default=('127.0.0.1',) if not IS_PRODUCTION else (),
+    default=('127.0.0.1',) if not IS_DEPLOYED else (),
 )
 ADMIN_URL = get_environment_url_prefix('DJANGO_ADMIN_PATH', 'admin')
 PUBLIC_SITE_ORIGIN = get_environment_origin(
@@ -188,14 +234,19 @@ if IS_PRODUCTION and not PUBLIC_SITE_ORIGIN.startswith('https://'):
     )
 ENABLE_DJANGO_EXTENSIONS = get_environment_bool(
     'DJANGO_ENABLE_DJANGO_EXTENSIONS',
-    not IS_PRODUCTION,
+    not IS_DEPLOYED,
 )
 ENABLE_DEBUG_TOOLBAR = get_environment_bool(
     'DJANGO_ENABLE_DEBUG_TOOLBAR',
-    DEBUG and not IS_PRODUCTION,
+    DEBUG and not IS_DEPLOYED,
 )
-if IS_PRODUCTION and ENABLE_DEBUG_TOOLBAR:
-    raise ImproperlyConfigured('Debug Toolbar нельзя включать в production.')
+if IS_DEPLOYED and ENABLE_DEBUG_TOOLBAR:
+    raise ImproperlyConfigured(
+        'Debug Toolbar нельзя включать в preview и production.'
+    )
+
+# Техническое HTTP-превью никогда не должно попадать в поисковый индекс.
+SITE_NOINDEX = IS_PREVIEW
 
 
 # Application definition
@@ -220,6 +271,7 @@ if ENABLE_DEBUG_TOOLBAR:
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'skinali.middleware.SearchEngineIndexingMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -325,10 +377,10 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = get_environment_path('DJANGO_STATIC_ROOT', BASE_DIR / 'staticfiles')
 STATICFILES_DIRS = []
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = get_environment_path('DJANGO_MEDIA_ROOT', BASE_DIR / 'media')
 MEDIA_URL = '/media/'
 
 # Превью каталога создаются один раз и повторно используются из media/cache/thumbnails/.
