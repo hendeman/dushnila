@@ -2674,6 +2674,14 @@ background-color: coral;
 	background: #f2f2f2;
 }
 
+.favorite-card__remove.is-active:hover,
+.favorite-card__remove.is-active:focus-visible {
+	border-color: transparent;
+	background:
+		linear-gradient(#e6e6e6, #e6e6e6) padding-box,
+		linear-gradient(135deg, #b9b9b9, #777, #c9c9c9) border-box;
+}
+
 .gallery-modal__favorite:disabled,
 .favorite-card__remove:disabled {
 	opacity: 0.65;
@@ -3700,15 +3708,24 @@ background-color: coral;
 	}
 
 	.finished-works-modal .fancybox__content {
+		flex-direction: column;
 		width: calc(100vw - 40px) !important;
 		max-width: 520px !important;
-		height: 72vh !important;
-		max-height: 640px !important;
-		padding: 16px 16px 104px !important;
+		height: auto !important;
+		max-height: calc(100vh - 84px) !important;
+		max-height: calc(100dvh - 84px) !important;
+		padding: 16px !important;
+	}
+
+	.finished-works-modal .fancybox__content img {
+		max-height: calc(100vh - 210px) !important;
+		max-height: calc(100dvh - 210px) !important;
 	}
 
 	.finished-works-modal .fancybox__caption {
-		padding: 12px 16px 16px;
+		position: static;
+		flex: 0 0 auto;
+		padding: 12px 0 0;
 	}
 
 	.finished-work-modal__name {
@@ -3936,6 +3953,18 @@ background-color: coral;
 	.favorite-card {
 		grid-template-columns: 1fr;
 		gap: 18px;
+	}
+
+	.favorite-card__content {
+		text-align: center;
+	}
+
+	.favorite-card__content h2 {
+		font-size: 18px;
+	}
+
+	.favorite-card__content p {
+		font-size: 16px;
 	}
 
 }
