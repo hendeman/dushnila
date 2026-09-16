@@ -79,27 +79,33 @@ jobs:
           install -d -m 700 "$HOME/.ssh"
           printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/hostland_deploy"
           printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
-          chmod 600 "$HOME/.ssh/hostland_deploy" "$HOME/.ssh/known_hosts"
+          cat > "$HOME/.ssh/config" <<EOF
+          Host hostland-production
+              HostName $HOSTLAND_HOST
+              Port $HOSTLAND_PORT
+              User $HOSTLAND_USER
+              IdentityFile $HOME/.ssh/hostland_deploy
+              BatchMode yes
+              ConnectTimeout 15
+              Ciphers aes256-ctr
+              IdentitiesOnly yes
+              MACs hmac-sha2-256
+              ServerAliveInterval 15
+              ServerAliveCountMax 3
+              StrictHostKeyChecking yes
+          EOF
+          chmod 600 \
+            "$HOME/.ssh/config" \
+            "$HOME/.ssh/hostland_deploy" \
+            "$HOME/.ssh/known_hosts"
 
       - name: Fetch tested commit and deploy
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          ssh \
-            -T \
-            -p "$HOSTLAND_PORT" \
-            -i "$HOME/.ssh/hostland_deploy" \
-            -o BatchMode=yes \
-            -o ConnectTimeout=15 \
-            -o Ciphers=aes256-ctr \
-            -o IdentitiesOnly=yes \
-            -o MACs=hmac-sha2-256 \
-            -o ServerAliveInterval=15 \
-            -o ServerAliveCountMax=3 \
-            -o StrictHostKeyChecking=yes \
-            "$HOSTLAND_USER@$HOSTLAND_HOST" \
-            "bash -s -- '$GITHUB_SHA' '$HOSTLAND_SOURCE'" <<'HOSTLAND'
+          ssh -T hostland-production \
+            "/usr/local/bin/bash -s -- '$GITHUB_SHA' '$HOSTLAND_SOURCE'" <<'HOSTLAND'
           set -Eeuo pipefail
 
           deploy_sha="$1"
@@ -136,18 +142,38 @@ jobs:
 
           git -C "$source_root" checkout --detach --force "$deploy_sha"
           git -C "$source_root" clean -fdx
-          bash "$source_root/ops/deploy_hostland.sh" "$deploy_sha"
+          /usr/local/bin/bash "$source_root/ops/deploy_hostland.sh" "$deploy_sha"
           HOSTLAND
 
       - name: Check production health
         shell: bash
         run: |
           set -Eeuo pipefail
-          curl --fail --silent --show-error --location \
-            --retry 6 --retry-delay 5 --retry-all-errors \
-            https://odium.by/ > /dev/null
-          curl --fail --silent --show-error \
-            https://odium.by/robots.txt \
-            | grep -F "Sitemap: https://odium.by/sitemap.xml"
-          curl --fail --silent --show-error \
-            https://odium.by/sitemap.xml > /dev/null
+
+          ssh -T hostland-production "/usr/local/bin/bash -s" <<'HOSTLAND'
+          set -Eeuo pipefail
+
+          for attempt in {1..7}; do
+            if /usr/bin/curl --fail --silent --show-error --location \
+                --connect-timeout 5 --max-time 20 \
+                https://odium.by/ > /dev/null \
+              && /usr/bin/curl --fail --silent --show-error \
+                --connect-timeout 5 --max-time 20 \
+                https://odium.by/robots.txt \
+                | /usr/bin/grep -Fq "Sitemap: https://odium.by/sitemap.xml" \
+              && /usr/bin/curl --fail --silent --show-error \
+                --connect-timeout 5 --max-time 20 \
+                https://odium.by/sitemap.xml > /dev/null; then
+              echo "Production health-check успешно завершён."
+              exit 0
+            fi
+
+            if (( attempt < 7 )); then
+              echo "Production ещё не готов, повтор $attempt/7..." >&2
+              sleep 5
+            fi
+          done
+
+          echo "Production health-check завершился ошибкой." >&2
+          exit 1
+          HOSTLAND
