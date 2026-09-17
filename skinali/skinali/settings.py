@@ -366,7 +366,8 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'ru-ru'
 
-TIME_ZONE = 'UTC'
+# В базе даты остаются в UTC, а Django отображает их в локальном времени проекта.
+TIME_ZONE = 'Europe/Moscow'
 
 USE_I18N = True
 
