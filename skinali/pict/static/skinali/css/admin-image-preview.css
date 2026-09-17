@@ -3,6 +3,12 @@
 	cursor: zoom-in;
 }
 
+#id_alt.vTextField {
+	box-sizing: border-box;
+	width: 26em;
+	max-width: 100%;
+}
+
 /* Просмотренные заявки остаются читаемыми, но визуально уступают новым. */
 #result_list a.contact-request-name--viewed,
 #result_list a.contact-request-name--viewed:link,

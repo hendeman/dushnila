@@ -8,7 +8,12 @@ from django.http import HttpResponse
 from django.urls import include, path, reverse
 from django.views.decorators.http import require_safe
 
-from pict.sitemaps import CategorySitemap, StaticViewSitemap, TagSitemap
+from pict.sitemaps import (
+    CategorySitemap,
+    PictureSitemap,
+    StaticViewSitemap,
+    TagSitemap,
+)
 from pict.views import pageNotFound, serverError
 
 admin.site.site_header = "Админка skinali"
@@ -63,6 +68,7 @@ urlpatterns = [
                 'static': StaticViewSitemap,
                 'categories': CategorySitemap,
                 'tags': TagSitemap,
+                'pictures': PictureSitemap,
             },
         },
         name='sitemap',

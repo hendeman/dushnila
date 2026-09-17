@@ -1,3 +1,7 @@
+import re
+import unicodedata
+from pathlib import Path
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
@@ -8,6 +12,111 @@ from sitecontent.models import SeoMetadataFields
 from .search import normalize_search_value
 
 
+PICT_FILENAME_STEM_MAX_LENGTH = 200
+PICT_PAGE_SLUG_MAX_LENGTH = 220
+CYRILLIC_FILENAME_TRANSLITERATION = str.maketrans({
+    'а': 'a',
+    'б': 'b',
+    'в': 'v',
+    'г': 'g',
+    'д': 'd',
+    'е': 'e',
+    'ё': 'yo',
+    'ж': 'zh',
+    'з': 'z',
+    'и': 'i',
+    'й': 'y',
+    'к': 'k',
+    'л': 'l',
+    'м': 'm',
+    'н': 'n',
+    'о': 'o',
+    'п': 'p',
+    'р': 'r',
+    'с': 's',
+    'т': 't',
+    'у': 'u',
+    'ф': 'f',
+    'х': 'kh',
+    'ц': 'ts',
+    'ч': 'ch',
+    'ш': 'sh',
+    'щ': 'shch',
+    'ъ': '',
+    'ы': 'y',
+    'ь': '',
+    'э': 'e',
+    'ю': 'yu',
+    'я': 'ya',
+    'і': 'i',
+    'ї': 'yi',
+    'є': 'ye',
+    'ґ': 'g',
+    'ў': 'u',
+})
+
+
+def transliterate_filename_part(value):
+    """Преобразует описание в безопасную латинскую часть имени файла."""
+    normalized_value = unicodedata.normalize('NFKC', value).casefold()
+    transliterated_value = normalized_value.translate(
+        CYRILLIC_FILENAME_TRANSLITERATION,
+    )
+    ascii_value = (
+        unicodedata.normalize('NFKD', transliterated_value)
+        .encode('ascii', 'ignore')
+        .decode('ascii')
+    )
+    return '-'.join(re.findall(r'[a-z0-9]+', ascii_value))
+
+
+def pict_photo_upload_to(instance, original_filename):
+    """Формирует имя оригинала из описания и цифр исходного имени."""
+    original_path = Path(original_filename)
+    description_slug = transliterate_filename_part(instance.alt) or 'izobrazhenie'
+    numeric_suffix = '-'.join(re.findall(r'\d+', original_path.stem))
+
+    if numeric_suffix:
+        suffix_in_description = f'-{numeric_suffix}'
+        if description_slug == numeric_suffix:
+            description_slug = ''
+        elif description_slug.endswith(suffix_in_description):
+            description_slug = description_slug[:-len(suffix_in_description)]
+
+        description_length = max(
+            0,
+            PICT_FILENAME_STEM_MAX_LENGTH - len(numeric_suffix) - 1,
+        )
+        description_slug = description_slug[:description_length].rstrip('-')
+    else:
+        description_slug = description_slug[:PICT_FILENAME_STEM_MAX_LENGTH].rstrip('-')
+
+    filename_stem = '-'.join(
+        part for part in (description_slug, numeric_suffix) if part
+    )
+    extension = original_path.suffix.lower()
+    return f'photos/{filename_stem}{extension}'
+
+
+def build_pict_page_slug(description, image_number):
+    """Формирует стабильный slug страницы из описания и номера изображения."""
+    description_slug = transliterate_filename_part(description) or 'izobrazhenie'
+    number_slug = str(image_number)
+    number_suffix = f'-{number_slug}'
+
+    if description_slug == number_slug:
+        description_slug = 'izobrazhenie'
+    elif description_slug.endswith(number_suffix):
+        description_slug = description_slug[:-len(number_suffix)]
+
+    description_length = max(
+        1,
+        PICT_PAGE_SLUG_MAX_LENGTH - len(number_suffix),
+    )
+    description_slug = description_slug[:description_length].rstrip('-')
+    return f'{description_slug or "izobrazhenie"}{number_suffix}'
+
+
 class PublicationQuerySet(models.QuerySet):
     """Единая выборка контента, разрешённого к показу на публичном сайте."""
 
@@ -15,8 +124,8 @@ class PublicationQuerySet(models.QuerySet):
         return self.filter(is_published=True)
 
 
-class SeoLandingContent(SeoMetadataFields):
-    """Общие редактируемые SEO-поля страниц справочников каталога."""
+class SeoPageContent(SeoMetadataFields):
+    """Общие редактируемые SEO-поля индексируемых страниц каталога."""
 
     seo_h1 = models.CharField(
         max_length=200,
@@ -24,6 +133,14 @@ class SeoLandingContent(SeoMetadataFields):
         verbose_name='SEO-заголовок H1',
         help_text='Оставьте пустым, чтобы использовать стандартный заголовок.',
     )
+
+    class Meta:
+        abstract = True
+
+
+class SeoLandingContent(SeoPageContent):
+    """Редактируемый вводный текст страниц справочников каталога."""
+
     intro_text = models.TextField(
         blank=True,
         verbose_name='Вводный текст',
@@ -166,14 +283,33 @@ class Category(SeoLandingContent):
         verbose_name_plural = 'Категории'
 
 
-class Pict(models.Model):
-    name = models.IntegerField(unique=True, db_index=True, verbose_name='Имя файла')
-    # name = models.CharField(max_length=10, unique=True, db_index=True, verbose_name='Имя файла')
-    alt = models.CharField(max_length=250, blank=True, verbose_name='Описание')
-    photo = models.ImageField(upload_to="photos/", verbose_name='Изображение')
+class Pict(SeoPageContent):
+    name = models.IntegerField(
+        unique=True,
+        db_index=True,
+        verbose_name='Номер изображения',
+    )
+    alt = models.CharField(max_length=250, verbose_name='Описание')
+    slug = models.SlugField(
+        max_length=PICT_PAGE_SLUG_MAX_LENGTH,
+        unique=True,
+        editable=False,
+        verbose_name='Slug страницы',
+    )
+    page_description = models.TextField(
+        blank=True,
+        verbose_name='Описание страницы',
+        help_text=(
+            'Оставьте пустым, чтобы сформировать описание из названия и номера.'
+        ),
+    )
+    photo = models.ImageField(
+        upload_to=pict_photo_upload_to,
+        max_length=255,
+        verbose_name='Изображение',
+    )
     is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
-    updated_at = models.DateTimeField(auto_now=True, verbose_name='Время изменения')
     cat = models.ManyToManyField(Category, verbose_name="Категории")
     tags = models.ManyToManyField(TagPict, blank=True, related_name="tags", verbose_name="Теги")
     color = models.ManyToManyField(Color, verbose_name="Цвет")
@@ -181,9 +317,27 @@ class Pict(models.Model):
     objects = PublicationQuerySet.as_manager()
 
     def save(self, *args, **kwargs):
+        slug_was_created = not self.slug
+        if slug_was_created:
+            base_slug = build_pict_page_slug(self.alt, self.name)
+            self.slug = base_slug
+            collision_number = 2
+            while (
+                type(self).objects
+                .filter(slug=self.slug)
+                .exclude(pk=self.pk)
+                .exists()
+            ):
+                collision_suffix = f'-{collision_number}'
+                self.slug = (
+                    f'{base_slug[:PICT_PAGE_SLUG_MAX_LENGTH - len(collision_suffix)].rstrip("-")}'
+                    f'{collision_suffix}'
+                )
+                collision_number += 1
+
         update_fields = kwargs.get('update_fields')
-        if update_fields is not None:
-            kwargs['update_fields'] = set(update_fields) | {'updated_at'}
+        if update_fields is not None and slug_was_created:
+            kwargs['update_fields'] = set(update_fields) | {'slug'}
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -191,6 +345,50 @@ class Pict(models.Model):
 
     def __add__(self, other):
         return int(Pict.objects.first().name) + other
+
+    def get_absolute_url(self):
+        return reverse('pict_detail', kwargs={'slug': self.slug})
+
+    def get_page_heading(self):
+        description = self.alt.strip()
+        default_heading = (
+            f'{description} — изображение для скинали №{self.name}'
+            if description else f'Изображение для скинали №{self.name}'
+        )
+        return self.resolve_seo_value('seo_h1', default_heading)
+
+    def get_page_description(self):
+        description = self.alt.strip()
+        default_description = f'Изображение №{self.name}'
+        if description:
+            default_description += f' «{description}»'
+        default_description += (
+            ' для печати на скинали. Уточните возможность покупки оригинала '
+            'и подготовки макета под размеры кухни.'
+        )
+        return self.page_description.strip() or default_description
+
+    def get_page_title(self):
+        description = self.alt.strip()
+        default_title = (
+            f'{description} — изображение для скинали №{self.name}'
+            if description else f'Изображение для скинали №{self.name}'
+        )
+        return f'{self.resolve_seo_value("seo_title", default_title)} | ОДИУМ'
+
+    def get_meta_description(self):
+        description = self.alt.strip()
+        default_description = f'Изображение №{self.name}'
+        if description:
+            default_description += f' «{description}»'
+        default_description += (
+            ' для скинали из стекла. Посмотрите полноразмерный вариант, '
+            'характеристики и похожие изображения.'
+        )
+        return self.resolve_seo_value(
+            'seo_description',
+            default_description[:320].rstrip(),
+        )
 
     class Meta:
         verbose_name = 'Изображения'

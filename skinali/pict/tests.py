@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 from PIL import Image
 from django.conf import settings
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Permission
@@ -29,6 +29,7 @@ from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
 from sitecontent.models import SitePage
+from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .admin import (
     CategoryAdmin,
@@ -724,6 +725,8 @@ class TagPageAndSitemapTests(TestCase):
         self.assertIn(self.tag.get_absolute_url(), xml)
         self.assertNotIn(self.empty_tag.get_absolute_url(), xml)
         self.assertNotIn(self.hidden_tag.get_absolute_url(), xml)
+        self.assertIn(self.picture.get_absolute_url(), xml)
+        self.assertNotIn(self.hidden_picture.get_absolute_url(), xml)
 
     def test_sitemap_lastmod_uses_freshest_relevant_timestamp(self):
         taxonomy_changed_at = timezone.now() - timedelta(days=10)
@@ -751,6 +754,10 @@ class TagPageAndSitemapTests(TestCase):
         )
         self.assertEqual(
             lastmods[f'https://odium.by{self.tag.get_absolute_url()}'],
+            timezone.localdate(picture_changed_at).isoformat(),
+        )
+        self.assertEqual(
+            lastmods[f'https://odium.by{self.picture.get_absolute_url()}'],
             timezone.localdate(picture_changed_at).isoformat(),
         )
         self.assertEqual(
@@ -1379,10 +1386,10 @@ class CatalogSearchTests(TestCase):
         )
 
     @classmethod
-    def create_picture(cls, name, category, tags, *, alt='', is_published=True):
+    def create_picture(cls, name, category, tags, *, alt=None, is_published=True):
         picture = Pict.objects.create(
             name=name,
-            alt=alt,
+            alt=alt or f'Описание изображения {name}',
             photo=create_test_image_file(f'search-{name}.jpg', size=(100, 20)),
             is_published=is_published,
         )
@@ -1625,6 +1632,394 @@ class CatalogThumbnailTests(TestCase):
         self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
 
 
+class PictUploadNamingTests(TestCase):
+    def test_admin_field_configuration(self):
+        name_field = Pict._meta.get_field('name')
+        alt_field = Pict._meta.get_field('alt')
+        model_admin = PictAdmin(Pict, AdminSite())
+        main_fieldset, seo_fieldset = model_admin.get_fieldsets(None)
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/admin-image-preview.css',
+        ).read_text(encoding='utf-8')
+
+        self.assertEqual(name_field.verbose_name, 'Номер изображения')
+        self.assertFalse(alt_field.blank)
+        self.assertTrue(alt_field.formfield().required)
+        self.assertIn('#id_alt.vTextField {', styles)
+        self.assertIn('width: 26em;', styles)
+        self.assertIn('max-width: 100%;', styles)
+        self.assertIsNone(main_fieldset[0])
+        self.assertEqual(seo_fieldset[0], 'SEO и текст страницы')
+        self.assertEqual(seo_fieldset[1]['classes'], ('collapse',))
+        self.assertEqual(
+            seo_fieldset[1]['fields'],
+            (
+                'page_description',
+                'seo_h1',
+                'seo_title',
+                'seo_description',
+            ),
+        )
+        self.assertIn('slug', model_admin.readonly_fields)
+
+    def test_new_upload_uses_transliterated_description_and_original_digits(self):
+        picture = Pict.objects.create(
+            name=901,
+            alt='Спелая вишня на тёмном фоне',
+            photo=create_test_image_file('IMG_0273-v2.JPG'),
+        )
+
+        self.assertEqual(
+            picture.photo.name,
+            'photos/spelaya-vishnya-na-tyomnom-fone-0273-2.jpg',
+        )
+
+    def test_filename_does_not_repeat_digits_already_at_end_of_description(self):
+        picture = Pict.objects.create(
+            name=902,
+            alt='Изображение 275',
+            photo=create_test_image_file('275.jpg'),
+        )
+
+        self.assertEqual(picture.photo.name, 'photos/izobrazhenie-275.jpg')
+
+    def test_upload_without_digits_uses_only_transliterated_description(self):
+        picture = Pict.objects.create(
+            name=904,
+            alt='Летний пейзаж',
+            photo=create_test_image_file('source.jpg'),
+        )
+
+        self.assertEqual(picture.photo.name, 'photos/letniy-peyzazh.jpg')
+
+    def test_editing_description_does_not_rename_saved_file(self):
+        picture = Pict.objects.create(
+            name=903,
+            alt='Лесная панорама',
+            photo=create_test_image_file('forest-903.jpg'),
+        )
+        original_photo_name = picture.photo.name
+
+        picture.alt = 'Обновлённое описание'
+        picture.save(update_fields=['alt'])
+        picture.refresh_from_db()
+
+        self.assertEqual(picture.photo.name, original_photo_name)
+
+    def test_page_slug_uses_description_and_number_and_stays_stable(self):
+        picture = Pict.objects.create(
+            name=906,
+            alt='Яблоки на снегу 906',
+            photo=create_test_image_file('source-906.jpg'),
+        )
+
+        self.assertEqual(picture.slug, 'yabloki-na-snegu-906')
+        self.assertEqual(
+            picture.get_absolute_url(),
+            '/skinali/image/yabloki-na-snegu-906/',
+        )
+
+        picture.alt = 'Новое описание'
+        picture.name = 907
+        picture.save(update_fields=['alt', 'name'])
+        picture.refresh_from_db()
+
+        self.assertEqual(picture.slug, 'yabloki-na-snegu-906')
+
+        replacement = Pict.objects.create(
+            name=906,
+            alt='Яблоки на снегу 906',
+            photo=create_test_image_file('replacement-906.jpg'),
+        )
+        self.assertEqual(replacement.slug, 'yabloki-na-snegu-906-2')
+
+
+@override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
+class PictDetailPageTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(
+            cat='Природа',
+            slug='detail-nature',
+        )
+        cls.other_category = Category.objects.create(
+            cat='Абстракция',
+            slug='detail-abstract',
+        )
+        cls.tag = TagPict.objects.create(tag='Яблоки', slug='detail-apples')
+        cls.other_tag = TagPict.objects.create(tag='Линии', slug='detail-lines')
+        cls.color = Color.objects.create(color='Красный', slug_color='detail-red')
+        cls.other_color = Color.objects.create(color='Синий', slug_color='detail-blue')
+
+        cls.picture = cls.create_picture(810, 'Яблоки на снегу')
+        cls.picture.cat.add(cls.category)
+        cls.picture.tags.add(cls.tag)
+        cls.picture.color.add(cls.color)
+
+        cls.similar_all = cls.create_picture(811, 'Красные яблоки')
+        cls.similar_all.cat.add(cls.category)
+        cls.similar_all.tags.add(cls.tag)
+        cls.similar_all.color.add(cls.color)
+
+        cls.similar_tag = cls.create_picture(812, 'Яблоневый сад')
+        cls.similar_tag.cat.add(cls.other_category)
+        cls.similar_tag.tags.add(cls.tag)
+        cls.similar_tag.color.add(cls.other_color)
+
+        cls.similar_category = cls.create_picture(813, 'Зимний лес')
+        cls.similar_category.cat.add(cls.category)
+        cls.similar_category.tags.add(cls.other_tag)
+        cls.similar_category.color.add(cls.other_color)
+
+        cls.similar_color = cls.create_picture(814, 'Красная абстракция')
+        cls.similar_color.cat.add(cls.other_category)
+        cls.similar_color.tags.add(cls.other_tag)
+        cls.similar_color.color.add(cls.color)
+
+        cls.unrelated = cls.create_picture(815, 'Синие линии')
+        cls.unrelated.cat.add(cls.other_category)
+        cls.unrelated.tags.add(cls.other_tag)
+        cls.unrelated.color.add(cls.other_color)
+
+        cls.hidden = cls.create_picture(
+            816,
+            'Скрытые яблоки',
+            is_published=False,
+        )
+        cls.hidden.cat.add(cls.category)
+        cls.hidden.tags.add(cls.tag)
+        cls.hidden.color.add(cls.color)
+
+    @staticmethod
+    def create_picture(name, alt, *, is_published=True):
+        return Pict.objects.create(
+            name=name,
+            alt=alt,
+            photo=create_test_image_file(f'detail-{name}.jpg'),
+            is_published=is_published,
+        )
+
+    def test_detail_page_renders_content_metadata_and_structured_data(self):
+        response = self.client.get(self.picture.get_absolute_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            '<h1>Яблоки на снегу — изображение для скинали №810</h1>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<title>Яблоки на снегу — изображение для скинали №810 | ОДИУМ</title>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<meta name="description" content="Изображение №810 '
+            '«Яблоки на снегу» для скинали из стекла. Посмотрите '
+            'полноразмерный вариант, характеристики и похожие изображения.">',
+            html=True,
+        )
+        self.assertContains(response, 'Изображение №810 «Яблоки на снегу»')
+        self.assertContains(response, f'href="{self.picture.photo.url}"')
+        self.assertContains(response, f'src="{self.picture.photo.url}"')
+        self.assertContains(response, self.category.get_absolute_url())
+        self.assertContains(response, self.tag.get_absolute_url())
+        self.assertContains(response, 'Красный')
+        self.assertContains(response, 'data-image-purchase-open')
+        self.assertContains(response, 'data-image-number="810"')
+        self.assertContains(
+            response,
+            f'<link rel="canonical" href="https://odium.by{self.picture.get_absolute_url()}">',
+            html=True,
+        )
+        self.assertEqual(
+            tuple(item['name'] for item in response.context['breadcrumbs']),
+            ('Главная', 'Каталог', 'Изображение №810'),
+        )
+        image_data = get_json_ld(response, 'image-structured-data')
+        self.assertEqual(image_data['@type'], 'ImageObject')
+        self.assertEqual(
+            image_data['contentUrl'],
+            f'https://odium.by{self.picture.photo.url}',
+        )
+        self.assertEqual(
+            image_data['url'],
+            f'https://odium.by{self.picture.get_absolute_url()}',
+        )
+
+    def test_detail_page_uses_managed_content_and_seo_fields(self):
+        self.picture.page_description = 'Авторское описание страницы.\nВторая строка.'
+        self.picture.seo_h1 = 'Яблоки для светлой кухни'
+        self.picture.seo_title = 'Панорамное изображение яблок'
+        self.picture.seo_description = 'Уникальное SEO-описание изображения.'
+        self.picture.save(update_fields=[
+            'page_description',
+            'seo_h1',
+            'seo_title',
+            'seo_description',
+        ])
+
+        response = self.client.get(self.picture.get_absolute_url())
+
+        self.assertContains(
+            response,
+            '<h1>Яблоки для светлой кухни</h1>',
+            html=True,
+        )
+        self.assertContains(response, 'Авторское описание страницы.<br>')
+        self.assertContains(response, 'Вторая строка.')
+        self.assertContains(
+            response,
+            '<title>Панорамное изображение яблок | ОДИУМ</title>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<meta name="description" content="Уникальное SEO-описание изображения.">',
+            html=True,
+        )
+
+    def test_similar_pictures_are_ranked_and_exclude_hidden_or_unrelated(self):
+        response = self.client.get(self.picture.get_absolute_url())
+
+        self.assertEqual(
+            list(response.context['similar_pictures']),
+            [
+                self.similar_all,
+                self.similar_tag,
+                self.similar_category,
+                self.similar_color,
+            ],
+        )
+        self.assertNotContains(response, self.hidden.get_absolute_url())
+        self.assertNotContains(response, self.unrelated.get_absolute_url())
+        self.assertContains(response, 'Похожие изображения')
+
+    def test_unpublished_and_unknown_picture_pages_return_404(self):
+        self.assertEqual(
+            self.client.get(self.hidden.get_absolute_url()).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.client.get('/skinali/image/missing-picture-999/').status_code,
+            404,
+        )
+
+    def test_catalog_cards_link_to_picture_page(self):
+        response = self.client.get(reverse('skinali'))
+
+        self.assertContains(
+            response,
+            f'href="{self.picture.get_absolute_url()}"',
+            count=2,
+        )
+        self.assertContains(response, '>Подробнее</a>')
+
+
+class PictAdminPhotoRenameTests(TestCase):
+    def setUp(self):
+        self.model_admin = PictAdmin(Pict, AdminSite())
+        self.request = RequestFactory().post('/admin/pict/pict/')
+        self.storage = Pict._meta.get_field('photo').storage
+
+    def create_legacy_picture(self, *, name, alt, filename):
+        stored_name = self.storage.save(
+            f'photos/{filename}',
+            create_test_image_file(filename),
+        )
+        return Pict.objects.create(name=name, alt=alt, photo=stored_name)
+
+    def test_action_renames_original_deletes_old_file_and_clears_thumbnail(self):
+        picture = self.create_legacy_picture(
+            name=275,
+            alt='Яблоки на снегу',
+            filename='275.jpg',
+        )
+        old_name = picture.photo.name
+        thumbnail = get_thumbnail(picture.photo, '760')
+        self.assertTrue(thumbnail.storage.exists(thumbnail.name))
+
+        with patch.object(self.model_admin, 'message_user') as message_user:
+            self.model_admin.rename_photos_from_description(
+                self.request,
+                Pict.objects.filter(pk=picture.pk),
+            )
+
+        picture.refresh_from_db()
+        self.assertEqual(picture.photo.name, 'photos/yabloki-na-snegu-275.jpg')
+        self.assertTrue(self.storage.exists(picture.photo.name))
+        self.assertFalse(self.storage.exists(old_name))
+        self.assertFalse(thumbnail.storage.exists(thumbnail.name))
+        self.assertEqual(message_user.call_args.kwargs['level'], messages.SUCCESS)
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_description(
+                self.request,
+                Pict.objects.filter(pk=picture.pk),
+            )
+        picture.refresh_from_db()
+        self.assertEqual(picture.photo.name, 'photos/yabloki-na-snegu-275.jpg')
+
+    def test_action_skips_historical_picture_without_description(self):
+        picture = self.create_legacy_picture(
+            name=905,
+            alt='',
+            filename='905.jpg',
+        )
+        old_name = picture.photo.name
+
+        with patch.object(self.model_admin, 'message_user') as message_user:
+            self.model_admin.rename_photos_from_description(
+                self.request,
+                Pict.objects.filter(pk=picture.pk),
+            )
+
+        picture.refresh_from_db()
+        self.assertEqual(picture.photo.name, old_name)
+        self.assertTrue(self.storage.exists(old_name))
+        self.assertEqual(message_user.call_args.kwargs['level'], messages.WARNING)
+
+    def test_action_keeps_storage_collision_suffix_stable_on_repeated_run(self):
+        occupied_name = self.storage.save(
+            'photos/yabloki-na-snegu-276.jpg',
+            create_test_image_file('occupied.jpg'),
+        )
+        picture = self.create_legacy_picture(
+            name=276,
+            alt='Яблоки на снегу',
+            filename='276.jpg',
+        )
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_description(
+                self.request,
+                Pict.objects.filter(pk=picture.pk),
+            )
+        picture.refresh_from_db()
+        collision_name = picture.photo.name
+
+        self.assertNotEqual(collision_name, occupied_name)
+        self.assertTrue(collision_name.startswith('photos/yabloki-na-snegu-276_'))
+        self.assertTrue(collision_name.endswith('.jpg'))
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_description(
+                self.request,
+                Pict.objects.filter(pk=picture.pk),
+            )
+        picture.refresh_from_db()
+
+        self.assertEqual(picture.photo.name, collision_name)
+
+    def test_action_is_available_only_with_change_permission(self):
+        action = self.model_admin.rename_photos_from_description
+
+        self.assertIn('rename_photos_from_description', self.model_admin.actions)
+        self.assertEqual(action.allowed_permissions, ['change'])
+
+
 class PublicationTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -1673,7 +2068,7 @@ class PublicationTests(TestCase):
         )
         self.assertIn('is_published', pict_admin.list_display)
         self.assertIn('is_published', pict_admin.list_editable)
-        self.assertIn('is_published', pict_admin.fields)
+        self.assertIn('is_published', pict_admin.fieldsets[0][1]['fields'])
         self.assertIn('is_published', pict_admin.list_filter)
         self.assertIn('is_published', work_admin.list_display)
         self.assertIn('is_published', work_admin.list_editable)
@@ -2070,6 +2465,7 @@ class ContactFormSubmissionTests(TestCase):
         )
         picture = Pict.objects.create(
             name=130,
+            alt='Изображение из заявки',
             photo=create_test_image_file('130.jpg'),
         )
         purchase_request = ContactRequest.objects.create(
@@ -2876,6 +3272,7 @@ class FinishedWorkTests(TestCase):
         )
         other_catalog_image = Pict.objects.create(
             name=703,
+            alt='Изображение другой категории',
             photo=create_test_image_file('703.jpg'),
         )
         other_catalog_image.cat.add(other_category)
@@ -2952,19 +3349,27 @@ class FinishedWorkTests(TestCase):
             finished_work_admin.get_html_photo_fields.short_description,
             'Миниатюра',
         )
-        self.assertIn('get_finished_works', pict_admin.get_fields(None, self.catalog_image))
+        pict_fields = [
+            field
+            for _, options in pict_admin.get_fieldsets(None, self.catalog_image)
+            for field in options['fields']
+        ]
+        self.assertIn('get_finished_works', pict_fields)
         self.assertIn('width="160"', linked_works)
         self.assertIn('data-image-preview', linked_works)
         self.assertIn(self.work.photo.url, linked_works)
 
         image_without_works = Pict.objects.create(
             name=702,
+            alt='Изображение без готовых работ',
             photo=create_test_image_file('702.jpg'),
         )
-        self.assertNotIn(
-            'get_finished_works',
-            pict_admin.get_fields(None, image_without_works),
-        )
+        pict_fields_without_works = [
+            field
+            for _, options in pict_admin.get_fieldsets(None, image_without_works)
+            for field in options['fields']
+        ]
+        self.assertNotIn('get_finished_works', pict_fields_without_works)
 
         admin_user = get_user_model().objects.create_superuser(
             username='admin-preview-test',

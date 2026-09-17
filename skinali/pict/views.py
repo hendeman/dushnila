@@ -2,13 +2,13 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, OuterRef, Q
+from django.db.models import Count, Exists, F, IntegerField, OuterRef, Q, Value
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_POST
-from django.views.generic import ListView, TemplateView
+from django.views.generic import DetailView, ListView, TemplateView
 from sitecontent.models import SitePage
 
 from .forms import (
@@ -141,6 +141,42 @@ def get_finished_work_gallery_queryset():
         FinishedWork.objects.published()
         .select_related('catalog_image')
         .order_by('-created_at', '-id')
+    )
+
+
+def get_similar_picture_queryset(picture, *, limit=8):
+    """Ранжирует опубликованные изображения по общим тегам и справочникам."""
+    category_ids = [category.pk for category in picture.cat.all()]
+    tag_ids = [tag.pk for tag in picture.tags.all()]
+    color_ids = [color.pk for color in picture.color.all()]
+
+    def match_count(relation, values):
+        if not values:
+            return Value(0, output_field=IntegerField())
+        return Count(
+            relation,
+            filter=Q(**{f'{relation}__in': values}),
+            distinct=True,
+        )
+
+    return (
+        Pict.objects.published()
+        .exclude(pk=picture.pk)
+        .annotate(
+            matching_tags=match_count('tags', tag_ids),
+            matching_categories=match_count('cat', category_ids),
+            matching_colors=match_count('color', color_ids),
+        )
+        .annotate(
+            similarity_score=(
+                F('matching_tags') * 3
+                + F('matching_categories') * 2
+                + F('matching_colors')
+            ),
+        )
+        .filter(similarity_score__gt=0)
+        .order_by('-similarity_score', '-updated_at', '-id')
+        .prefetch_related('tags', 'cat')[:limit]
     )
 
 
@@ -375,6 +411,40 @@ class SkinaliAll(SkinaliMix):
         if self.request.GET.get('color'):
             return queryset.filter(color__slug_color=self.request.GET.get('color'))
         return queryset
+
+
+class PictDetail(FavoritesContextMixin, DetailView):
+    model = Pict
+    template_name = 'pict/pict_detail.html'
+    context_object_name = 'picture'
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
+
+    def get_queryset(self):
+        return Pict.objects.published().prefetch_related('cat', 'tags', 'color')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        picture = self.object
+        context['title'] = picture.get_page_heading()
+        context['page_description'] = picture.get_page_description()
+        context['similar_pictures'] = get_similar_picture_queryset(picture)
+        context['absolute_photo_url'] = (
+            f'{settings.PUBLIC_SITE_ORIGIN.rstrip("/")}/'
+            f'{picture.photo.url.lstrip("/")}'
+        )
+        return set_page_metadata(
+            context,
+            self.request,
+            page_title=picture.get_page_title(),
+            meta_description=picture.get_meta_description(),
+            canonical_path=picture.get_absolute_url(),
+            breadcrumbs=(
+                ('Главная', reverse('home')),
+                ('Каталог', reverse('skinali')),
+                (f'Изображение №{picture.name}', None),
+            ),
+        )
 
 
 class SkinaliSlug(SkinaliMix):

@@ -8,7 +8,7 @@ from django.db.models.functions import Greatest
 from django.urls import reverse
 from sitecontent.models import SitePage
 
-from .models import Category, TagPict
+from .models import Category, Pict, TagPict
 
 
 class PublicOriginSitemap(Sitemap):
@@ -94,3 +94,20 @@ class TagSitemap(PublishedPictureSitemap):
 
     model = TagPict
     picture_relation = 'tags'
+
+
+class PictureSitemap(PublicOriginSitemap):
+    """Отдельные страницы опубликованных изображений каталога."""
+
+    changefreq = 'monthly'
+    priority = 0.8
+
+    def items(self):
+        return (
+            Pict.objects.published()
+            .only('slug', 'updated_at')
+            .order_by('slug')
+        )
+
+    def lastmod(self, item):
+        return item.updated_at

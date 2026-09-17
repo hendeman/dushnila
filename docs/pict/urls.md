@@ -15,6 +15,7 @@
 | `/contact/request/` | `contact_submit` | `submit_contact_form` | серверная проверка контактной формы; только POST |
 | `/foto-skinali-iz-stekla/` | `finished_works` | `FinishedWorkList` | публичная галерея готовых работ |
 | `/skinali/` | `skinali` | `SkinaliAll` | весь каталог и глобальный поиск |
+| `/skinali/image/<slug:slug>/` | `pict_detail` | `PictDetail` | индексируемая индивидуальная страница опубликованного изображения |
 | `/skinali/<slug:slug_cat>/` | `skinali` | `SkinaliSlug` | каталог категории; при наличии `q` — тот же глобальный поиск |
 | `/designer` | `designer` | `designer` | услуги дизайнера |
 | `/tag/<slug:tag_slug>/` | `tag` | `PictTag` | глобальная страница опубликованных изображений по тегу; неизвестный slug возвращает 404 |
@@ -25,6 +26,7 @@
 - Без `q` каталог принимает GET-параметр `color` со значением `Color.slug_color` и применяет его вместе с категорией текущего URL.
 - Главная страница поддерживает только прежнюю ссылку `/?product-number=<значение>` и отвечает перенаправлением на `/skinali/?q=<значение>`. Поисковая выдача на `/` больше не рендерится.
 - Стандартный параметр `page` обрабатывается пагинацией `ListView`. Каталог, категории, поиск и страницы тегов выводят по 30 изображений; `q` сохраняется в ссылках страниц валидной поисковой выдачи, а номер страницы тега — в ее canonical.
+- Индивидуальная страница разрешает запись по стабильному `Pict.slug` и возвращает 404 для неизвестного либо снятого с публикации изображения. Префикс `/skinali/image/` отделяет её от одноуровневых slug категорий.
 - Переключатель избранного принимает ID `Pict` в URL, возвращает JSON и отклоняет методы, отличные от POST.
 - Обработчик контактной формы принимает `form_kind=callback` или `form_kind=question`. AJAX-запрос получает JSON, обычный POST — HTML-страницу результата с сохранением введённых значений при ошибке.
 - Страница готовых работ принимает стандартный GET-параметр `page` и выводит по 6 работ.
@@ -35,7 +37,7 @@
 
 - [views.py](views.md).
 - [search.py](search.md).
-- [models.py](models.md): `Category.get_absolute_url()` использует имя `skinali`, `TagPict.get_absolute_url()` — имя `tag`.
+- [models.py](models.md): `Category.get_absolute_url()` использует имя `skinali`, `TagPict.get_absolute_url()` — имя `tag`, `Pict.get_absolute_url()` — имя `pict_detail`.
 - [корневой URLconf](../project/urls.md).
 
 ## Особенности и риски

@@ -1,4 +1,8 @@
-from django.contrib import admin
+import logging
+import re
+from pathlib import Path
+
+from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.http import HttpResponseNotAllowed
@@ -7,6 +11,7 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
+from sorl.thumbnail.shortcuts import delete as delete_thumbnail
 
 from pict.forms import IntegrationAdminForm, PictAdminForm
 from pict.models import (
@@ -20,7 +25,11 @@ from pict.models import (
     Pict,
     TagAlias,
     TagPict,
+    pict_photo_upload_to,
 )
+
+
+logger = logging.getLogger(__name__)
 
 SEO_LANDING_FIELDS = (
     'seo_h1',
@@ -55,29 +64,54 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     list_display = ['name', 'is_published', 'get_html_photo', 'get_list_category', 'get_list_color']
     list_editable = ['is_published']
     list_display_links = ['name']
-    search_fields = ['=name', 'tags__tag']
+    search_fields = ['=name', 'alt', 'slug', 'tags__tag']
     list_filter = ['is_published', 'created_at', 'cat__cat', 'color__color']
-    fields = [
-        'name',
-        'is_published',
-        'alt',
-        'photo',
-        'get_html_photo_fields',
-        'created_at',
-        'updated_at',
-        'color',
-        'cat',
-        'tags',
-    ]
+    fieldsets = (
+        (
+            None,
+            {
+                'fields': (
+                    'name',
+                    'is_published',
+                    'alt',
+                    'slug',
+                    'photo',
+                    'get_html_photo_fields',
+                    'created_at',
+                    'updated_at',
+                    'color',
+                    'cat',
+                    'tags',
+                ),
+            },
+        ),
+        (
+            'SEO и текст страницы',
+            {
+                'classes': ('collapse',),
+                'fields': (
+                    'page_description',
+                    'seo_h1',
+                    'seo_title',
+                    'seo_description',
+                ),
+                'description': (
+                    'Пустые поля используют автоматически сформированные значения.'
+                ),
+            },
+        ),
+    )
     readonly_fields = [
         'created_at',
         'updated_at',
+        'slug',
         'get_html_photo_fields',
         'get_finished_works',
     ]
     filter_horizontal = ['color', 'cat', 'tags']
     ordering = ["-id"]
     form = PictAdminForm
+    actions = ['rename_photos_from_description']
 
     def get_queryset(self, request):
         return (
@@ -85,12 +119,130 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             .prefetch_related('cat', 'color', 'finished_works')
         )
 
-    def get_fields(self, request, obj=None):
-        fields = list(self.fields)
-        if obj and obj.finished_works.exists():
-            fields.insert(fields.index('created_at'), 'get_finished_works')
-        return fields
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if not obj or not obj.finished_works.exists():
+            return fieldsets
 
+        title, options = fieldsets[0]
+        fields = list(options['fields'])
+        fields.insert(fields.index('created_at'), 'get_finished_works')
+        fieldsets[0] = (title, {**options, 'fields': fields})
+        return fieldsets
+
+    @staticmethod
+    def photo_name_matches_storage_variant(current_name, target_name):
+        """Учитывает уникальный суффикс, который добавляет FileSystemStorage."""
+        current_path = Path(current_name)
+        target_path = Path(target_name)
+        if (
+            current_path.parent != target_path.parent
+            or current_path.suffix.lower() != target_path.suffix.lower()
+        ):
+            return False
+        return bool(re.fullmatch(
+            rf'{re.escape(target_path.stem)}(?:_[A-Za-z0-9]{{7}})?',
+            current_path.stem,
+        ))
+
+    @staticmethod
+    def remove_storage_collision_suffix(filename):
+        """Не принимает технический суффикс storage за цифры исходного файла."""
+        path = Path(filename)
+        clean_stem = re.sub(r'_[A-Za-z0-9]{7}$', '', path.stem)
+        return f'{clean_stem}{path.suffix}'
+
+    @admin.action(
+        description='Переименовать файлы по описанию',
+        permissions=['change'],
+    )
+    def rename_photos_from_description(self, request, queryset):
+        renamed_count = 0
+        unchanged_count = 0
+        skipped_count = 0
+        failed_count = 0
+        cleanup_warning_count = 0
+
+        for picture in queryset.iterator(chunk_size=100):
+            if not picture.alt.strip() or not picture.photo:
+                skipped_count += 1
+                continue
+
+            old_photo = picture.photo
+            old_name = old_photo.name
+            storage = old_photo.storage
+            source_filename = self.remove_storage_collision_suffix(
+                Path(old_name).name,
+            )
+            target_name = pict_photo_upload_to(picture, source_filename)
+
+            if self.photo_name_matches_storage_variant(old_name, target_name):
+                unchanged_count += 1
+                continue
+            if not storage.exists(old_name):
+                skipped_count += 1
+                continue
+
+            saved_name = None
+            try:
+                with storage.open(old_name, 'rb') as source_file:
+                    saved_name = storage.save(
+                        target_name,
+                        source_file,
+                        max_length=Pict._meta.get_field('photo').max_length,
+                    )
+                with transaction.atomic(using=picture._state.db):
+                    picture.photo = saved_name
+                    picture.save(update_fields=['photo'])
+            except Exception:
+                failed_count += 1
+                logger.exception(
+                    'Не удалось переименовать изображение каталога pk=%s.',
+                    picture.pk,
+                )
+                if saved_name:
+                    try:
+                        storage.delete(saved_name)
+                    except Exception:
+                        logger.exception(
+                            'Не удалось удалить незавершённую копию %s.',
+                            saved_name,
+                        )
+                continue
+
+            renamed_count += 1
+            try:
+                delete_thumbnail(old_photo, delete_file=False)
+            except Exception:
+                cleanup_warning_count += 1
+                logger.exception(
+                    'Не удалось очистить миниатюры прежнего файла %s.',
+                    old_name,
+                )
+            try:
+                storage.delete(old_name)
+            except Exception:
+                cleanup_warning_count += 1
+                logger.exception(
+                    'Не удалось удалить прежний файл %s.',
+                    old_name,
+                )
+
+        summary = (
+            f'Переименовано: {renamed_count}. '
+            f'Уже соответствовали описанию: {unchanged_count}. '
+            f'Пропущено: {skipped_count}. '
+            f'Ошибок: {failed_count}.'
+        )
+        if cleanup_warning_count:
+            summary += f' Предупреждений очистки: {cleanup_warning_count}.'
+
+        level = messages.SUCCESS
+        if failed_count:
+            level = messages.ERROR
+        elif skipped_count or cleanup_warning_count:
+            level = messages.WARNING
+        self.message_user(request, summary, level=level)
 
     def get_html_photo(self, object):
         return self.render_image_preview(
