@@ -1,0 +1,116 @@
+{% extends 'pict/base.html' %}
+
+{% block structured_data %}
+<script id="image-structured-data" type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ImageObject",
+  "name": "{{ title|escapejs }}",
+  "description": "{{ meta_description|escapejs }}",
+  "contentUrl": "{{ absolute_photo_url|escapejs }}",
+  "url": "{{ canonical_url|escapejs }}"
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<article class="image-detail">
+  <header class="image-detail__header">
+    <p class="image-detail__eyebrow">Изображение №{{ picture.name }}</p>
+    <h1>{{ title }}</h1>
+  </header>
+
+  <div class="image-detail__layout">
+    <figure class="image-detail__media">
+      <a href="{{ picture.photo.url }}"
+         target="_blank"
+         rel="noopener"
+         aria-label="Открыть полноразмерное изображение №{{ picture.name }}">
+        <img src="{{ picture.photo.url }}"
+             alt="{{ picture.alt|default:'Изображение из каталога' }}"
+             decoding="async"
+             fetchpriority="high">
+      </a>
+      <figcaption>Нажмите на изображение, чтобы открыть оригинал.</figcaption>
+    </figure>
+
+    <div class="image-detail__content">
+      <p class="image-detail__description">{{ page_description|linebreaksbr }}</p>
+
+      <dl class="image-detail__meta">
+        <div>
+          <dt>Номер изображения</dt>
+          <dd>№{{ picture.name }}</dd>
+        </div>
+        <div>
+          <dt>Категории</dt>
+          <dd class="image-detail__links">
+            {% for category in picture.cat.all %}
+              <a href="{{ category.get_absolute_url }}">{{ category.cat }}</a>
+            {% empty %}
+              <span>—</span>
+            {% endfor %}
+          </dd>
+        </div>
+        <div>
+          <dt>Теги</dt>
+          <dd class="image-detail__links">
+            {% for tag in picture.tags.all %}
+              <a href="{{ tag.get_absolute_url }}">#{{ tag.tag }}</a>
+            {% empty %}
+              <span>—</span>
+            {% endfor %}
+          </dd>
+        </div>
+        <div>
+          <dt>Цвета</dt>
+          <dd class="image-detail__links">
+            {% for color in picture.color.all %}
+              <span>{{ color.color }}</span>
+            {% empty %}
+              <span>—</span>
+            {% endfor %}
+          </dd>
+        </div>
+      </dl>
+
+      <div class="image-detail__actions">
+        <button type="button"
+                class="image-detail__purchase"
+                data-image-purchase-open
+                data-pict-id="{{ picture.pk }}"
+                data-image-number="{{ picture.name }}"
+                aria-haspopup="dialog"
+                aria-controls="image-purchase-dialog">
+          Купить изображение
+        </button>
+        <button type="button"
+                class="image-detail__favorite{% if picture.pk in favorite_ids %} is-active{% endif %}"
+                data-favorite-toggle
+                data-pict-id="{{ picture.pk }}"
+                data-favorite-url="{% url 'favorite_toggle' picture.pk %}"
+                aria-pressed="{% if picture.pk in favorite_ids %}true{% else %}false{% endif %}">
+          <span class="favorite-toggle__label" data-favorite-label>
+            <span class="favorite-toggle__label-add">Добавить в избранное</span>
+            <span class="favorite-toggle__label-remove">Удалить из избранного</span>
+            <span class="favorite-toggle__label-error">Не удалось сохранить</span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</article>
+
+{% if similar_pictures %}
+<section class="image-detail__similar" aria-labelledby="similar-images-title">
+  <h2 id="similar-images-title">Похожие изображения</h2>
+  <div class="container catalog-gallery">
+    {% for p in similar_pictures %}
+      <div class="item-block">
+        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}
