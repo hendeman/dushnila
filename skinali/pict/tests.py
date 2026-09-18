@@ -3338,10 +3338,10 @@ class FinishedWorkTests(TestCase):
         self.assertTrue(FinishedWork.objects.filter(pk=self.work.pk).exists())
 
         response = self.client.get(reverse('finished_works'))
-        self.assertNotContains(response, 'Изображение №')
+        self.assertNotContains(response, 'Номер изображения')
         self.assertNotContains(response, 'finished-work-modal__category')
 
-    def test_public_gallery_shows_name_and_linked_catalog_number(self):
+    def test_public_gallery_shows_modal_fields_and_callback_action(self):
         response = self.client.get(reverse('finished_works'))
         styles = Path(
             settings.BASE_DIR,
@@ -3357,7 +3357,45 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, self.work.name)
         self.assertNotContains(response, self.work.description)
         self.assertNotContains(response, 'finished-work-modal__category')
-        self.assertContains(response, 'Изображение № 701')
+        self.assertContains(response, 'Тип стекла')
+        self.assertContains(response, 'Обычное')
+        self.assertContains(response, 'Тип скинали')
+        self.assertContains(response, 'Печать')
+        self.assertContains(response, 'aria-label="Тип скинали"')
+        self.assertContains(
+            response,
+            '<li class="page-num page-num-selected" aria-current="page">'
+            ' Печать </li>',
+            html=True,
+        )
+        self.assertContains(response, '?skinali_type=paint')
+        self.assertContains(response, '?skinali_type=transparent')
+        self.assertContains(response, 'aria-label="Категории"')
+        self.assertNotContains(response, 'Номер изображения')
+        self.assertContains(response, '№ 701')
+        self.assertContains(
+            response,
+            'class="catalog-thumbnail finished-work-modal__catalog-image-link"',
+        )
+        self.assertContains(
+            response,
+            f'href="{self.catalog_image.get_absolute_url()}"',
+        )
+        self.assertContains(response, 'aria-label="Открыть изображение №701"')
+        self.assertContains(response, f'alt="{self.catalog_image.alt}"')
+        self.assertContains(response, 'class="catalog-favorite-toggle"')
+        self.assertContains(
+            response,
+            f'data-favorite-url="{reverse("favorite_toggle", args=[self.catalog_image.pk])}"',
+        )
+        self.assertContains(response, 'aria-label="Добавить в избранное"')
+        self.assertContains(response, 'Хочу скинали')
+        self.assertContains(response, 'data-callback-open')
+        self.assertContains(
+            response,
+            f'data-caption-template="finished-work-caption-{self.work.pk}"',
+        )
+        self.assertContains(response, 'enableFinishedWorkCallback(slide.contentEl)')
         self.assertNotContains(response, 'class="site-search"')
         self.assertContains(
             response,
@@ -3372,6 +3410,142 @@ class FinishedWorkTests(TestCase):
             '.list-pages-color ul .color-option:focus-within {\n\tz-index: 10;',
             styles,
         )
+        self.assertIn(
+            '.finished-work-modal__catalog-preview .catalog-favorite-toggle:hover,\n'
+            '.finished-work-modal__catalog-preview '
+            '.catalog-favorite-toggle:focus-visible {\n'
+            '\tbackground-color: #f2f2f2;',
+            styles,
+        )
+        self.assertIn(
+            '.catalog-categories.finished-work-types {\n'
+            '\t\tdisplay: block;',
+            styles,
+        )
+
+    def test_public_gallery_shows_only_the_matching_dependent_field(self):
+        painted_work = FinishedWork.objects.create(
+            name='Покрашенная кухня',
+            photo=create_test_image_file('finished-painted-kitchen.jpg'),
+            glass_type=FinishedWork.GlassType.OPTIWHITE,
+            skinali_type=FinishedWork.SkinaliType.PAINT,
+            paint_color='RAL 9000',
+        )
+        transparent_work = FinishedWork.objects.create(
+            name='Прозрачная кухня',
+            photo=create_test_image_file('finished-transparent-kitchen.jpg'),
+            glass_type=FinishedWork.GlassType.DIAMANT,
+            skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
+        )
+
+        printed_response = self.client.get(reverse('finished_works'))
+        painted_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': FinishedWork.SkinaliType.PAINT},
+        )
+        transparent_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': FinishedWork.SkinaliType.TRANSPARENT},
+        )
+
+        def caption_for(work, response):
+            html = response.content.decode()
+            start = html.index(f'<template id="finished-work-caption-{work.pk}">')
+            end = html.index('</template>', start)
+            return html[start:end]
+
+        printed_caption = caption_for(self.work, printed_response)
+        painted_caption = caption_for(painted_work, painted_response)
+        transparent_caption = caption_for(
+            transparent_work,
+            transparent_response,
+        )
+
+        self.assertNotIn('Номер изображения', printed_caption)
+        self.assertIn('finished-work-modal__catalog-image-link', printed_caption)
+        self.assertIn('catalog-favorite-toggle', printed_caption)
+        self.assertNotIn('Цвет покраски', printed_caption)
+        self.assertIn('Optiwhite', painted_caption)
+        self.assertIn('Покраска', painted_caption)
+        self.assertIn('Цвет покраски', painted_caption)
+        self.assertIn('RAL 9000', painted_caption)
+        self.assertNotIn('Номер изображения', painted_caption)
+        self.assertNotIn('finished-work-modal__catalog-image-link', painted_caption)
+        self.assertIn('Diamant', transparent_caption)
+        self.assertIn('Прозрачное', transparent_caption)
+        self.assertNotIn('Номер изображения', transparent_caption)
+        self.assertNotIn('Цвет покраски', transparent_caption)
+        self.assertNotIn('finished-work-modal__catalog-image-link', transparent_caption)
+
+    def test_public_gallery_filters_by_skinali_type_and_hides_categories(self):
+        painted_works = [
+            FinishedWork.objects.create(
+                name=f'Покрашенная работа {index}',
+                photo=create_test_image_file(
+                    f'finished-painted-filter-{index}.jpg'
+                ),
+                skinali_type=FinishedWork.SkinaliType.PAINT,
+                paint_color='RAL 9000',
+            )
+            for index in range(1, 8)
+        ]
+        transparent_work = FinishedWork.objects.create(
+            name='Прозрачная работа для фильтра',
+            photo=create_test_image_file('finished-transparent-filter.jpg'),
+            skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
+        )
+
+        printed_response = self.client.get(reverse('finished_works'))
+        painted_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': FinishedWork.SkinaliType.PAINT},
+        )
+        transparent_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': FinishedWork.SkinaliType.TRANSPARENT},
+        )
+
+        self.assertEqual(
+            list(printed_response.context['finished_works']),
+            [self.work],
+        )
+        self.assertEqual(
+            list(painted_response.context['finished_works']),
+            list(reversed(painted_works[-6:])),
+        )
+        self.assertEqual(
+            list(transparent_response.context['finished_works']),
+            [transparent_work],
+        )
+        self.assertEqual(
+            painted_response.context['selected_skinali_type'],
+            FinishedWork.SkinaliType.PAINT,
+        )
+        self.assertFalse(
+            painted_response.context['show_finished_work_categories']
+        )
+        self.assertContains(painted_response, 'aria-label="Тип скинали"')
+        self.assertContains(
+            painted_response,
+            '<li class="page-num page-num-selected" aria-current="page">'
+            ' Покраска </li>',
+            html=True,
+        )
+        self.assertNotContains(painted_response, 'aria-label="Категории"')
+        self.assertNotContains(painted_response, 'mobile-catalog-filters')
+        self.assertNotContains(painted_response, 'mobile-filter-dialog')
+        self.assertContains(
+            painted_response,
+            '?page=2&amp;skinali_type=paint',
+        )
+        self.assertNotContains(transparent_response, 'aria-label="Категории"')
+        self.assertNotContains(transparent_response, 'mobile-filter-dialog')
+
+        invalid_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': 'unknown'},
+        )
+        self.assertEqual(invalid_response.status_code, 404)
 
     def test_public_gallery_uses_cached_square_thumbnail(self):
         optimized_work = FinishedWork.objects.create(

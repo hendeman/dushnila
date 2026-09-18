@@ -1,8 +1,14 @@
-{% load thumbnail %}
+{% load static thumbnail %}
 <a class="{{ link_class }}"
    data-fancybox="finished-works"
+   {% if work.catalog_image %}
+   data-favorite-item
+   data-pict-id="{{ work.catalog_image.pk }}"
+   data-is-favorite="{% if work.catalog_image.pk in favorite_ids %}true{% else %}false{% endif %}"
+   {% endif %}
    href="{{ work.photo.url }}"
-   data-caption="<div class='finished-work-modal__caption'><div class='finished-work-modal__meta'><span class='finished-work-modal__name'>{{ work.name }}</span>{% if work.catalog_image %}<span class='finished-work-modal__number'>Изображение № {{ work.catalog_image.name }}</span>{% endif %}</div></div>">
+   data-caption-template="finished-work-caption-{{ work.pk }}"
+   data-caption="{{ work.name }}">
   {% thumbnail work.photo "760x760" crop="center" as work_thumbnail %}
     <img class="{{ image_class }}"
          src="{{ work_thumbnail.url }}"
@@ -19,3 +25,108 @@
          decoding="async">
   {% endthumbnail %}
 </a>
+
+<template id="finished-work-caption-{{ work.pk }}">
+  <div class="catalog-modal__caption finished-work-modal__caption">
+    <button type="button"
+            class="catalog-modal__nav catalog-modal__nav--prev"
+            data-fancybox-prev
+            data-clickable
+            aria-label="Предыдущая работа">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m15 18-6-6 6-6"></path>
+      </svg>
+    </button>
+    <button type="button"
+            class="catalog-modal__nav catalog-modal__nav--next"
+            data-fancybox-next
+            data-clickable
+            aria-label="Следующая работа">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m9 18 6-6-6-6"></path>
+      </svg>
+    </button>
+
+    <h2 class="catalog-modal__title">{{ work.name }}</h2>
+
+    <dl class="catalog-modal__meta finished-work-modal__meta{% if work.skinali_type == 'transparent' or work.skinali_type == 'print' and not work.catalog_image or work.skinali_type == 'paint' and not work.paint_color %} finished-work-modal__meta--compact{% endif %}">
+      <div class="catalog-modal__meta-item">
+        <dt>Тип стекла</dt>
+        <dd>{{ work.get_glass_type_display }}</dd>
+      </div>
+      <div class="catalog-modal__meta-item">
+        <dt>Тип скинали</dt>
+        <dd>{{ work.get_skinali_type_display }}</dd>
+      </div>
+      {% if work.skinali_type == 'print' and work.catalog_image %}
+        <div class="catalog-modal__meta-item finished-work-modal__catalog-image">
+          <dd>
+            <div class="finished-work-modal__catalog-preview">
+              <a class="catalog-thumbnail finished-work-modal__catalog-image-link"
+                 data-favorite-item
+                 data-pict-id="{{ work.catalog_image.pk }}"
+                 data-is-favorite="{% if work.catalog_image.pk in favorite_ids %}true{% else %}false{% endif %}"
+                 href="{{ work.catalog_image.get_absolute_url }}"
+                 data-clickable
+                 aria-label="Открыть изображение №{{ work.catalog_image.name }}">
+                {% thumbnail work.catalog_image.photo "760" as catalog_image_thumbnail %}
+                  <img src="{{ catalog_image_thumbnail.url }}"
+                       width="{{ catalog_image_thumbnail.width }}"
+                       height="{{ catalog_image_thumbnail.height }}"
+                       alt="{{ work.catalog_image.alt }}"
+                       decoding="async">
+                {% empty %}
+                  <img src="{{ work.catalog_image.photo.url }}"
+                       alt="{{ work.catalog_image.alt }}"
+                       decoding="async">
+                {% endthumbnail %}
+                <span class="catalog-thumbnail__image-number">
+                  <span class="catalog-thumbnail__image-number-text">№ {{ work.catalog_image.name }}</span>
+                </span>
+              </a>
+              <button type="button"
+                      class="catalog-favorite-toggle{% if work.catalog_image.pk in favorite_ids %} is-active{% endif %}"
+                      data-favorite-toggle
+                      data-catalog-favorite-toggle
+                      data-clickable
+                      data-pict-id="{{ work.catalog_image.pk }}"
+                      data-favorite-url="{% url 'favorite_toggle' work.catalog_image.pk %}"
+                      aria-pressed="{% if work.catalog_image.pk in favorite_ids %}true{% else %}false{% endif %}"
+                      aria-label="{% if work.catalog_image.pk in favorite_ids %}Удалить из избранного{% else %}Добавить в избранное{% endif %}"
+                      title="{% if work.catalog_image.pk in favorite_ids %}Удалить из избранного{% else %}Добавить в избранное{% endif %}">
+                <img class="catalog-favorite-toggle__icon catalog-favorite-toggle__icon--inactive"
+                     src="{% static 'skinali/images/icon-favorite-inactive.png' %}"
+                     width="20"
+                     height="20"
+                     alt=""
+                     aria-hidden="true">
+                <img class="catalog-favorite-toggle__icon catalog-favorite-toggle__icon--active"
+                     src="{% static 'skinali/images/icon-favorite-active.png' %}"
+                     width="20"
+                     height="20"
+                     alt=""
+                     aria-hidden="true">
+              </button>
+            </div>
+          </dd>
+        </div>
+      {% elif work.skinali_type == 'paint' and work.paint_color %}
+        <div class="catalog-modal__meta-item">
+          <dt>Цвет покраски</dt>
+          <dd>{{ work.paint_color }}</dd>
+        </div>
+      {% endif %}
+    </dl>
+
+    <div class="catalog-modal__actions finished-work-modal__actions">
+      <button type="button"
+              class="catalog-modal__purchase finished-work-modal__callback"
+              data-callback-open
+              data-clickable
+              aria-haspopup="dialog"
+              aria-controls="callback-dialog">
+        Хочу скинали
+      </button>
+    </div>
+  </div>
+</template>

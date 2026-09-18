@@ -68,8 +68,16 @@
     }
   }
 
-  document.querySelectorAll('[data-callback-open]').forEach((button) => {
-    button.addEventListener('click', () => openDialog(callbackDialog));
+  // Делегирование также обслуживает кнопки из динамических подписей Fancybox.
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-callback-open]');
+    if (!button || !callbackDialog) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    openDialog(callbackDialog);
   });
 
   // Кнопки находятся в шаблонах подписей Fancybox и появляются в DOM динамически.

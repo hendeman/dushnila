@@ -263,14 +263,25 @@
       });
 
       Fancybox.bind('[data-fancybox="finished-works"]', {
-        mainClass: 'finished-works-modal',
+        mainClass: 'catalog-gallery-modal finished-works-modal',
         idle: false,
+        showClass: false,
         closeButton: true,
         Toolbar: false,
         Thumbs: false,
         contentClick: false,
+        Images: {
+          zoom: false
+        },
+        caption: (fancybox, slide) => {
+          const templateId = slide.triggerEl?.dataset.captionTemplate;
+          const template = templateId ? document.getElementById(templateId) : null;
+          return template ? template.innerHTML : '';
+        },
         Carousel: {
-          infinite: true
+          infinite: true,
+          transition: 'fade',
+          Navigation: false
         },
         on: createGalleryEvents(),
         l10n: {
@@ -311,6 +322,10 @@
           revealPreparedCatalogSlide(slide.contentEl);
         }
 
+        if (fancybox.container?.classList.contains('finished-works-modal')) {
+          enableFinishedWorkCallback(slide.contentEl);
+        }
+
         const button = slide.contentEl.querySelector('[data-favorite-toggle]');
         const trigger = slide.triggerEl;
         if (button && trigger && trigger.dataset.isFavorite) {
@@ -334,6 +349,24 @@
         caption.addEventListener('mousedown', stopImageNavigation);
         caption.addEventListener('touchstart', stopImageNavigation, { passive: true });
         caption.dataset.catalogSelectionEnabled = 'true';
+      }
+
+      function enableFinishedWorkCallback(content) {
+        const button = content.querySelector('[data-callback-open]');
+        if (!button || button.dataset.callbackEnabled === 'true') {
+          return;
+        }
+
+        button.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+
+          const dialog = document.getElementById('callback-dialog');
+          if (dialog && !dialog.open) {
+            dialog.showModal();
+          }
+        });
+        button.dataset.callbackEnabled = 'true';
       }
 
       function revealPreparedCatalogSlide(content) {
