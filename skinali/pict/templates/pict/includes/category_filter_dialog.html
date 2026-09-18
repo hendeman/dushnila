@@ -18,7 +18,7 @@
           </span>
         {% else %}
           <a class="mobile-filter-dialog__item"
-             href="{% if finished_works_filter %}{% url 'finished_works' %}{% else %}{% url 'skinali' %}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">Все категории</a>
+             href="{% if finished_works_filter %}{% url 'finished_works' %}{% else %}{% url 'skinali' %}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">Все категории</a>
         {% endif %}
       </li>
       {% for category in categories %}
@@ -30,7 +30,7 @@
             </span>
           {% else %}
             <a class="mobile-filter-dialog__item"
-               href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_slug %}?color={{ color_slug|urlencode }}{% endif %}{% endif %}">{{ category.cat }}</a>
+               href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">{{ category.cat }}</a>
           {% endif %}
         </li>
       {% endfor %}

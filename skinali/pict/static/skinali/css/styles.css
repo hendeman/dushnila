@@ -1151,8 +1151,7 @@ ul.mainmenu li a:focus-visible {
 	overflow: hidden !important;
 }
 
-.contact-form__submit,
-.contact-dialog__success-close {
+.contact-form__submit {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -1173,21 +1172,68 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-form__submit:hover,
-.contact-form__submit:focus-visible,
-.contact-dialog__success-close:hover,
-.contact-dialog__success-close:focus-visible {
+.contact-form__submit:focus-visible {
 	background: #5d7757;
-}
-
-.contact-dialog__success-close {
-	display: flex;
-	width: fit-content;
-	margin-inline: auto;
 }
 
 .contact-form__submit:disabled {
 	cursor: wait;
 	opacity: .62;
+}
+
+.contact-toast {
+	position: fixed;
+	z-index: 2200;
+	top: 24px;
+	right: 24px;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+	width: fit-content;
+	max-width: calc(100vw - 48px);
+	padding: 18px 22px;
+	border: 6px double #6f8a68;
+	border-radius: 5px;
+	color: #1f231f;
+	background: #fff;
+	box-shadow: 0 12px 32px rgba(20, 25, 21, .25);
+	opacity: 0;
+	transform: translateY(-12px);
+	pointer-events: none;
+	transition: opacity .18s ease, transform .18s ease;
+}
+
+.contact-toast::before {
+	content: "✓";
+	flex: 0 0 auto;
+	margin-right: 16px;
+	color: #6f8a68;
+	font-size: 34px;
+	font-weight: 800;
+	line-height: 1;
+}
+
+.contact-toast[hidden] {
+	display: none;
+}
+
+.contact-toast.is-visible {
+	opacity: 1;
+	transform: translateY(0);
+}
+
+.contact-toast__message {
+	display: flex;
+	flex-direction: column;
+	max-width: 100%;
+	gap: 3px;
+	font-size: 16px;
+	font-weight: 400;
+	line-height: 1.35;
+}
+
+.contact-toast__message span:first-child {
+	font-weight: 700;
 }
 
 .contact-dialog {
@@ -1209,8 +1255,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 /* Поверх Fancybox оставляем видимой текущую карточку изображения. */
-.contact-dialog--purchase::backdrop,
-.contact-dialog--over-gallery::backdrop {
+.contact-dialog--purchase::backdrop {
 	background: transparent;
 }
 
@@ -1263,10 +1308,6 @@ ul.mainmenu li a:focus-visible {
 .contact-dialog__close:hover,
 .contact-dialog__close:focus-visible {
 	background: #dcd9cf;
-}
-
-.contact-dialog--success {
-	width: min(520px, calc(100vw - 32px));
 }
 
 .contact-dialog--purchase {
@@ -2147,6 +2188,14 @@ background-color: coral;
 	padding: 20px 0;
 	border-bottom: 1px solid #dcd9cf;
 }
+
+.color-filter__hint {
+	margin: 0 0 14px;
+	color: #6d736c;
+	font-size: 13px;
+	line-height: 1.35;
+}
+
 .list-pages-color .color-filter__row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -2242,10 +2291,21 @@ background-color: coral;
 	z-index: 10;
 }
 .list-pages-color .color-option__link {
-	display: block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
+}
+
+.list-pages-color .color-option--disabled {
+	cursor: not-allowed;
+	opacity: .42;
+}
+
+.list-pages-color .color-option--disabled::before {
+	display: none;
 }
 .color-description {
     position: absolute;
@@ -2370,6 +2430,13 @@ background-color: coral;
 	opacity: 1;
 }
 
+/* Fade складывает соседние слайды в одну точку. Скрываем уже подготовленные,
+   но не выбранные карточки, чтобы они не просвечивали при кнопках и протяге. */
+.catalog-gallery-modal .fancybox__slide:not(.is-selected) > .fancybox__content {
+	opacity: 0;
+	visibility: hidden;
+}
+
 .catalog-gallery-modal .fancybox__content > .fancybox-image {
 	grid-row: 1;
 	display: block;
@@ -2426,20 +2493,6 @@ background-color: coral;
 .catalog-modal__title,
 .catalog-modal__meta {
 	cursor: text;
-}
-
-.catalog-modal__image-number {
-	position: absolute;
-	z-index: 5;
-	top: 14px;
-	left: 14px;
-	padding: 5px 10px;
-	border-radius: 999px;
-	color: #fff;
-	background: rgba(31, 35, 31, .82);
-	font-size: 11px;
-	font-weight: 700;
-	line-height: 1;
 }
 
 .catalog-modal__nav {
@@ -3438,10 +3491,22 @@ background-color: coral;
 		gap: 15px;
 	}
 
-	.contact-form__submit,
-	.contact-dialog__success-close {
+	.contact-form__submit {
 		justify-self: stretch;
 		width: 100%;
+	}
+
+	.contact-toast {
+		top: 12px;
+		right: auto;
+		left: 50%;
+		width: fit-content;
+		max-width: calc(100vw - 24px);
+		transform: translate(-50%, -12px);
+	}
+
+	.contact-toast.is-visible {
+		transform: translate(-50%, 0);
 	}
 
 	.contact-dialog__panel {
@@ -3811,6 +3876,15 @@ background-color: coral;
 		list-style: none;
 	}
 
+	.mobile-filter-dialog__hint {
+		margin: 0;
+		padding: 14px 24px;
+		border-bottom: 1px solid #e2e2e2;
+		color: #6d736c;
+		font-size: 14px;
+		line-height: 1.4;
+	}
+
 	.mobile-filter-dialog__list li {
 		margin: 0;
 		border-bottom: 1px solid #e2e2e2;
@@ -3837,6 +3911,11 @@ background-color: coral;
 	.mobile-filter-dialog__item.is-selected {
 		color: #161616;
 		font-weight: 700;
+	}
+
+	.mobile-filter-dialog__item.is-disabled {
+		cursor: not-allowed;
+		opacity: .45;
 	}
 
 	.mobile-filter-dialog__check {
@@ -3943,11 +4022,6 @@ background-color: coral;
 		height: auto;
 		min-height: 0;
 		padding: 20px;
-	}
-
-	.catalog-modal__image-number {
-		top: 10px;
-		left: 10px;
 	}
 
 	.catalog-modal__nav {

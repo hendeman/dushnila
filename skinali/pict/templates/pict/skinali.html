@@ -53,10 +53,10 @@
 {% else %}
 <h1>{{ catalog_heading }}</h1>
 
-{% if cat_name == title and not col_ru %}
+{% if cat_name == title and not selected_colors %}
   <p class="catalog-intro">Выберите сюжет по теме и цвету. Нажмите на изображение, чтобы увидеть его номер, теги и раздел каталога.</p>
-{% elif col_ru %}
-  <p>{{cat_name}}, {{col_ru}} оттенок</p>
+{% elif selected_colors %}
+  <p>{{ cat_name }}. Выбранные цвета: {{ selected_color_names }}</p>
 {% elif not catalog_intro %}
   <p>{{cat_name}}</p>
 {% endif %}
@@ -67,16 +67,16 @@
 <nav class="mobile-catalog-filters" aria-label="Фильтры каталога">
   {% include 'pict/includes/category_filter_trigger.html' with selected_category=selected_category %}
   <button type="button"
-          class="mobile-catalog-filters__trigger{% if col_ru %} is-selected{% endif %}"
+          class="mobile-catalog-filters__trigger{% if selected_colors %} is-selected{% endif %}"
           data-mobile-filter-open="mobile-color-filter"
           aria-controls="mobile-color-filter"
           aria-expanded="false">
     <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
-    <span>{% if col_ru %}{{ col_ru }}{% else %}Все цвета{% endif %}</span>
+    <span>{% if selected_colors|length == 1 %}{{ selected_colors.0 }}{% elif selected_colors %}Выбрано: {{ selected_colors|length }}{% else %}Все цвета{% endif %}</span>
   </button>
 </nav>
 
-{% include 'pict/includes/category_filter_dialog.html' with categories=list_cat selected_category=selected_category color_slug=col %}
+{% include 'pict/includes/category_filter_dialog.html' with categories=list_cat selected_category=selected_category color_query=color_query %}
 
 <dialog class="mobile-filter-dialog"
         id="mobile-color-filter"
@@ -89,35 +89,49 @@
               data-mobile-filter-close
               aria-label="Закрыть список цветов">&times;</button>
     </header>
+    <p class="mobile-filter-dialog__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите выбранный цвет, чтобы убрать его.</p>
     <ul class="mobile-filter-dialog__list">
       <li>
-        {% if not col %}
+        {% if not selected_color_slugs %}
           <span class="mobile-filter-dialog__item is-selected" aria-current="page">
             <span>Все цвета</span>
             <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
           </span>
         {% else %}
           <a class="mobile-filter-dialog__item"
-             href="{% if cat_name == title %}{% url 'skinali' %}{% else %}{{ cat_name.get_absolute_url }}{% endif %}">Все цвета</a>
+             href="{{ color_reset_url }}">Все цвета</a>
         {% endif %}
       </li>
-      {% for p in color_list %}
+      {% for option in color_options %}
         <li>
-          {% if p.slug_color == col %}
-            <span class="mobile-filter-dialog__item is-selected" aria-current="page">
+          {% if option.is_selected %}
+            <a class="mobile-filter-dialog__item is-selected"
+               href="{{ option.toggle_url }}"
+               aria-label="Убрать цвет: {{ option.color }}">
               <span class="mobile-filter-dialog__color-name">
-                <span class="mobile-filter-dialog__swatch" style="background-color: {{ p.slug_color }};" aria-hidden="true"></span>
-                <span>{{ p.color }}</span>
+                <span class="mobile-filter-dialog__swatch" style="background-color: {{ option.color.slug_color }};" aria-hidden="true"></span>
+                <span>{{ option.color }}</span>
               </span>
               <span class="mobile-filter-dialog__check" aria-hidden="true">&#10003;</span>
-            </span>
-          {% else %}
-            <a class="mobile-filter-dialog__item" href="?color={{ p.slug_color }}">
+            </a>
+          {% elif option.can_toggle %}
+            <a class="mobile-filter-dialog__item"
+               href="{{ option.toggle_url }}"
+               aria-label="Добавить цвет: {{ option.color }}">
               <span class="mobile-filter-dialog__color-name">
-                <span class="mobile-filter-dialog__swatch" style="background-color: {{ p.slug_color }};" aria-hidden="true"></span>
-                <span>{{ p.color }}</span>
+                <span class="mobile-filter-dialog__swatch" style="background-color: {{ option.color.slug_color }};" aria-hidden="true"></span>
+                <span>{{ option.color }}</span>
               </span>
             </a>
+          {% else %}
+            <span class="mobile-filter-dialog__item is-disabled"
+                  aria-disabled="true"
+                  aria-label="Сначала уберите один из выбранных цветов">
+              <span class="mobile-filter-dialog__color-name">
+                <span class="mobile-filter-dialog__swatch" style="background-color: {{ option.color.slug_color }};" aria-hidden="true"></span>
+                <span>{{ option.color }}</span>
+              </span>
+            </span>
           {% endif %}
         </li>
       {% endfor %}
@@ -125,49 +139,50 @@
   </div>
 </dialog>
 
-{% include 'pict/includes/category_navigation.html' with categories=list_cat selected_category=selected_category color_slug=col %}
-<nav class="list-pages-color">
+{% include 'pict/includes/category_navigation.html' with categories=list_cat selected_category=selected_category color_query=color_query %}
+<nav class="list-pages-color" aria-label="Фильтр по цвету">
+  <p class="color-filter__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите выбранный цвет, чтобы убрать его.</p>
   <div class="color-filter__row">
     <ul class="color-filter__options">
-        {% for p in color_list %}
-          {% if p.slug_color == col %}
-            <li class="page-num color-option color-option--selected"
-                style="background-color: {{ p.slug_color }};"
-                aria-current="true">
-                <span class="color-option__selected-mark" aria-hidden="true"></span>
-                <p class="color-description">{{ p.color }}</p>
+        {% for option in color_options %}
+          {% if option.is_selected %}
+            <li class="page-num color-option color-option--selected">
+                <a class="color-option__link color-option__link--selected"
+                   href="{{ option.toggle_url }}"
+                   style="background-color: {{ option.color.slug_color }};"
+                   aria-label="Убрать цвет: {{ option.color }}">
+                  <span class="color-option__selected-mark" aria-hidden="true"></span>
+                </a>
+                <p class="color-description">{{ option.color }}</p>
             </li>
-
-          {% else %}
+          {% elif option.can_toggle %}
             <li class="page-num color-option">
                 <a class="color-option__link"
-                   href="?color={{ p.slug_color }}"
-                   style="background-color: {{ p.slug_color }};"
-                   aria-label="Выбрать цвет: {{ p.color }}"></a>
-                <p class="color-description">{{ p.color }}</p>
+                   href="{{ option.toggle_url }}"
+                   style="background-color: {{ option.color.slug_color }};"
+                   aria-label="Добавить цвет: {{ option.color }}"></a>
+                <p class="color-description">{{ option.color }}</p>
             </li>
-
+          {% else %}
+            <li class="page-num color-option color-option--disabled">
+                <span class="color-option__link color-option__link--disabled"
+                      style="background-color: {{ option.color.slug_color }};"
+                      aria-disabled="true"
+                      aria-label="Сначала уберите один из выбранных цветов"></span>
+                <p class="color-description">{{ option.color }}</p>
+            </li>
           {% endif %}
         {% endfor %}
     </ul>
-    {% if not col %}
+    {% if not selected_color_slugs %}
         <div class="list-all">Все цвета</div>
     {% else %}
-        {% if cat_name == title %}
-            <div class="list-all">
-                <a class="list-all__reset" href="{% url 'skinali' %}">
-                    <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
-                    Сбросить цвет
-                </a>
-            </div>
-        {% else %}
-            <div class="list-all">
-                <a class="list-all__reset" href="{{ cat_name.get_absolute_url }}">
-                    <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
-                    Сбросить цвет
-                </a>
-            </div>
-        {% endif %}
+        <div class="list-all">
+            <a class="list-all__reset" href="{{ color_reset_url }}">
+                <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
+                Сбросить цвета
+            </a>
+        </div>
     {% endif %}
   </div>
 </nav>

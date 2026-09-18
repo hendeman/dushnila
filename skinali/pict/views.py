@@ -25,9 +25,12 @@ from .search import (
     format_image_count,
 )
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
-CONTACT_SUCCESS_MESSAGE = 'Спасибо! Мы получили заявку и скоро свяжемся с вами'
-IMAGE_PURCHASE_SUCCESS_MESSAGE = 'Спасибо! Заявка на покупку изображения принята'
+CONTACT_SUCCESS_MESSAGE = (
+    'Спасибо! Заявка отправлена.\n'
+    'Скоро мы с Вами свяжемся😊'
+)
 CATALOG_PAGE_SIZE = 30
+MAX_CATALOG_COLORS = 3
 CONTACT_FORM_CLASSES = {
     CallbackContactForm.form_kind: CallbackContactForm,
     QuestionContactForm.form_kind: QuestionContactForm,
@@ -242,6 +245,36 @@ class SkinaliMix(FavoritesContextMixin, ListView):
     def filter_catalog_queryset(self, queryset):
         return queryset
 
+    def get_selected_color_slugs(self):
+        if not hasattr(self, 'selected_color_slugs'):
+            selected_slugs = []
+            for raw_slug in self.request.GET.getlist('color'):
+                slug = raw_slug.strip()
+                if slug and slug not in selected_slugs:
+                    selected_slugs.append(slug)
+                if len(selected_slugs) == MAX_CATALOG_COLORS:
+                    break
+            self.selected_color_slugs = tuple(selected_slugs)
+        return self.selected_color_slugs
+
+    def filter_queryset_by_selected_colors(self, queryset):
+        # Последовательные M2M-фильтры создают отдельное соединение для каждого
+        # цвета: изображение обязано иметь все выбранные цвета одновременно.
+        for color_slug in self.get_selected_color_slugs():
+            queryset = queryset.filter(color__slug_color=color_slug)
+        return queryset
+
+    @staticmethod
+    def build_color_query(color_slugs):
+        return urlencode([('color', color_slug) for color_slug in color_slugs])
+
+    def build_color_url(self, color_slugs):
+        color_query = self.build_color_query(color_slugs)
+        return (
+            f'{self.request.path}?{color_query}'
+            if color_query else self.request.path
+        )
+
     def get_route_category(self):
         category_slug = self.kwargs.get('slug_cat')
         if not category_slug:
@@ -281,7 +314,9 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         is_search = self.is_search_requested()
         search_form = self.get_search_form()
         search_is_valid = is_search and search_form.is_valid()
-        get_color = None if is_search else self.request.GET.get('color')
+        selected_color_slugs = (
+            () if is_search else self.get_selected_color_slugs()
+        )
         route_category = self.get_route_category()
         selected_category = None if is_search else route_category
         context['title'] = 'Результаты поиска' if is_search else 'Каталог скинали'
@@ -301,8 +336,52 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         context['search_form'] = search_form
         context['is_search'] = is_search
         context['search_is_valid'] = search_is_valid
-        context['col'] = get_color if get_color else ""
-        context['color_list'] = Color.objects.none() if is_search else Color.objects.all()
+        color_list = [] if is_search else list(Color.objects.all())
+        color_by_slug = {color.slug_color: color for color in color_list}
+        selected_colors = tuple(
+            color_by_slug[color_slug]
+            for color_slug in selected_color_slugs
+            if color_slug in color_by_slug
+        )
+        selected_color_set = set(selected_color_slugs)
+        color_options = []
+        for color in color_list:
+            is_selected = color.slug_color in selected_color_set
+            if is_selected:
+                target_slugs = tuple(
+                    color_slug for color_slug in selected_color_slugs
+                    if color_slug != color.slug_color
+                )
+                toggle_url = self.build_color_url(target_slugs)
+                can_toggle = True
+            elif len(selected_color_slugs) < MAX_CATALOG_COLORS:
+                target_slugs = selected_color_slugs + (color.slug_color,)
+                toggle_url = self.build_color_url(target_slugs)
+                can_toggle = True
+            else:
+                toggle_url = ''
+                can_toggle = False
+            color_options.append({
+                'color': color,
+                'is_selected': is_selected,
+                'can_toggle': can_toggle,
+                'toggle_url': toggle_url,
+            })
+
+        color_query = self.build_color_query(selected_color_slugs)
+        context['col'] = (
+            selected_color_slugs[0] if len(selected_color_slugs) == 1 else ''
+        )
+        context['color_list'] = color_list
+        context['color_options'] = color_options
+        context['selected_color_slugs'] = selected_color_slugs
+        context['selected_colors'] = selected_colors
+        context['selected_color_names'] = ', '.join(
+            str(color) for color in selected_colors
+        )
+        context['color_query'] = color_query
+        context['color_reset_url'] = self.request.path
+        context['max_catalog_colors'] = MAX_CATALOG_COLORS
         context['list_cat'] = (
             Category.objects.none()
             if is_search else self.get_catalog_categories()
@@ -322,18 +401,15 @@ class SkinaliMix(FavoritesContextMixin, ListView):
             context['search_terms'] = self.get_search_term_links(parsed_query.terms)
         else:
             context['search_query'] = self.request.GET.get(SEARCH_QUERY_PARAMETER, '')
-            context['col_tag'] = f"&color={get_color}" if get_color else ""
+            context['col_tag'] = f'&{color_query}' if color_query else ''
             context['search_result_count'] = 0
             context['search_terms'] = ()
 
-        context['col_ru'] = (
-            Color.objects.filter(slug_color=context['col']).first()
-            if context['col'] else ''
-        )
+        context['col_ru'] = selected_colors[0] if len(selected_colors) == 1 else ''
 
         result_count = context['paginator'].count
         is_empty_category = bool(selected_category) and result_count == 0
-        noindex = is_search or bool(get_color) or is_empty_category
+        noindex = is_search or bool(selected_color_slugs) or is_empty_category
         if selected_category:
             category_name = str(selected_category)
             canonical_path = selected_category.get_absolute_url()
@@ -408,9 +484,7 @@ class SkinaliMix(FavoritesContextMixin, ListView):
 class SkinaliAll(SkinaliMix):
 
     def filter_catalog_queryset(self, queryset):
-        if self.request.GET.get('color'):
-            return queryset.filter(color__slug_color=self.request.GET.get('color'))
-        return queryset
+        return self.filter_queryset_by_selected_colors(queryset)
 
 
 class PictDetail(FavoritesContextMixin, DetailView):
@@ -450,12 +524,8 @@ class PictDetail(FavoritesContextMixin, DetailView):
 class SkinaliSlug(SkinaliMix):
 
     def filter_catalog_queryset(self, queryset):
-        if self.request.GET.get('color'):
-            return queryset.filter(
-                color__slug_color=self.request.GET.get('color'),
-                cat=self.get_route_category(),
-            )
-        return queryset.filter(cat=self.get_route_category())
+        queryset = queryset.filter(cat=self.get_route_category())
+        return self.filter_queryset_by_selected_colors(queryset)
 
 
 class PictTag(FavoritesContextMixin, ListView):
@@ -713,23 +783,18 @@ def serialize_form_errors(form):
     }
 
 
-def contact_success_response(request, *, form_kind=''):
-    success_message = (
-        IMAGE_PURCHASE_SUCCESS_MESSAGE
-        if form_kind == ContactRequest.RequestType.IMAGE_PURCHASE
-        else CONTACT_SUCCESS_MESSAGE
-    )
+def contact_success_response(request):
     if is_ajax_request(request):
         return JsonResponse({
             'ok': True,
-            'message': success_message,
+            'message': CONTACT_SUCCESS_MESSAGE,
         })
 
     return render(request, 'pict/contact_form_result.html', {
         'title': 'Заявка отправлена',
         'favorites_count': len(get_favorite_ids(request)),
         'submission_success': True,
-        'success_message': success_message,
+        'success_message': CONTACT_SUCCESS_MESSAGE,
         'suppress_callback_dialog': True,
     })
 
@@ -750,7 +815,7 @@ def submit_contact_form(request):
 
     # Для honeypot и подозрительного возраста ответ не отличается от успешного.
     if form.is_suspicious_submission():
-        return contact_success_response(request, form_kind=form_kind)
+        return contact_success_response(request)
 
     if form.is_valid():
         # Сначала надежно фиксируем заявку; внешняя доставка будет отдельным сервисом.
@@ -773,7 +838,7 @@ def submit_contact_form(request):
                 contact_request=contact_request,
                 channel=ContactRequestDelivery.Channel.TELEGRAM,
             )
-        return contact_success_response(request, form_kind=form_kind)
+        return contact_success_response(request)
 
     if is_ajax_request(request):
         return JsonResponse({

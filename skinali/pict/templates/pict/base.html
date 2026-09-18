@@ -109,21 +109,15 @@
 </dialog>
 {% endif %}
 
-<dialog class="contact-dialog contact-dialog--success"
-        id="contact-success-dialog"
-        aria-labelledby="contact-success-title">
-    <div class="contact-dialog__panel">
-        <button class="contact-dialog__close"
-                type="button"
-                data-contact-dialog-close
-                aria-label="Закрыть сообщение">&times;</button>
-        <h2 id="contact-success-title">Заявка принята</h2>
-        <p data-contact-success-message>Спасибо! Мы получили заявку и скоро свяжемся с вами</p>
-        <button class="contact-dialog__success-close"
-                type="button"
-                data-contact-dialog-close>Закрыть</button>
-    </div>
-</dialog>
+<div class="contact-toast"
+     id="contact-success-toast"
+     data-contact-success-toast
+     role="status"
+     aria-live="polite"
+     aria-atomic="true"
+     hidden>
+    <div class="contact-toast__message" data-contact-success-message></div>
+</div>
 
 <main class="site-main">
 <div class="site-content">
@@ -303,6 +297,10 @@
       }
 
       function prepareGallerySlide(fancybox, slide) {
+        if (!slide) {
+          return;
+        }
+
         const hasSlideCaption = Boolean(slide.captionEl);
         if (!hasSlideCaption && !fancybox.isCurrentSlide(slide)) {
           return;

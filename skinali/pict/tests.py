@@ -125,6 +125,9 @@ class PopularTagsTests(TestCase):
         cls.first_category = Category.objects.create(cat='Первая', slug='first')
         cls.second_category = Category.objects.create(cat='Вторая', slug='second')
         cls.selected_color = Color.objects.create(color='Красный', slug_color='red')
+        cls.second_color = Color.objects.create(color='Синий', slug_color='blue')
+        cls.third_color = Color.objects.create(color='Зелёный', slug_color='green')
+        cls.fourth_color = Color.objects.create(color='Жёлтый', slug_color='yellow')
 
         cls.first_tag = TagPict.objects.create(tag='Первый тег', slug='first-tag')
         cls.second_tag = TagPict.objects.create(tag='Второй тег', slug='second-tag')
@@ -132,6 +135,19 @@ class PopularTagsTests(TestCase):
 
         first_category_pictures = cls.create_pictures(cls.first_category, 100, 3)
         second_category_pictures = cls.create_pictures(cls.second_category, 200, 3)
+        first_category_pictures[0].color.add(
+            cls.selected_color,
+            cls.second_color,
+            cls.third_color,
+        )
+        first_category_pictures[1].color.add(
+            cls.selected_color,
+            cls.second_color,
+        )
+        first_category_pictures[2].color.add(
+            cls.selected_color,
+            cls.third_color,
+        )
 
         cls.first_tag.tags.add(*first_category_pictures)
         cls.second_tag.tags.add(*second_category_pictures)
@@ -191,6 +207,7 @@ class PopularTagsTests(TestCase):
             html=True,
         )
         self.assertContains(response, 'class="catalog-modal__title"')
+        self.assertNotContains(response, 'class="catalog-modal__image-number"')
         self.assertContains(response, 'Описание изображения 100')
         self.assertContains(response, '<span>#Первый тег</span>', html=True)
         self.assertContains(response, '<dd>№100</dd>', html=True)
@@ -518,12 +535,92 @@ class PopularTagsTests(TestCase):
             response,
             'class="list-all__reset-icon" aria-hidden="true">&times;</span>',
         )
-        self.assertContains(response, 'Сбросить цвет')
-        self.assertNotContains(response, 'сброс цветов')
+        self.assertContains(response, 'Сбросить цвета')
         self.assertNotContains(
             response,
             'class="page-num page-num-selected" style="background-color: red;"',
         )
+
+    def test_multiple_colors_use_strict_and_filter_and_preserve_query(self):
+        response = self.client.get(
+            self.first_category.get_absolute_url(),
+            [
+                ('color', self.selected_color.slug_color),
+                ('color', self.second_color.slug_color),
+            ],
+        )
+
+        self.assertEqual(
+            {picture.name for picture in response.context['object_list']},
+            {100, 101},
+        )
+        self.assertEqual(
+            response.context['selected_color_slugs'],
+            ('red', 'blue'),
+        )
+        self.assertContains(response, 'Выбранные цвета: Красный, Синий')
+        self.assertContains(
+            response,
+            (
+                f'<a href="{self.second_category.get_absolute_url()}'
+                '?color=red&amp;color=blue">Вторая</a>'
+            ),
+            html=True,
+        )
+
+    def test_selected_color_links_remove_only_clicked_color(self):
+        response = self.client.get(
+            self.first_category.get_absolute_url(),
+            [
+                ('color', self.selected_color.slug_color),
+                ('color', self.second_color.slug_color),
+            ],
+        )
+
+        remove_url = f'{self.first_category.get_absolute_url()}?color=blue'
+        add_url = (
+            f'{self.first_category.get_absolute_url()}'
+            '?color=red&amp;color=blue&amp;color=green'
+        )
+        self.assertContains(response, f'href="{remove_url}"', count=2)
+        self.assertContains(
+            response,
+            'aria-label="Убрать цвет: Красный"',
+            count=2,
+        )
+        self.assertContains(
+            response,
+            'class="mobile-filter-dialog__item is-selected"',
+        )
+        self.assertContains(response, f'href="{add_url}"', count=2)
+        self.assertContains(
+            response,
+            'aria-label="Добавить цвет: Зелёный"',
+            count=2,
+        )
+
+    def test_color_selection_is_limited_to_three(self):
+        response = self.client.get(
+            self.first_category.get_absolute_url(),
+            [
+                ('color', self.selected_color.slug_color),
+                ('color', self.second_color.slug_color),
+                ('color', self.third_color.slug_color),
+                ('color', self.fourth_color.slug_color),
+            ],
+        )
+
+        self.assertEqual(
+            response.context['selected_color_slugs'],
+            ('red', 'blue', 'green'),
+        )
+        self.assertEqual(
+            [picture.name for picture in response.context['object_list']],
+            [100],
+        )
+        self.assertContains(response, 'color-option color-option--disabled')
+        self.assertContains(response, 'mobile-filter-dialog__item is-disabled')
+        self.assertNotContains(response, 'color=yellow')
 
     def test_category_links_have_no_color_parameter_when_color_is_not_selected(self):
         response = self.client.get(
@@ -2253,6 +2350,14 @@ class ContactFormSubmissionTests(TestCase):
     def test_menu_modal_and_contact_page_question_form_use_shared_markup(self):
         home_response = self.client.get(reverse('home'))
         contact_response = self.client.get(reverse('about'))
+        contact_script = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/js/contact-forms.js',
+        ).read_text(encoding='utf-8')
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         self.assertContains(home_response, 'class="mainmenu__callback-button"')
         self.assertContains(home_response, 'Перезвоните мне')
@@ -2263,7 +2368,24 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(home_response, 'data-image-purchase-pict')
         self.assertContains(home_response, 'name="image_purchase-email"')
         self.assertContains(home_response, 'maxlength="50"')
-        self.assertContains(home_response, 'id="contact-success-dialog"')
+        self.assertNotContains(home_response, 'id="contact-success-dialog"')
+        self.assertContains(home_response, 'id="contact-success-toast"')
+        self.assertContains(home_response, 'data-contact-success-toast')
+        self.assertContains(home_response, 'role="status"')
+        self.assertContains(home_response, 'aria-live="polite"')
+        self.assertContains(home_response, 'data-contact-success-message')
+        self.assertIn("split(/\\r?\\n/)", contact_script)
+        self.assertIn('showSuccessToast(result.message);', contact_script)
+        self.assertIn('parentDialog.close();', contact_script)
+        self.assertIn('}, 2000);', contact_script)
+        self.assertIn('.contact-toast {', styles)
+        self.assertIn('.contact-toast.is-visible {', styles)
+        self.assertIn('width: fit-content;', styles)
+        self.assertIn('border: 6px double #6f8a68;', styles)
+        self.assertIn('background: #fff;', styles)
+        self.assertIn('.contact-toast::before {', styles)
+        self.assertIn('content: "✓";', styles)
+        self.assertNotContains(home_response, 'contact-toast__close')
         self.assertContains(
             home_response,
             'src="/static/skinali/js/contact-forms.js"',
@@ -2290,7 +2412,10 @@ class ContactFormSubmissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             'ok': True,
-            'message': 'Спасибо! Мы получили заявку и скоро свяжемся с вами',
+            'message': (
+                'Спасибо! Заявка отправлена.\n'
+                'Скоро мы с Вами свяжемся😊'
+            ),
         })
         request = ContactRequest.objects.get()
         self.assertEqual(request.request_type, ContactRequest.RequestType.CALLBACK)
@@ -2362,7 +2487,10 @@ class ContactFormSubmissionTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {
             'ok': True,
-            'message': 'Спасибо! Заявка на покупку изображения принята',
+            'message': (
+                'Спасибо! Заявка отправлена.\n'
+                'Скоро мы с Вами свяжемся😊'
+            ),
         })
         request = ContactRequest.objects.get()
         self.assertEqual(
@@ -3090,6 +3218,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
         self.assertContains(response, 'class="catalog-modal__title"')
+        self.assertNotContains(response, 'class="catalog-modal__image-number"')
         self.assertContains(response, 'class="catalog-modal__favorite is-active"')
         self.assertContains(response, 'class="catalog-modal__purchase"')
         self.assertContains(response, 'data-image-purchase-open')
@@ -3132,6 +3261,10 @@ class SessionFavoritesTests(TestCase):
 
         response = self.client.get(reverse('skinali'))
         response_html = response.content.decode()
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         self.assertNotContains(response, 'data-favorites-menu hidden')
         self.assertContains(
@@ -3160,6 +3293,11 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'showClass: false')
         self.assertContains(response, 'zoom: false')
         self.assertContains(response, "content.classList.add('is-catalog-ready')")
+        self.assertIn(
+            '.catalog-gallery-modal .fancybox__slide:not(.is-selected) '
+            '> .fancybox__content',
+            styles,
+        )
         self.assertContains(response, 'enableCatalogCaptionSelection(caption)')
         self.assertContains(response, "caption.addEventListener('mousedown', stopImageNavigation)")
         self.assertContains(response, "event.target.closest('[data-clickable]')")
@@ -3177,6 +3315,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
         self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")
         self.assertContains(response, 'slide.captionEl || fancybox.caption')
+        self.assertContains(response, 'if (!slide)')
         self.assertContains(response, 'reveal: (fancybox, slide)')
         self.assertContains(response, "'Carousel.selectSlide': (fancybox, carousel, slide)")
         self.assertContains(response, '!fancybox.isCurrentSlide(slide)')

@@ -4,8 +4,10 @@
   const purchaseForm = purchaseDialog?.querySelector('[data-contact-form]');
   const purchaseNumber = purchaseDialog?.querySelector('[data-image-purchase-number]');
   const purchasePictInput = purchaseForm?.querySelector('[data-image-purchase-pict]');
-  const successDialog = document.getElementById('contact-success-dialog');
-  const successMessage = successDialog?.querySelector('[data-contact-success-message]');
+  const successToast = document.querySelector('[data-contact-success-toast]');
+  const successMessage = successToast?.querySelector('[data-contact-success-message]');
+  let successToastTimer = null;
+  let successToastTransitionTimer = null;
 
   function openDialog(dialog) {
     if (!dialog || dialog.open) {
@@ -19,6 +21,36 @@
     if (dialog?.open) {
       dialog.close();
     }
+  }
+
+  function showSuccessToast(message) {
+    if (!successToast || !successMessage) {
+      return;
+    }
+
+    window.clearTimeout(successToastTimer);
+    window.clearTimeout(successToastTransitionTimer);
+
+    const messageLines = String(message || '').split(/\r?\n/).filter(Boolean);
+    successMessage.replaceChildren(...messageLines.map((line) => {
+      const span = document.createElement('span');
+      span.textContent = line;
+      return span;
+    }));
+
+    successToast.hidden = false;
+    window.requestAnimationFrame(() => {
+      successToast.classList.add('is-visible');
+    });
+
+    successToastTimer = window.setTimeout(() => {
+      successToast.classList.remove('is-visible');
+      successToastTransitionTimer = window.setTimeout(() => {
+        if (!successToast.classList.contains('is-visible')) {
+          successToast.hidden = true;
+        }
+      }, 180);
+    }, 2000);
   }
 
   function getErrorBox(form, fieldName) {
@@ -155,18 +187,10 @@
         clearAllErrors(form);
 
         const parentDialog = form.closest('dialog');
-        const isImagePurchase = parentDialog === purchaseDialog;
         if (parentDialog?.open) {
           parentDialog.close();
         }
-        if (successMessage) {
-          successMessage.textContent = result.message;
-        }
-        successDialog?.classList.toggle(
-          'contact-dialog--over-gallery',
-          isImagePurchase
-        );
-        openDialog(successDialog);
+        showSuccessToast(result.message);
       } catch (error) {
         showFieldErrors(form, '__all__', [
           'Не удалось отправить форму. Проверьте соединение и попробуйте ещё раз.'
