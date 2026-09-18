@@ -244,6 +244,10 @@ class PopularTagsTests(TestCase):
 
     def test_all_catalog_keeps_global_counts_and_ten_tag_limit(self):
         response = self.client.get(reverse('skinali'))
+        mobile_filters_script = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/js/mobile-filters.js',
+        ).read_text(encoding='utf-8')
 
         tags = list(response.context['list_tag'])
         totals = [tag.total for tag in tags]
@@ -314,6 +318,14 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'id="mobile-color-filter"')
         self.assertContains(response, 'mobile-catalog-filters__chevron')
         self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
+        self.assertIn("'.catalog-categories a'", mobile_filters_script)
+        self.assertIn("'.list-pages-color a'", mobile_filters_script)
+        self.assertIn("'.mobile-filter-dialog a'", mobile_filters_script)
+        self.assertIn('window.sessionStorage.setItem', mobile_filters_script)
+        self.assertIn(
+            'window.scrollTo(savedScroll.left, savedScroll.top);',
+            mobile_filters_script,
+        )
         self.assertNotContains(response, '?v=')
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
@@ -2385,6 +2397,8 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('background: #fff;', styles)
         self.assertIn('.contact-toast::before {', styles)
         self.assertIn('content: "✓";', styles)
+        self.assertIn('.contact-toast__message span {', styles)
+        self.assertIn('white-space: nowrap;', styles)
         self.assertNotContains(home_response, 'contact-toast__close')
         self.assertContains(
             home_response,
@@ -2833,7 +2847,11 @@ class ContactDeliveryTests(TestCase):
             )
         )
         self.assertIn(
-            '📞 <b>Телефон:</b> +375 29 111-22-33',
+            '📞 +375 29 111-22-33',
+            request_payload['text'],
+        )
+        self.assertIn(
+            '❔ Когда можно выполнить замер?',
             request_payload['text'],
         )
         self.assertEqual(post.call_args.kwargs['timeout'], (3, 5))
@@ -2883,12 +2901,12 @@ class ContactDeliveryTests(TestCase):
             '— <b><i>Сообщение по email</i></b> —',
             message,
         )
-        self.assertIn('✉ <b>Email:</b> elena@example.com', message)
+        self.assertIn('✉ elena@example.com', message)
         self.assertIn(
-            '💬 <b>Комментарий:</b> Хочу уточнить стоимость.',
+            '💬 Хочу уточнить стоимость.',
             message,
         )
-        self.assertNotIn('<b>Телефон:</b>', message)
+        self.assertNotIn('📞', message)
 
     @patch('pict.services.contact_delivery.requests.Session')
     def test_image_purchase_message_contains_catalog_image_number(self, session_class):
@@ -2918,12 +2936,12 @@ class ContactDeliveryTests(TestCase):
             '— <b><i>Покупка изображения</i></b> —',
             message,
         )
-        self.assertIn('✉ <b>Email:</b> buyer@example.com', message)
+        self.assertIn('✉ buyer@example.com', message)
         self.assertIn(
-            '💬 <b>Комментарий:</b> Хочу купить оригинал.',
+            '💬 Хочу купить оригинал.',
             message,
         )
-        self.assertIn('🖼 <b>Изображение:</b> №127', message)
+        self.assertIn('🖼 №127', message)
 
     def test_callback_message_uses_pin_icon(self):
         contact_request = ContactRequest.objects.create(
@@ -2939,9 +2957,9 @@ class ContactDeliveryTests(TestCase):
             message,
             f'📌 <b>Новая заявка №{contact_request.pk}</b>\n'
             '— <b><i>Обратный звонок</i></b> —\n\n'
-            '👤 <b>Имя:</b> Иван\n'
-            '📞 <b>Телефон:</b> +7 999 123-45-67\n'
-            f'🕒 <b>Создана:</b> {created_at:%d.%m.%Y %H:%M}',
+            '👤 Иван\n'
+            '📞 +7 999 123-45-67\n'
+            f'🕒 {created_at:%d.%m.%Y %H:%M}',
         )
 
     def test_user_text_is_escaped_for_telegram_html(self):
@@ -3486,6 +3504,10 @@ class FinishedWorkTests(TestCase):
             settings.BASE_DIR,
             'pict/static/skinali/css/styles.css',
         ).read_text(encoding='utf-8')
+        mobile_filters_script = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/js/mobile-filters.js',
+        ).read_text(encoding='utf-8')
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['title'], 'Наши работы')
@@ -3501,6 +3523,9 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, 'Тип скинали')
         self.assertContains(response, 'Печать')
         self.assertContains(response, 'aria-label="Тип скинали"')
+        self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
+        self.assertIn("'.finished-work-types a'", mobile_filters_script)
+        self.assertIn('restoreScrollPosition();', mobile_filters_script)
         self.assertContains(
             response,
             '<li class="page-num page-num-selected" aria-current="page">'

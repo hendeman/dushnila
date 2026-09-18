@@ -88,32 +88,19 @@ def format_contact_request_message(contact_request):
         f'{request_icon} <b>Новая заявка №{contact_request.pk}</b>',
         f'— <b><i>{request_type}</i></b> —',
         '',
-        f'👤 <b>Имя:</b> {escape(contact_request.name, quote=False)}',
+        f'👤 {escape(contact_request.name, quote=False)}',
     ]
     if contact_request.phone:
-        lines.append(
-            f'📞 <b>Телефон:</b> '
-            f'{escape(contact_request.phone, quote=False)}'
-        )
+        lines.append(f'📞 {escape(contact_request.phone, quote=False)}')
     if contact_request.email:
-        lines.append(
-            f'✉ <b>Email:</b> {escape(contact_request.email, quote=False)}'
-        )
+        lines.append(f'✉ {escape(contact_request.email, quote=False)}')
     if contact_request.question:
-        lines.append(
-            f'❔ <b>Вопрос:</b> '
-            f'{escape(contact_request.question, quote=False)}'
-        )
+        lines.append(f'❔ {escape(contact_request.question, quote=False)}')
     if contact_request.comment:
-        lines.append(
-            f'💬 <b>Комментарий:</b> '
-            f'{escape(contact_request.comment, quote=False)}'
-        )
+        lines.append(f'💬 {escape(contact_request.comment, quote=False)}')
     if contact_request.image_number is not None:
-        lines.append(
-            f'🖼 <b>Изображение:</b> №{contact_request.image_number}'
-        )
-    lines.append(f'🕒 <b>Создана:</b> {created_at:%d.%m.%Y %H:%M}')
+        lines.append(f'🖼 №{contact_request.image_number}')
+    lines.append(f'🕒 {created_at:%d.%m.%Y %H:%M}')
     return '\n'.join(lines)
 
 

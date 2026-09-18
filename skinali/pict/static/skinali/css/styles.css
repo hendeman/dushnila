@@ -1232,6 +1232,10 @@ ul.mainmenu li a:focus-visible {
 	line-height: 1.35;
 }
 
+.contact-toast__message span {
+	white-space: nowrap;
+}
+
 .contact-toast__message span:first-child {
 	font-weight: 700;
 }
@@ -3502,7 +3506,13 @@ background-color: coral;
 		left: 50%;
 		width: fit-content;
 		max-width: calc(100vw - 24px);
+		padding: 14px 16px;
 		transform: translate(-50%, -12px);
+	}
+
+	.contact-toast::before {
+		margin-right: 12px;
+		font-size: 30px;
 	}
 
 	.contact-toast.is-visible {
@@ -4211,4 +4221,20 @@ background-color: coral;
 		font-size: 16px;
 	}
 
+}
+
+@media (max-width: 360px) {
+	.contact-toast {
+		max-width: calc(100vw - 16px);
+		padding: 12px 10px;
+	}
+
+	.contact-toast::before {
+		margin-right: 8px;
+		font-size: 26px;
+	}
+
+	.contact-toast__message {
+		font-size: 14px;
+	}
 }
