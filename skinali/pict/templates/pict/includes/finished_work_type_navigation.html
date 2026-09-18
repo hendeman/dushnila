@@ -1,0 +1,19 @@
+<nav class="list-pages catalog-categories finished-work-types"
+     aria-label="Тип скинали">
+  <div class="finished-work-types__content">
+    <span class="finished-work-types__label">Тип скинали:</span>
+    <ul>
+      {% for option in skinali_type_options %}
+        {% if option.value == selected_skinali_type %}
+          <li class="page-num page-num-selected" aria-current="page">
+            {{ option.label }}
+          </li>
+        {% else %}
+          <li class="page-num">
+            <a href="{{ option.url }}">{{ option.label }}</a>
+          </li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+  </div>
+</nav>
