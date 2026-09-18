@@ -1,5 +1,6 @@
 import logging
 from datetime import timedelta
+from html import escape
 from urllib.parse import urlparse
 
 import requests
@@ -7,7 +8,7 @@ from django.conf import settings
 from django.db.models import F, Q
 from django.utils import timezone
 
-from pict.models import ContactRequestDelivery
+from pict.models import ContactRequest, ContactRequestDelivery
 
 
 logger = logging.getLogger(__name__)
@@ -15,6 +16,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_PROCESSING_TIMEOUT_SECONDS = 10 * 60
 RETRY_DELAYS_SECONDS = (60, 5 * 60, 15 * 60, 60 * 60)
+TELEGRAM_REQUEST_ICON_BY_TYPE = {
+    ContactRequest.RequestType.CALLBACK: '📌',
+    ContactRequest.RequestType.QUESTION: '❔',
+    ContactRequest.RequestType.EMAIL_MESSAGE: '✉',
+    ContactRequest.RequestType.IMAGE_PURCHASE: '💲',
+}
 
 
 class TelegramConfigurationError(Exception):
@@ -72,22 +79,41 @@ def get_telegram_configuration():
 
 def format_contact_request_message(contact_request):
     created_at = timezone.localtime(contact_request.created_at)
+    request_icon = TELEGRAM_REQUEST_ICON_BY_TYPE.get(
+        contact_request.request_type,
+        '📨',
+    )
+    request_type = escape(contact_request.get_request_type_display(), quote=False)
     lines = [
-        f'Новая заявка № {contact_request.pk}',
-        f'Тип: {contact_request.get_request_type_display()}',
-        f'Имя: {contact_request.name}',
+        f'{request_icon} <b>Новая заявка №{contact_request.pk}</b>',
+        f'— <b><i>{request_type}</i></b> —',
+        '',
+        f'👤 <b>Имя:</b> {escape(contact_request.name, quote=False)}',
     ]
     if contact_request.phone:
-        lines.append(f'Телефон: {contact_request.phone}')
+        lines.append(
+            f'📞 <b>Телефон:</b> '
+            f'{escape(contact_request.phone, quote=False)}'
+        )
     if contact_request.email:
-        lines.append(f'Email: {contact_request.email}')
+        lines.append(
+            f'✉ <b>Email:</b> {escape(contact_request.email, quote=False)}'
+        )
     if contact_request.question:
-        lines.append(f'Вопрос: {contact_request.question}')
+        lines.append(
+            f'❔ <b>Вопрос:</b> '
+            f'{escape(contact_request.question, quote=False)}'
+        )
     if contact_request.comment:
-        lines.append(f'Комментарий: {contact_request.comment}')
+        lines.append(
+            f'💬 <b>Комментарий:</b> '
+            f'{escape(contact_request.comment, quote=False)}'
+        )
     if contact_request.image_number is not None:
-        lines.append(f'Изображение: №{contact_request.image_number}')
-    lines.append(f'Создана: {created_at:%d.%m.%Y %H:%M}')
+        lines.append(
+            f'🖼 <b>Изображение:</b> №{contact_request.image_number}'
+        )
+    lines.append(f'🕒 <b>Создана:</b> {created_at:%d.%m.%Y %H:%M}')
     return '\n'.join(lines)
 
 
@@ -99,7 +125,7 @@ def send_telegram_message(
     timeout,
     proxy_url='',
 ):
-    """Отправляет обычный текст без parse_mode и возвращает ID сообщения."""
+    """Отправляет HTML-сообщение и возвращает его Telegram ID."""
     url = f'https://api.telegram.org/bot{token}/sendMessage'
     proxies = None
     if proxy_url:
@@ -114,6 +140,7 @@ def send_telegram_message(
             json={
                 'chat_id': chat_id,
                 'text': format_contact_request_message(contact_request),
+                'parse_mode': 'HTML',
             },
             timeout=timeout,
             proxies=proxies,

@@ -1179,6 +1179,12 @@ ul.mainmenu li a:focus-visible {
 	background: #5d7757;
 }
 
+.contact-dialog__success-close {
+	display: flex;
+	width: fit-content;
+	margin-inline: auto;
+}
+
 .contact-form__submit:disabled {
 	cursor: wait;
 	opacity: .62;
@@ -1769,11 +1775,17 @@ ul.mainmenu li a:focus-visible {
 
 .catalog-thumbnail__image-number {
 	position: absolute;
-	top: 6px;
-	left: 6px;
+	top: 0;
+	bottom: 0;
+	left: 0;
 	z-index: 2;
-	padding: 5px 9px;
-	border-radius: 999px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: calc(1em + 18px);
+	padding: 0 9px;
+	border-radius: 3px 0 0 3px;
 	color: #fff;
 	background: rgba(31, 35, 31, .82);
 	font-size: 11px;
@@ -1782,30 +1794,11 @@ ul.mainmenu li a:focus-visible {
 	pointer-events: none;
 }
 
-.catalog-detail-link {
-	position: absolute;
-	right: 7px;
-	bottom: 6px;
-	z-index: 2;
-	display: inline-flex;
-	align-items: center;
-	min-height: 24px;
-	padding: 0 10px;
-	border-radius: 999px;
-	color: #1f231f;
-	background: rgba(251, 250, 246, .92);
-	font-size: 11px;
-	font-weight: 700;
-	line-height: 1;
-	text-decoration: none;
-	transition: background .16s;
+.catalog-thumbnail__image-number-text {
+	display: block;
+	white-space: nowrap;
+	transform: rotate(-90deg);
 }
-
-.catalog-detail-link:hover,
-.catalog-detail-link:focus-visible {
-	background: #d7ef50;
-}
-
 .image-detail {
 	max-width: 1180px;
 	margin: 0 auto;
@@ -1919,6 +1912,7 @@ ul.mainmenu li a:focus-visible {
 
 .image-detail__purchase,
 .image-detail__favorite,
+.catalog-modal__favorite,
 .catalog-modal__detail {
 	display: inline-flex;
 	align-items: center;
@@ -1948,6 +1942,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 .image-detail__favorite,
+.catalog-modal__favorite,
 .catalog-modal__detail {
 	border: 1px solid #9ba29c;
 	color: #343a35;
@@ -1957,6 +1952,8 @@ ul.mainmenu li a:focus-visible {
 .image-detail__favorite:hover,
 .image-detail__favorite:focus-visible,
 .image-detail__favorite.is-active,
+.catalog-modal__favorite:hover,
+.catalog-modal__favorite:focus-visible,
 .catalog-modal__detail:hover,
 .catalog-modal__detail:focus-visible {
 	border-color: #b9d039;
@@ -1980,8 +1977,8 @@ ul.mainmenu li a:focus-visible {
 
 .catalog-favorite-toggle {
 	position: absolute;
-	top: 6px;
-	right: 6px;
+	top: 0;
+	right: 0;
 	z-index: 2;
 	display: inline-flex;
 	align-items: center;
@@ -1991,15 +1988,15 @@ ul.mainmenu li a:focus-visible {
 	height: 30px;
 	padding: 5px;
 	border: 0;
-	border-radius: 50%;
+	border-radius: 0 3px 0 3px;
 	background: rgba(255, 255, 255, 0.88);
-	box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
 	cursor: pointer;
+	transition: background .16s;
 }
 
 .catalog-favorite-toggle:hover,
 .catalog-favorite-toggle:focus-visible {
-	background: #fff;
+	background: #f2f2f2;
 }
 
 .catalog-favorite-toggle:disabled {
@@ -2553,35 +2550,22 @@ background-color: coral;
 
 .catalog-modal__actions {
 	display: flex;
-	align-items: flex-end;
+	align-items: center;
+	justify-content: center;
 	margin-top: auto;
 	gap: 12px;
 	flex-wrap: wrap;
 	pointer-events: auto;
 }
 
-.catalog-modal__detail {
+.catalog-modal__detail,
+.catalog-modal__favorite {
 	min-height: 44px;
 }
 
 .catalog-modal__favorite {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	box-sizing: border-box;
 	min-width: 210px;
-	min-height: 44px;
-	padding: 9px 20px;
 	gap: 9px;
-	border: 1px solid transparent;
-	border-radius: 999px;
-	color: #1f231f;
-	background: transparent;
-	cursor: pointer;
-	font: inherit;
-	font-size: 14px;
-	font-weight: 650;
-	transition: color .16s, background .16s, border-color .16s;
 }
 
 .catalog-modal__favorite::before {
@@ -2589,12 +2573,6 @@ background-color: coral;
 	font-size: 19px;
 	font-weight: 400;
 	line-height: 1;
-}
-
-.catalog-modal__favorite:hover,
-.catalog-modal__favorite:focus-visible {
-	color: #536b51;
-	border-color: #b9d039;
 }
 
 .catalog-modal__favorite.is-active {
@@ -2621,6 +2599,8 @@ background-color: coral;
 .catalog-modal__share {
 	position: relative;
 	display: inline-flex;
+	justify-content: center;
+	width: 100%;
 }
 
 .share-toggle {

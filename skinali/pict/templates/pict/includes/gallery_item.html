@@ -26,13 +26,10 @@
            loading="lazy"
            decoding="async">
     {% endthumbnail %}
-    <span class="catalog-thumbnail__image-number">№{{ p.name }}</span>
+    <span class="catalog-thumbnail__image-number">
+      <span class="catalog-thumbnail__image-number-text">№ {{ p.name }}</span>
+    </span>
 </a>
-{% if show_catalog_favorite %}
-  <a class="catalog-detail-link"
-     href="{{ p.get_absolute_url }}"
-     aria-label="Открыть страницу изображения №{{ p.name }}">Подробнее</a>
-{% endif %}
 {% if show_catalog_favorite or use_catalog_modal %}
   <template id="catalog-gallery-caption-{{ p.pk }}">
     <div class="catalog-modal__caption">
@@ -89,7 +86,7 @@
       <div class="catalog-modal__actions">
         <a class="catalog-modal__detail"
            href="{{ p.get_absolute_url }}"
-           data-clickable>Страница изображения</a>
+           data-clickable>Подробнее</a>
         <button type="button"
                 class="catalog-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}"
                 data-favorite-toggle

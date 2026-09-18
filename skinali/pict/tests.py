@@ -64,6 +64,7 @@ from .models import (
     TagPict,
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
+from .services.contact_delivery import format_contact_request_message
 from .views import SkinaliAll, serverError, set_page_metadata
 
 
@@ -183,7 +184,9 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'data-caption="Описание изображения 100"')
         self.assertContains(
             response,
-            '<span class="catalog-thumbnail__image-number">№100</span>',
+            '<span class="catalog-thumbnail__image-number">'
+            '<span class="catalog-thumbnail__image-number-text">№ 100</span>'
+            '</span>',
             html=True,
         )
         self.assertContains(response, 'class="catalog-modal__title"')
@@ -618,7 +621,9 @@ class TagPageAndSitemapTests(TestCase):
         self.assertContains(response, 'Hash: false', count=1)
         self.assertContains(
             response,
-            '<span class="catalog-thumbnail__image-number">№650</span>',
+            '<span class="catalog-thumbnail__image-number">'
+            '<span class="catalog-thumbnail__image-number-text">№ 650</span>'
+            '</span>',
             html=True,
         )
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
@@ -1483,7 +1488,9 @@ class CatalogSearchTests(TestCase):
         self.assertContains(response, 'Hash: false', count=1)
         self.assertContains(
             response,
-            f'<span class="catalog-thumbnail__image-number">№{self.both_picture.name}</span>',
+            '<span class="catalog-thumbnail__image-number">'
+            f'<span class="catalog-thumbnail__image-number-text">№ {self.both_picture.name}</span>'
+            '</span>',
             html=True,
         )
         self.assertNotContains(response, 'data-mobile-filter-open')
@@ -1907,15 +1914,54 @@ class PictDetailPageTests(TestCase):
             404,
         )
 
-    def test_catalog_cards_link_to_picture_page(self):
+    def test_catalog_cards_keep_modal_page_link_without_detail_button(self):
         response = self.client.get(reverse('skinali'))
 
         self.assertContains(
             response,
             f'href="{self.picture.get_absolute_url()}"',
-            count=2,
+            count=1,
         )
-        self.assertContains(response, '>Подробнее</a>')
+        self.assertContains(response, 'class="catalog-modal__detail"')
+        self.assertNotContains(response, 'class="catalog-detail-link"')
+
+    def test_catalog_thumbnail_uses_edge_overlays(self):
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
+        number_styles = styles.split(
+            '.catalog-thumbnail__image-number {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        number_text_styles = styles.split(
+            '.catalog-thumbnail__image-number-text {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        favorite_styles = styles.split(
+            '.catalog-favorite-toggle {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        favorite_hover_styles = styles.split(
+            '.catalog-favorite-toggle:hover,',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+
+        self.assertIn('top: 0;', number_styles)
+        self.assertIn('bottom: 0;', number_styles)
+        self.assertIn('left: 0;', number_styles)
+        self.assertIn('width: calc(1em + 18px);', number_styles)
+        self.assertIn('border-radius: 3px 0 0 3px;', number_styles)
+        self.assertIn('white-space: nowrap;', number_text_styles)
+        self.assertIn('transform: rotate(-90deg);', number_text_styles)
+        self.assertIn('top: 0;', favorite_styles)
+        self.assertIn('right: 0;', favorite_styles)
+        self.assertIn('width: 30px;', favorite_styles)
+        self.assertIn('height: 30px;', favorite_styles)
+        self.assertIn('border-radius: 0 3px 0 3px;', favorite_styles)
+        self.assertIn('transition: background .16s;', favorite_styles)
+        self.assertIn('background: #f2f2f2;', favorite_hover_styles)
+        self.assertNotIn('.catalog-detail-link {', styles)
 
 
 class PictAdminPhotoRenameTests(TestCase):
@@ -2650,8 +2696,17 @@ class ContactDeliveryTests(TestCase):
         self.assertIn('отправлено=1', output.getvalue())
         request_payload = post.call_args.kwargs['json']
         self.assertEqual(request_payload['chat_id'], '123456')
-        self.assertIn(f'Новая заявка № {delivery.contact_request_id}', request_payload['text'])
-        self.assertIn('Телефон: +375 29 111-22-33', request_payload['text'])
+        self.assertEqual(request_payload['parse_mode'], 'HTML')
+        self.assertTrue(
+            request_payload['text'].startswith(
+                f'❔ <b>Новая заявка №{delivery.contact_request_id}</b>\n'
+                '— <b><i>Вопрос</i></b> —\n\n'
+            )
+        )
+        self.assertIn(
+            '📞 <b>Телефон:</b> +375 29 111-22-33',
+            request_payload['text'],
+        )
         self.assertEqual(post.call_args.kwargs['timeout'], (3, 5))
         self.assertIsNone(post.call_args.kwargs['proxies'])
         self.assertFalse(session.trust_env)
@@ -2694,10 +2749,17 @@ class ContactDeliveryTests(TestCase):
         call_command('process_contact_deliveries', stdout=StringIO())
 
         message = session_class.return_value.post.call_args.kwargs['json']['text']
-        self.assertIn('Тип: Сообщение по email', message)
-        self.assertIn('Email: elena@example.com', message)
-        self.assertIn('Комментарий: Хочу уточнить стоимость.', message)
-        self.assertNotIn('Телефон:', message)
+        self.assertTrue(message.startswith('✉ <b>Новая заявка №'))
+        self.assertIn(
+            '— <b><i>Сообщение по email</i></b> —',
+            message,
+        )
+        self.assertIn('✉ <b>Email:</b> elena@example.com', message)
+        self.assertIn(
+            '💬 <b>Комментарий:</b> Хочу уточнить стоимость.',
+            message,
+        )
+        self.assertNotIn('<b>Телефон:</b>', message)
 
     @patch('pict.services.contact_delivery.requests.Session')
     def test_image_purchase_message_contains_catalog_image_number(self, session_class):
@@ -2722,10 +2784,50 @@ class ContactDeliveryTests(TestCase):
         call_command('process_contact_deliveries', stdout=StringIO())
 
         message = session_class.return_value.post.call_args.kwargs['json']['text']
-        self.assertIn('Тип: Покупка изображения', message)
-        self.assertIn('Email: buyer@example.com', message)
-        self.assertIn('Комментарий: Хочу купить оригинал.', message)
-        self.assertIn('Изображение: №127', message)
+        self.assertTrue(message.startswith('💲 <b>Новая заявка №'))
+        self.assertIn(
+            '— <b><i>Покупка изображения</i></b> —',
+            message,
+        )
+        self.assertIn('✉ <b>Email:</b> buyer@example.com', message)
+        self.assertIn(
+            '💬 <b>Комментарий:</b> Хочу купить оригинал.',
+            message,
+        )
+        self.assertIn('🖼 <b>Изображение:</b> №127', message)
+
+    def test_callback_message_uses_pin_icon(self):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.CALLBACK,
+            name='Иван',
+            phone='+7 999 123-45-67',
+        )
+
+        message = format_contact_request_message(contact_request)
+        created_at = timezone.localtime(contact_request.created_at)
+
+        self.assertEqual(
+            message,
+            f'📌 <b>Новая заявка №{contact_request.pk}</b>\n'
+            '— <b><i>Обратный звонок</i></b> —\n\n'
+            '👤 <b>Имя:</b> Иван\n'
+            '📞 <b>Телефон:</b> +7 999 123-45-67\n'
+            f'🕒 <b>Создана:</b> {created_at:%d.%m.%Y %H:%M}',
+        )
+
+    def test_user_text_is_escaped_for_telegram_html(self):
+        contact_request = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.QUESTION,
+            name='Мария & Иван',
+            phone='+375 29 111-22-33',
+            question='Можно <сегодня> & завтра?',
+        )
+
+        message = format_contact_request_message(contact_request)
+
+        self.assertIn('Мария &amp; Иван', message)
+        self.assertIn('Можно &lt;сегодня&gt; &amp; завтра?', message)
+        self.assertNotIn('Можно <сегодня>', message)
 
     @patch('pict.services.contact_delivery.requests.Session')
     def test_permanent_telegram_error_stops_automatic_retries(self, session_class):
@@ -2979,7 +3081,9 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'class="catalog-thumbnail favorite-card__preview"')
         self.assertContains(
             response,
-            '<span class="catalog-thumbnail__image-number">№301</span>',
+            '<span class="catalog-thumbnail__image-number">'
+            '<span class="catalog-thumbnail__image-number-text">№ 301</span>'
+            '</span>',
             html=True,
         )
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
