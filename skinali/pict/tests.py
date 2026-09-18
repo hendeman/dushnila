@@ -1663,7 +1663,7 @@ class PictUploadNamingTests(TestCase):
         )
         self.assertIn('slug', model_admin.readonly_fields)
 
-    def test_new_upload_uses_transliterated_description_and_original_digits(self):
+    def test_new_upload_uses_transliterated_description_and_image_number(self):
         picture = Pict.objects.create(
             name=901,
             alt='Спелая вишня на тёмном фоне',
@@ -1672,26 +1672,26 @@ class PictUploadNamingTests(TestCase):
 
         self.assertEqual(
             picture.photo.name,
-            'photos/spelaya-vishnya-na-tyomnom-fone-0273-2.jpg',
+            'photos/spelaya-vishnya-na-tyomnom-fone-901.jpg',
         )
 
-    def test_filename_does_not_repeat_digits_already_at_end_of_description(self):
+    def test_filename_ignores_original_digits_and_does_not_repeat_image_number(self):
         picture = Pict.objects.create(
             name=902,
-            alt='Изображение 275',
+            alt='Изображение 902',
             photo=create_test_image_file('275.jpg'),
         )
 
-        self.assertEqual(picture.photo.name, 'photos/izobrazhenie-275.jpg')
+        self.assertEqual(picture.photo.name, 'photos/izobrazhenie-902.jpg')
 
-    def test_upload_without_digits_uses_only_transliterated_description(self):
+    def test_upload_without_original_digits_still_uses_image_number(self):
         picture = Pict.objects.create(
             name=904,
             alt='Летний пейзаж',
             photo=create_test_image_file('source.jpg'),
         )
 
-        self.assertEqual(picture.photo.name, 'photos/letniy-peyzazh.jpg')
+        self.assertEqual(picture.photo.name, 'photos/letniy-peyzazh-904.jpg')
 
     def test_editing_description_does_not_rename_saved_file(self):
         picture = Pict.objects.create(

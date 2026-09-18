@@ -145,15 +145,8 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             current_path.stem,
         ))
 
-    @staticmethod
-    def remove_storage_collision_suffix(filename):
-        """Не принимает технический суффикс storage за цифры исходного файла."""
-        path = Path(filename)
-        clean_stem = re.sub(r'_[A-Za-z0-9]{7}$', '', path.stem)
-        return f'{clean_stem}{path.suffix}'
-
     @admin.action(
-        description='Переименовать файлы по описанию',
+        description='Переименовать файлы по описанию и номеру',
         permissions=['change'],
     )
     def rename_photos_from_description(self, request, queryset):
@@ -171,10 +164,7 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             old_photo = picture.photo
             old_name = old_photo.name
             storage = old_photo.storage
-            source_filename = self.remove_storage_collision_suffix(
-                Path(old_name).name,
-            )
-            target_name = pict_photo_upload_to(picture, source_filename)
+            target_name = pict_photo_upload_to(picture, Path(old_name).name)
 
             if self.photo_name_matches_storage_variant(old_name, target_name):
                 unchanged_count += 1
@@ -230,7 +220,7 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
 
         summary = (
             f'Переименовано: {renamed_count}. '
-            f'Уже соответствовали описанию: {unchanged_count}. '
+            f'Уже соответствовали описанию и номеру: {unchanged_count}. '
             f'Пропущено: {skipped_count}. '
             f'Ошибок: {failed_count}.'
         )

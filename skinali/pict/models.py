@@ -70,36 +70,8 @@ def transliterate_filename_part(value):
     return '-'.join(re.findall(r'[a-z0-9]+', ascii_value))
 
 
-def pict_photo_upload_to(instance, original_filename):
-    """Формирует имя оригинала из описания и цифр исходного имени."""
-    original_path = Path(original_filename)
-    description_slug = transliterate_filename_part(instance.alt) or 'izobrazhenie'
-    numeric_suffix = '-'.join(re.findall(r'\d+', original_path.stem))
-
-    if numeric_suffix:
-        suffix_in_description = f'-{numeric_suffix}'
-        if description_slug == numeric_suffix:
-            description_slug = ''
-        elif description_slug.endswith(suffix_in_description):
-            description_slug = description_slug[:-len(suffix_in_description)]
-
-        description_length = max(
-            0,
-            PICT_FILENAME_STEM_MAX_LENGTH - len(numeric_suffix) - 1,
-        )
-        description_slug = description_slug[:description_length].rstrip('-')
-    else:
-        description_slug = description_slug[:PICT_FILENAME_STEM_MAX_LENGTH].rstrip('-')
-
-    filename_stem = '-'.join(
-        part for part in (description_slug, numeric_suffix) if part
-    )
-    extension = original_path.suffix.lower()
-    return f'photos/{filename_stem}{extension}'
-
-
-def build_pict_page_slug(description, image_number):
-    """Формирует стабильный slug страницы из описания и номера изображения."""
+def build_description_number_slug(description, image_number, max_length):
+    """Объединяет транслитерированное описание и номер изображения."""
     description_slug = transliterate_filename_part(description) or 'izobrazhenie'
     number_slug = str(image_number)
     number_suffix = f'-{number_slug}'
@@ -111,10 +83,30 @@ def build_pict_page_slug(description, image_number):
 
     description_length = max(
         1,
-        PICT_PAGE_SLUG_MAX_LENGTH - len(number_suffix),
+        max_length - len(number_suffix),
     )
     description_slug = description_slug[:description_length].rstrip('-')
     return f'{description_slug or "izobrazhenie"}{number_suffix}'
+
+
+def pict_photo_upload_to(instance, original_filename):
+    """Формирует имя оригинала из описания и поля «Номер изображения»."""
+    original_path = Path(original_filename)
+    filename_stem = build_description_number_slug(
+        instance.alt,
+        instance.name,
+        PICT_FILENAME_STEM_MAX_LENGTH,
+    )
+    return f'photos/{filename_stem}{original_path.suffix.lower()}'
+
+
+def build_pict_page_slug(description, image_number):
+    """Формирует стабильный slug страницы из описания и номера изображения."""
+    return build_description_number_slug(
+        description,
+        image_number,
+        PICT_PAGE_SLUG_MAX_LENGTH,
+    )
 
 
 class PublicationQuerySet(models.QuerySet):
