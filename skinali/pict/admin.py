@@ -13,7 +13,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from sorl.thumbnail.shortcuts import delete as delete_thumbnail
 
-from pict.forms import IntegrationAdminForm, PictAdminForm
+from pict.forms import FinishedWorkAdminForm, IntegrationAdminForm, PictAdminForm
 from pict.models import (
     Category,
     Color,
@@ -332,33 +332,42 @@ class ColorAdmin(admin.ModelAdmin):
 
 @admin.register(FinishedWork)
 class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
+    form = FinishedWorkAdminForm
     list_display = [
         'name',
         'is_published',
         'get_html_photo',
-        'get_catalog_image_number',
-        'get_catalog_categories',
+        'glass_type',
+        'skinali_type',
         'created_at',
         'updated_at',
     ]
     list_editable = ['is_published']
     list_display_links = ['name']
-    list_filter = ['is_published', 'created_at']
+    list_filter = ['is_published', 'glass_type', 'skinali_type', 'created_at']
     search_fields = ['name', 'description', '=catalog_image__name']
     autocomplete_fields = ['catalog_image']
     readonly_fields = ['get_html_photo_fields', 'created_at', 'updated_at']
     fields = [
         'name',
         'is_published',
+        'glass_type',
+        'skinali_type',
+        'catalog_image',
+        'paint_color',
         'description',
         'photo',
         'get_html_photo_fields',
-        'catalog_image',
         'created_at',
         'updated_at',
     ]
     ordering = ['-created_at', '-id']
     list_per_page = 20
+
+    class Media(AdminImagePreviewMixin.Media):
+        js = AdminImagePreviewMixin.Media.js + (
+            'skinali/js/admin-finished-work.js',
+        )
 
     def get_queryset(self, request):
         return (

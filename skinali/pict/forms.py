@@ -5,7 +5,7 @@ from django import forms
 from django.core import signing
 from django.core.exceptions import ValidationError
 
-from pict.models import ContactRequest, Integration, Pict
+from pict.models import ContactRequest, FinishedWork, Integration, Pict
 from pict.search import (
     SEARCH_IMAGE_NUMBER_MAX,
     SEARCH_QUERY_MAX_LENGTH,
@@ -306,6 +306,17 @@ class ImagePurchaseContactForm(EmailCommentContactForm):
                 'Выбранное изображение больше не доступно. Откройте другое изображение.'
             ) from error
         return pict_id
+
+
+class FinishedWorkAdminForm(forms.ModelForm):
+    """Административная форма с примером формата цвета покраски."""
+
+    class Meta:
+        model = FinishedWork
+        fields = '__all__'
+        widgets = {
+            'paint_color': forms.TextInput(attrs={'placeholder': 'RAL 9000'}),
+        }
 
 
 class PictAdminForm(forms.ModelForm):

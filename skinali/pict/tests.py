@@ -46,6 +46,7 @@ from .forms import (
     CallbackContactForm,
     CatalogSearchForm,
     EmailCommentContactForm,
+    FinishedWorkAdminForm,
     ImagePurchaseContactForm,
     IntegrationAdminForm,
     PhoneContactForm,
@@ -3241,6 +3242,85 @@ class FinishedWorkTests(TestCase):
             catalog_image=cls.catalog_image,
         )
 
+    def test_glass_and_skinali_types_have_safe_defaults(self):
+        self.assertEqual(self.work.glass_type, FinishedWork.GlassType.STANDARD)
+        self.assertEqual(self.work.get_glass_type_display(), 'Обычное')
+        self.assertEqual(self.work.skinali_type, FinishedWork.SkinaliType.PRINT)
+        self.assertEqual(self.work.get_skinali_type_display(), 'Печать')
+        self.assertEqual(self.work.paint_color, '')
+
+    def test_skinali_type_validates_dependent_fields(self):
+        painted_work = FinishedWork(
+            name='Покрашенный фартук',
+            photo='finished_works/painted.jpg',
+            skinali_type=FinishedWork.SkinaliType.PAINT,
+        )
+
+        with self.assertRaises(ValidationError) as missing_color_error:
+            painted_work.full_clean()
+        self.assertIn('paint_color', missing_color_error.exception.message_dict)
+
+        painted_work.paint_color = '  RAL 9000  '
+        painted_work.catalog_image = self.catalog_image
+        with self.assertRaises(ValidationError) as catalog_image_error:
+            painted_work.full_clean()
+        self.assertIn('catalog_image', catalog_image_error.exception.message_dict)
+
+        painted_work.catalog_image = None
+        painted_work.full_clean()
+        painted_work.save()
+        painted_work.refresh_from_db()
+        self.assertEqual(painted_work.paint_color, 'RAL 9000')
+
+        transparent_work = FinishedWork(
+            name='Прозрачный фартук',
+            photo='finished_works/transparent.jpg',
+            skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
+            paint_color='RAL 9000',
+            catalog_image=self.catalog_image,
+        )
+        with self.assertRaises(ValidationError) as transparent_error:
+            transparent_work.full_clean()
+        self.assertEqual(
+            set(transparent_error.exception.message_dict),
+            {'paint_color', 'catalog_image'},
+        )
+
+        printed_work = FinishedWork(
+            name='Фартук с печатью',
+            photo='finished_works/printed.jpg',
+            skinali_type=FinishedWork.SkinaliType.PRINT,
+            paint_color='RAL 9000',
+        )
+        with self.assertRaises(ValidationError) as print_error:
+            printed_work.full_clean()
+        self.assertIn('paint_color', print_error.exception.message_dict)
+
+    def test_admin_form_saves_painting_without_catalog_image(self):
+        form = FinishedWorkAdminForm(
+            data={
+                'name': self.work.name,
+                'description': self.work.description,
+                'is_published': 'on',
+                'glass_type': FinishedWork.GlassType.OPTIWHITE,
+                'skinali_type': FinishedWork.SkinaliType.PAINT,
+                'paint_color': 'RAL 9000',
+                'catalog_image': '',
+            },
+            instance=self.work,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors.as_json())
+        saved_work = form.save()
+        self.assertEqual(saved_work.glass_type, FinishedWork.GlassType.OPTIWHITE)
+        self.assertEqual(saved_work.skinali_type, FinishedWork.SkinaliType.PAINT)
+        self.assertEqual(saved_work.paint_color, 'RAL 9000')
+        self.assertIsNone(saved_work.catalog_image)
+        self.assertEqual(
+            form.fields['paint_color'].widget.attrs['placeholder'],
+            'RAL 9000',
+        )
+
     def test_catalog_relation_is_optional_and_pict_deletion_keeps_work(self):
         self.assertEqual(
             list(self.catalog_image.finished_works.all()),
@@ -3453,6 +3533,13 @@ class FinishedWorkTests(TestCase):
             finished_work_admin.get_html_photo_fields.short_description,
             'Миниатюра',
         )
+        self.assertIs(finished_work_admin.form, FinishedWorkAdminForm)
+        self.assertIn('glass_type', finished_work_admin.list_display)
+        self.assertIn('skinali_type', finished_work_admin.list_display)
+        self.assertNotIn('get_catalog_image_number', finished_work_admin.list_display)
+        self.assertNotIn('get_catalog_categories', finished_work_admin.list_display)
+        self.assertIn('glass_type', finished_work_admin.list_filter)
+        self.assertIn('skinali_type', finished_work_admin.list_filter)
         pict_fields = [
             field
             for _, options in pict_admin.get_fieldsets(None, self.catalog_image)
@@ -3490,6 +3577,10 @@ class FinishedWorkTests(TestCase):
             'admin:pict_pict_change',
             args=[image_without_works.pk],
         ))
+        finished_work_response = self.client.get(reverse(
+            'admin:pict_finishedwork_change',
+            args=[self.work.pk],
+        ))
 
         self.assertEqual(linked_response.status_code, 200)
         self.assertContains(linked_response, 'field-get_finished_works')
@@ -3498,6 +3589,27 @@ class FinishedWorkTests(TestCase):
         self.assertContains(linked_response, 'skinali/css/admin-image-preview.css')
         self.assertEqual(unlinked_response.status_code, 200)
         self.assertNotContains(unlinked_response, 'field-get_finished_works')
+        self.assertEqual(finished_work_response.status_code, 200)
+        self.assertContains(finished_work_response, 'Тип стекла')
+        self.assertContains(finished_work_response, 'Тип скинали')
+        self.assertContains(finished_work_response, 'Цвет покраски')
+        self.assertContains(finished_work_response, 'placeholder="RAL 9000"')
+        self.assertContains(
+            finished_work_response,
+            'skinali/js/admin-finished-work.js',
+        )
+        self.assertContains(
+            finished_work_response,
+            'skinali/js/admin-image-preview.js',
+        )
+
+        conditional_script = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/js/admin-finished-work.js',
+        ).read_text(encoding='utf-8')
+        self.assertIn("selectedType === 'print'", conditional_script)
+        self.assertIn("selectedType === 'paint'", conditional_script)
+        self.assertIn('field.disabled = !visible', conditional_script)
 
 
 class IntegrationTests(TestCase):

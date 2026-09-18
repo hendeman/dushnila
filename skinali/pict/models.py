@@ -389,10 +389,39 @@ class Pict(SeoPageContent):
 
 
 class FinishedWork(models.Model):
+    class GlassType(models.TextChoices):
+        STANDARD = 'standard', 'Обычное'
+        OPTIWHITE = 'optiwhite', 'Optiwhite'
+        DIAMANT = 'diamant', 'Diamant'
+
+    class SkinaliType(models.TextChoices):
+        PRINT = 'print', 'Печать'
+        PAINT = 'paint', 'Покраска'
+        TRANSPARENT = 'transparent', 'Прозрачное'
+
     name = models.CharField(max_length=200, verbose_name='Имя')
     description = models.TextField(blank=True, verbose_name='Описание')
     photo = models.ImageField(upload_to='finished_works/', verbose_name='Фото')
     is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
+    glass_type = models.CharField(
+        max_length=10,
+        choices=GlassType.choices,
+        default=GlassType.STANDARD,
+        verbose_name='Тип стекла',
+    )
+    skinali_type = models.CharField(
+        max_length=11,
+        choices=SkinaliType.choices,
+        default=SkinaliType.PRINT,
+        verbose_name='Тип скинали',
+    )
+    paint_color = models.CharField(
+        max_length=50,
+        blank=True,
+        default='',
+        verbose_name='Цвет покраски',
+        help_text='Например: RAL 9000.',
+    )
     catalog_image = models.ForeignKey(
         Pict,
         on_delete=models.SET_NULL,
@@ -406,7 +435,36 @@ class FinishedWork(models.Model):
 
     objects = PublicationQuerySet.as_manager()
 
+    def clean(self):
+        super().clean()
+        paint_color = self.paint_color.strip()
+        errors = {}
+
+        if self.skinali_type == self.SkinaliType.PAINT:
+            if self.catalog_image_id:
+                errors['catalog_image'] = (
+                    'Номер изображения доступен только для печати.'
+                )
+            if not paint_color:
+                errors['paint_color'] = 'Укажите цвет для скинали с покраской.'
+        else:
+            if paint_color:
+                errors['paint_color'] = (
+                    'Цвет можно указывать только для скинали с покраской.'
+                )
+            if (
+                self.skinali_type == self.SkinaliType.TRANSPARENT
+                and self.catalog_image_id
+            ):
+                errors['catalog_image'] = (
+                    'Номер изображения доступен только для печати.'
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
     def save(self, *args, **kwargs):
+        self.paint_color = self.paint_color.strip()
         update_fields = kwargs.get('update_fields')
         if update_fields is not None:
             kwargs['update_fields'] = set(update_fields) | {'updated_at'}
@@ -421,6 +479,26 @@ class FinishedWork(models.Model):
         verbose_name = 'Готовая работа'
         verbose_name_plural = 'Готовые работы'
         ordering = ['-created_at', '-id']
+        constraints = [
+            models.CheckConstraint(
+                name='finished_work_fields_match_skinali_type',
+                condition=(
+                    models.Q(
+                        skinali_type='print',
+                        paint_color='',
+                    )
+                    | models.Q(
+                        skinali_type='paint',
+                        catalog_image__isnull=True,
+                    ) & ~models.Q(paint_color='')
+                    | models.Q(
+                        skinali_type='transparent',
+                        catalog_image__isnull=True,
+                        paint_color='',
+                    )
+                ),
+            ),
+        ]
 
 
 class ContactRequest(models.Model):
