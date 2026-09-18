@@ -248,6 +248,10 @@ class PopularTagsTests(TestCase):
             settings.BASE_DIR,
             'pict/static/skinali/js/mobile-filters.js',
         ).read_text(encoding='utf-8')
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
 
         tags = list(response.context['list_tag'])
         totals = [tag.total for tag in tags]
@@ -270,7 +274,6 @@ class PopularTagsTests(TestCase):
             html=True,
         )
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
-        self.assertNotContains(response, 'Сбросить цвет')
         self.assertContains(response, 'placeholder="Поиск, например море"')
         self.assertContains(response, 'href="/static/skinali/css/styles.css"')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
@@ -318,6 +321,29 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'id="mobile-color-filter"')
         self.assertContains(response, 'mobile-catalog-filters__chevron')
         self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
+        self.assertContains(response, 'data-mobile-color-form')
+        self.assertContains(response, 'data-mobile-color-checkbox')
+        self.assertContains(response, 'class="mobile-color-filter__apply"')
+        self.assertContains(response, 'Применить цвета')
+        self.assertContains(
+            response,
+            'Можно выбрать до 3 цветов. После выбора нажмите кнопку '
+            '«Применить цвета».',
+        )
+        self.assertNotContains(response, 'data-mobile-color-reset')
+        self.assertContains(
+            response,
+            '<span class="mobile-filter-dialog__check" '
+            'data-mobile-color-all-check aria-hidden="true">✓</span>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<span class="mobile-filter-dialog__check" '
+            'data-mobile-color-check aria-hidden="true" hidden>✓</span>',
+            count=4,
+            html=True,
+        )
         self.assertIn("'.catalog-categories a'", mobile_filters_script)
         self.assertIn("'.list-pages-color a'", mobile_filters_script)
         self.assertIn("'.mobile-filter-dialog a'", mobile_filters_script)
@@ -326,6 +352,31 @@ class PopularTagsTests(TestCase):
             'window.scrollTo(savedScroll.left, savedScroll.top);',
             mobile_filters_script,
         )
+        self.assertIn("form.addEventListener('submit'", mobile_filters_script)
+        self.assertIn('clearColorSelection', mobile_filters_script)
+        self.assertIn('.mobile-color-filter__apply {', styles)
+        self.assertIn('background: #1f2722;', styles)
+        self.assertIn('border-radius: 3px;', styles)
+        self.assertIn('color: #fff;', styles)
+        self.assertIn('.mobile-filter-dialog__check[hidden] {', styles)
+        self.assertIn(
+            '.mobile-filter-dialog__item--color.is-selected {\n'
+            '\t\tbackground-color: #f2f2f2;',
+            styles,
+        )
+        self.assertIn('inset 0 0 0 1px #6f8a68,', styles)
+        self.assertIn(
+            'inset 0 0 12px rgba(111, 138, 104, .24);',
+            styles,
+        )
+        self.assertIn(
+            '.mobile-filter-dialog__item--color > '
+            '.mobile-filter-dialog__check {',
+            styles,
+        )
+        self.assertIn('position: absolute;', styles)
+        self.assertIn('width: 24px;', styles)
+        self.assertIn('height: 24px;', styles)
         self.assertNotContains(response, '?v=')
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
@@ -534,7 +585,7 @@ class PopularTagsTests(TestCase):
         )
         self.assertContains(response, 'class="page-num color-option color-option--selected"')
         self.assertContains(response, 'class="color-filter__options"')
-        self.assertContains(response, 'mobile-filter-dialog__item is-selected')
+        self.assertContains(response, 'mobile-filter-dialog__item--color is-selected')
         self.assertContains(response, 'mobile-filter-dialog__check')
         self.assertContains(response, self.first_category.cat)
         self.assertContains(response, self.selected_color.color)
@@ -548,6 +599,7 @@ class PopularTagsTests(TestCase):
             'class="list-all__reset-icon" aria-hidden="true">&times;</span>',
         )
         self.assertContains(response, 'Сбросить цвета')
+        self.assertNotContains(response, 'data-mobile-color-reset')
         self.assertNotContains(
             response,
             'class="page-num page-num-selected" style="background-color: red;"',
@@ -580,7 +632,7 @@ class PopularTagsTests(TestCase):
             html=True,
         )
 
-    def test_selected_color_links_remove_only_clicked_color(self):
+    def test_desktop_color_links_and_mobile_deferred_selection(self):
         response = self.client.get(
             self.first_category.get_absolute_url(),
             [
@@ -594,21 +646,47 @@ class PopularTagsTests(TestCase):
             f'{self.first_category.get_absolute_url()}'
             '?color=red&amp;color=blue&amp;color=green'
         )
-        self.assertContains(response, f'href="{remove_url}"', count=2)
+        self.assertContains(response, f'href="{remove_url}"', count=1)
         self.assertContains(
             response,
             'aria-label="Убрать цвет: Красный"',
-            count=2,
+            count=1,
         )
         self.assertContains(
             response,
-            'class="mobile-filter-dialog__item is-selected"',
+            'class="mobile-filter-dialog__item '
+            'mobile-filter-dialog__item--color is-selected"',
         )
-        self.assertContains(response, f'href="{add_url}"', count=2)
+        self.assertContains(
+            response,
+            '<input class="mobile-color-filter__checkbox" type="checkbox" '
+            'name="color" value="red" data-mobile-color-checkbox checked>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<input class="mobile-color-filter__checkbox" type="checkbox" '
+            'name="color" value="blue" data-mobile-color-checkbox checked>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<span class="mobile-filter-dialog__check" '
+            'data-mobile-color-all-check aria-hidden="true" hidden>✓</span>',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            '<span class="mobile-filter-dialog__check" '
+            'data-mobile-color-check aria-hidden="true">✓</span>',
+            count=2,
+            html=True,
+        )
+        self.assertContains(response, f'href="{add_url}"', count=1)
         self.assertContains(
             response,
             'aria-label="Добавить цвет: Зелёный"',
-            count=2,
+            count=1,
         )
 
     def test_color_selection_is_limited_to_three(self):
@@ -631,7 +709,7 @@ class PopularTagsTests(TestCase):
             [100],
         )
         self.assertContains(response, 'color-option color-option--disabled')
-        self.assertContains(response, 'mobile-filter-dialog__item is-disabled')
+        self.assertContains(response, 'mobile-filter-dialog__item--color is-disabled')
         self.assertNotContains(response, 'color=yellow')
 
     def test_category_links_have_no_color_parameter_when_color_is_not_selected(self):

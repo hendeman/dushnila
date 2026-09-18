@@ -12,6 +12,22 @@
     return `${url.pathname}${url.search}`;
   }
 
+  function saveScrollPosition(targetUrl) {
+    if (targetUrl.origin !== window.location.origin) {
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(FILTER_SCROLL_STORAGE_KEY, JSON.stringify({
+        pageKey: getPageKey(targetUrl),
+        left: window.scrollX,
+        top: window.scrollY
+      }));
+    } catch (error) {
+      // Недоступный sessionStorage не должен мешать обычному переходу.
+    }
+  }
+
   function rememberScrollPosition(event) {
     const link = event.currentTarget;
     if (
@@ -27,19 +43,16 @@
     }
 
     const targetUrl = new URL(link.href, window.location.href);
-    if (targetUrl.origin !== window.location.origin) {
-      return;
-    }
+    saveScrollPosition(targetUrl);
+  }
 
-    try {
-      window.sessionStorage.setItem(FILTER_SCROLL_STORAGE_KEY, JSON.stringify({
-        pageKey: getPageKey(targetUrl),
-        left: window.scrollX,
-        top: window.scrollY
-      }));
-    } catch (error) {
-      // Недоступный sessionStorage не должен мешать обычному переходу по ссылке.
-    }
+  function getFormTargetUrl(form) {
+    const targetUrl = new URL(form.action, window.location.href);
+    targetUrl.search = '';
+    new FormData(form).forEach((value, name) => {
+      targetUrl.searchParams.append(name, value);
+    });
+    return targetUrl;
   }
 
   function restoreScrollPosition() {
@@ -92,6 +105,69 @@
   document.querySelectorAll(FILTER_LINK_SELECTOR).forEach((link) => {
     link.addEventListener('click', rememberScrollPosition);
   });
+
+  document.querySelectorAll('[data-mobile-color-form]').forEach((form) => {
+    const checkboxes = Array.from(
+      form.querySelectorAll('[data-mobile-color-checkbox]')
+    );
+    const allColorsButton = form.querySelector('[data-mobile-color-clear]');
+    const allColorsCheck = form.querySelector('[data-mobile-color-all-check]');
+    const maxColors = Number.parseInt(form.dataset.maxColors, 10) || 3;
+
+    const updateColorSelection = () => {
+      const selectedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
+
+      checkboxes.forEach((checkbox) => {
+        const item = checkbox.closest('.mobile-filter-dialog__item--color');
+        const check = item?.querySelector('[data-mobile-color-check]');
+        const isDisabled = !checkbox.checked && selectedCount >= maxColors;
+        checkbox.disabled = isDisabled;
+        item?.classList.toggle('is-selected', checkbox.checked);
+        item?.classList.toggle('is-disabled', isDisabled);
+        if (item) {
+          item.setAttribute('aria-disabled', isDisabled ? 'true' : 'false');
+        }
+        if (check) {
+          check.hidden = !checkbox.checked;
+        }
+      });
+
+      const allColorsSelected = selectedCount === 0;
+      allColorsButton?.classList.toggle('is-selected', allColorsSelected);
+      if (allColorsButton) {
+        if (allColorsSelected) {
+          allColorsButton.setAttribute('aria-current', 'true');
+        } else {
+          allColorsButton.removeAttribute('aria-current');
+        }
+      }
+      if (allColorsCheck) {
+        allColorsCheck.hidden = !allColorsSelected;
+      }
+    };
+
+    const clearColorSelection = () => {
+      checkboxes.forEach((checkbox) => {
+        checkbox.disabled = false;
+        checkbox.checked = false;
+      });
+      updateColorSelection();
+    };
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener('change', updateColorSelection);
+    });
+    allColorsButton?.addEventListener('click', clearColorSelection);
+    form.addEventListener('submit', () => {
+      saveScrollPosition(getFormTargetUrl(form));
+    });
+    form.closest('dialog')?.addEventListener('close', () => {
+      form.reset();
+      updateColorSelection();
+    });
+    updateColorSelection();
+  });
+
   restoreScrollPosition();
 
   function setExpanded(dialogId, isExpanded) {
