@@ -3334,14 +3334,26 @@ class SessionFavoritesTests(TestCase):
             '.favorite-card__image {',
             maxsplit=1,
         )[1].split('}', maxsplit=1)[0]
+        thumbnail_hover_styles = styles.split(
+            '.catalog-thumbnail:hover::after,',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
         self.assertIn('height: auto;', favorite_image_styles)
         self.assertNotIn('object-fit:', favorite_image_styles)
         self.assertNotIn('background:', favorite_image_styles)
         self.assertIn(
-            '.catalog-thumbnail:hover::after,\n'
-            '.catalog-thumbnail:focus-visible::after {\n\topacity: 1;',
-            styles,
+            '.catalog-thumbnail:focus-visible::after,',
+            thumbnail_hover_styles,
         )
+        self.assertIn(
+            '.finished-work-card__link:hover::after,',
+            thumbnail_hover_styles,
+        )
+        self.assertIn(
+            '.finished-work-card__link:focus-visible::after {',
+            thumbnail_hover_styles,
+        )
+        self.assertIn('opacity: 1;', thumbnail_hover_styles)
 
     def test_favorites_menu_link_and_modal_button_are_rendered(self):
         empty_response = self.client.get(reverse('skinali'))
