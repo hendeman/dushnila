@@ -141,19 +141,24 @@ ul.mainmenu li a:focus-visible {
 	border: 0;
 	border-radius: 999px;
 	color: #fff;
-	background: #6f8a68;
+	background-color: #6f8a68;
 	cursor: pointer;
 	font: inherit;
 	font-size: 14px;
 	font-weight: 650;
-	line-height: 1.2;
 	white-space: nowrap;
-	transition: background .16s;
+	transform: scale(1);
+	transition: background-color .16s ease, transform .14s ease;
 }
 
 .mainmenu__callback-button:hover,
 .mainmenu__callback-button:focus-visible {
-	background: #5d7757;
+	background-color: #5d7757;
+}
+
+.mainmenu__callback-button:active {
+	background-color: #5d7757;
+	transform: scale(.9);
 }
 
 .site-header__schedule {
@@ -1787,7 +1792,8 @@ ul.mainmenu li a:focus-visible {
 	height: 67px;
 }
 
-.catalog-thumbnail {
+.catalog-thumbnail,
+.finished-work-card__link {
 	position: relative;
 }
 
@@ -1797,20 +1803,35 @@ ul.mainmenu li a:focus-visible {
 	overflow: hidden;
 }
 
-.catalog-thumbnail::after {
+.catalog-thumbnail::after,
+.finished-work-card__link::after {
 	position: absolute;
 	inset: 3px;
+	z-index: 1;
 	border: 1px solid #fff;
 	border-radius: 3px;
 	opacity: 0;
+	box-shadow: inset 0 0 0 0 rgba(255, 255, 255, 0);
 	pointer-events: none;
 	content: "";
-	transition: opacity .16s;
+	transition: opacity .16s, box-shadow .2s ease;
+}
+
+.finished-work-card__link::after {
+	border-radius: 13px;
 }
 
 .catalog-thumbnail:hover::after,
-.catalog-thumbnail:focus-visible::after {
+.catalog-thumbnail:focus-visible::after,
+.finished-work-card__link:hover::after,
+.finished-work-card__link:focus-visible::after {
 	opacity: 1;
+}
+
+.catalog-thumbnail:active::after,
+.finished-work-card__link:active::after {
+	opacity: 1;
+	box-shadow: inset 0px 0px 20px 5px #FFFFFF;
 }
 
 .catalog-gallery .item-photo {
@@ -2157,11 +2178,25 @@ ul.mainmenu li a:focus-visible {
 	color: inherit;
 }
 
+.catalog-categories ul .page-num:not(.page-num-selected) {
+	background-color: transparent;
+	background-image: linear-gradient(#f5f2e9, #e1ded4);
+	background-repeat: no-repeat;
+	background-position: left;
+	background-size: 0 100%;
+	transition: background-size .35s, border-color .16s;
+}
+
 .catalog-categories ul .page-num:not(.page-num-selected):hover,
 .catalog-categories ul .page-num:not(.page-num-selected):focus-within,
 .catalog-pagination ul .page-num:not(.page-num-selected):hover,
 .catalog-pagination ul .page-num:not(.page-num-selected):focus-within {
 	border-color: #979e91;
+}
+
+.catalog-categories ul .page-num:not(.page-num-selected):hover,
+.catalog-categories ul .page-num:not(.page-num-selected):focus-within {
+	background-size: 100% 100%;
 }
 
 .catalog-categories ul .page-num-selected,
