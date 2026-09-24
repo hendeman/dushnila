@@ -10,6 +10,7 @@ readonly APP_DIR="/home/host1889656/odium.by/projects/odium"
 readonly PYTHON_BIN="/home/host1889656/odium.by/venv/python_3.11/bin/python"
 readonly BACKUP_ROOT="/home/host1889656/odium.by/backups/automatic-deploy"
 readonly BACKUPS_TO_KEEP=5
+readonly -a CODE_DIRECTORIES=(pict quiz sitecontent skinali)
 
 backup_dir=""
 code_changed=false
@@ -33,11 +34,9 @@ validate_paths() {
     [[ -f "$SOURCE_APP/manage.py" ]] || fail "manage.py не найден в исходниках"
 
     local directory
-    for directory in pict sitecontent skinali; do
+    for directory in "${CODE_DIRECTORIES[@]}"; do
         [[ -d "$SOURCE_APP/$directory" ]] \
             || fail "нет каталога исходников $SOURCE_APP/$directory"
-        [[ -d "$APP_DIR/$directory" ]] \
-            || fail "нет production-каталога $APP_DIR/$directory"
     done
 }
 
@@ -61,9 +60,13 @@ finally:
     source.close()
 PYTHON
 
+    : > "$backup_dir/code-directories.txt"
     local directory
-    for directory in pict sitecontent skinali; do
-        rsync -a "$APP_DIR/$directory/" "$backup_dir/code/$directory/"
+    for directory in "${CODE_DIRECTORIES[@]}"; do
+        if [[ -d "$APP_DIR/$directory" ]]; then
+            printf '%s\n' "$directory" >> "$backup_dir/code-directories.txt"
+            rsync -a "$APP_DIR/$directory/" "$backup_dir/code/$directory/"
+        fi
     done
     cp -p "$APP_DIR/manage.py" "$backup_dir/code/manage.py"
     cp -p "$APP_DIR/requirements-production.txt" \
@@ -79,8 +82,16 @@ restore_code_after_error() {
         echo "Деплой завершился ошибкой. Восстанавливается предыдущая версия кода." >&2
 
         local directory
-        for directory in pict sitecontent skinali; do
-            rsync -a --delete "$backup_dir/code/$directory/" "$APP_DIR/$directory/"
+        for directory in "${CODE_DIRECTORIES[@]}"; do
+            if grep -Fxq -- "$directory" "$backup_dir/code-directories.txt"; then
+                install -d -m 0755 "$APP_DIR/$directory"
+                rsync -a --delete "$backup_dir/code/$directory/" "$APP_DIR/$directory/"
+            else
+                case "$APP_DIR/$directory" in
+                    "$APP_DIR"/*) rm -rf -- "$APP_DIR/$directory" ;;
+                    *) fail "отказано в удалении неожиданного пути: $APP_DIR/$directory" ;;
+                esac
+            fi
         done
         cp -p "$backup_dir/code/manage.py" "$APP_DIR/manage.py"
         cp -p "$backup_dir/code/requirements-production.txt" \
@@ -95,8 +106,11 @@ restore_code_after_error() {
 }
 
 sync_code() {
+    code_changed=true
+
     local directory
-    for directory in pict sitecontent skinali; do
+    for directory in "${CODE_DIRECTORIES[@]}"; do
+        install -d -m 0755 "$APP_DIR/$directory"
         rsync -a --delete \
             --exclude '__pycache__/' \
             --exclude '*.py[co]' \
@@ -106,7 +120,6 @@ sync_code() {
     install -m 0644 "$SOURCE_APP/manage.py" "$APP_DIR/manage.py"
     install -m 0644 "$SOURCE_ROOT/requirements-production.txt" \
         "$APP_DIR/requirements-production.txt"
-    code_changed=true
 }
 
 cleanup_old_backups() {

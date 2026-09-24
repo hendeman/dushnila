@@ -96,6 +96,6 @@ touch tmp/restart.txt
 
 ## Автоматическое обновление production из GitHub
 
-Production обновляется после каждого push в `master`, если тесты успешны и repository variable `PRODUCTION_DEPLOY_ENABLED` равна `true`. Workflow создаёт резервные копии кода и SQLite, сохраняет `.env`, media и production-базу, применяет миграции, собирает статику, перезапускает Passenger и выполняет health-check.
+Production обновляется после каждого push в `master`, если тесты успешны и repository variable `PRODUCTION_DEPLOY_ENABLED` равна `true`. Workflow создаёт резервные копии кода и SQLite, сохраняет `.env`, media и production-базу, синхронизирует приложения `pict`, `quiz`, `sitecontent` и конфигурационный пакет `skinali`, применяет миграции, собирает статику, перезапускает Passenger и выполняет health-check. Каталог нового приложения создаётся при первом успешном обновлении и удаляется откатом, если этот деплой завершится ошибкой.
 
 Полная отдельная инструкция по созданию SSH-ключа, GitHub Environment и secrets, первому запуску, ежедневной работе, отключению и диагностике: [«Автоматическое обновление Odium на Hostland через GitHub Actions»](github-actions-hostland.md).

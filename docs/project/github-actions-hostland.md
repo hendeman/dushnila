@@ -253,10 +253,13 @@ Push в другую ветку production не обновляет. Merge pull r
 `ops/deploy_hostland.sh` синхронизирует из проверенного commit:
 
 - `skinali/pict/` → `projects/odium/pict/`;
+- `skinali/quiz/` → `projects/odium/quiz/`;
 - `skinali/sitecontent/` → `projects/odium/sitecontent/`;
 - `skinali/skinali/` → `projects/odium/skinali/`;
 - `skinali/manage.py` → `projects/odium/manage.py`;
 - `requirements-production.txt` → `projects/odium/requirements-production.txt`.
+
+Список каталогов Python-кода задан один раз в `CODE_DIRECTORIES` и повторно используется для проверки исходников, резервного копирования, синхронизации и отката. Отсутствующий production-каталог нового приложения создаётся при первом деплое. Backup отдельно фиксирует, какие каталоги существовали до обновления: при ошибке прежние каталоги восстанавливаются, а впервые добавленные удаляются вместе с неудачной версией.
 
 Деплой не заменяет:
 
@@ -376,6 +379,10 @@ PRODUCTION_DEPLOY_ENABLED=false
 - входит ли изменённый файл в синхронизируемые каталоги;
 - не относится ли изменение к `.env`, SQLite или media, которые намеренно не обновляются из Git;
 - журнал `Deploy to Hostland` и результат `Check production health`.
+
+### `ModuleNotFoundError` для нового локального приложения
+
+Если `manage.py check` на Hostland сообщает, что новый пакет из `INSTALLED_APPS` не найден, сначала проверить, входит ли его каталог в `CODE_DIRECTORIES` файла `ops/deploy_hostland.sh`. Настройки проекта и каталог приложения должны синхронизироваться одной операцией; добавление только записи в `INSTALLED_APPS` приводит к откату деплоя до запуска миграций.
 
 ## Источники
 

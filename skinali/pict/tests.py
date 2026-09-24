@@ -1,4 +1,5 @@
 import json
+import re
 import time
 import xml.etree.ElementTree as ElementTree
 from datetime import timedelta
@@ -10,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 import requests
 from PIL import Image
+from django.apps import apps
 from django.conf import settings
 from django.contrib import admin, messages
 from django.contrib.admin.sites import AdminSite
@@ -117,6 +119,35 @@ def get_sitemap_lastmods(response):
         for url in root.findall('sitemap:url', namespace)
         if url.find('sitemap:lastmod', namespace) is not None
     }
+
+
+class DeploymentConfigurationTests(SimpleTestCase):
+    def test_deploy_script_covers_all_local_python_packages(self):
+        deploy_script_path = (
+            settings.BASE_DIR.parent / 'ops' / 'deploy_hostland.sh'
+        )
+        deploy_script = deploy_script_path.read_text(encoding='utf-8')
+        directories_match = re.search(
+            r'^readonly -a CODE_DIRECTORIES=\(([^)]*)\)$',
+            deploy_script,
+            re.MULTILINE,
+        )
+
+        self.assertIsNotNone(directories_match)
+        deployed_directories = set(directories_match.group(1).split())
+        local_app_directories = {
+            Path(app_config.path).name
+            for app_config in apps.get_app_configs()
+            if Path(app_config.path).parent == settings.BASE_DIR
+        }
+        self.assertEqual(
+            deployed_directories,
+            local_app_directories | {'skinali'},
+        )
+        self.assertEqual(
+            deploy_script.count('for directory in "${CODE_DIRECTORIES[@]}"; do'),
+            4,
+        )
 
 
 class PopularTagsTests(TestCase):
