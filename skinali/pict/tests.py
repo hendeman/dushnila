@@ -1265,6 +1265,7 @@ class RobotsTxtTests(SimpleTestCase):
             'User-agent: *\n'
             'Disallow: /private-admin/\n'
             f'Disallow: {reverse("contact_submit")}\n'
+            'Disallow: /quiz/\n'
             'Clean-param: '
             'utm_source&utm_medium&utm_campaign&utm_content&utm_term&yclid&gclid\n'
             '\n'

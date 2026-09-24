@@ -21,6 +21,7 @@ TELEGRAM_REQUEST_ICON_BY_TYPE = {
     ContactRequest.RequestType.QUESTION: '❔',
     ContactRequest.RequestType.EMAIL_MESSAGE: '✉',
     ContactRequest.RequestType.IMAGE_PURCHASE: '💲',
+    ContactRequest.RequestType.QUIZ: '📋',
 }
 
 
@@ -100,6 +101,14 @@ def format_contact_request_message(contact_request):
         lines.append(f'💬 {escape(contact_request.comment, quote=False)}')
     if contact_request.image_number is not None:
         lines.append(f'🖼 №{contact_request.image_number}')
+    quiz_submission = getattr(contact_request, 'quiz_submission', None)
+    if quiz_submission is not None:
+        lines.extend(('', '<b>Ответы квиза:</b>'))
+        for number, answer in enumerate(quiz_submission.answers, start=1):
+            question = escape(str(answer.get('question', 'Вопрос')), quote=False)
+            value = escape(str(answer.get('answer') or 'Не указано'), quote=False)
+            lines.append(f'{number}. <b>{question}</b>')
+            lines.append(value)
     lines.append(f'🕒 {created_at:%d.%m.%Y %H:%M}')
     return '\n'.join(lines)
 
@@ -233,9 +242,10 @@ def claim_delivery(delivery_id, *, max_attempts):
     )
     if not claimed:
         return None
-    return ContactRequestDelivery.objects.select_related('contact_request').get(
-        pk=delivery_id
-    )
+    return ContactRequestDelivery.objects.select_related(
+        'contact_request',
+        'contact_request__quiz_submission',
+    ).get(pk=delivery_id)
 
 
 def mark_delivery_sent(delivery, message_id):

@@ -63,6 +63,10 @@ HTML-атрибуты `required`, `minlength`, `maxlength` и `autocomplete` о�
 
 Форма открывается поверх каталожной Fancybox-карточки. Пользовательский номер изображения не считается доверенным: обработчик берет его из проверенного объекта `Pict`.
 
+### Переиспользование в квизе
+
+`quiz.forms.QuizContactForm` наследует `PhoneContactForm`, поэтому финальный шаг квиза использует те же правила имени, телефона, honeypot и подписанной временной метки. Динамические поля вопросов, проверка вариантов и формирование снимка ответов остаются внутри приложения `quiz`; эта форма не входит в `CONTACT_FORM_CLASSES` и отправляется на отдельный endpoint квиза.
+
 ## `FinishedWorkAdminForm`
 
 - Наследуется от `forms.ModelForm`, привязана к `FinishedWork` и включает все редактируемые поля модели.
@@ -86,6 +90,7 @@ HTML-атрибуты `required`, `minlength`, `maxlength` и `autocomplete` о�
 - [admin.py](admin.md): `PictAdmin.form = PictAdminForm`.
 - [context_processors.py](context_processors.md): глобальные экземпляры `CallbackContactForm` и `ImagePurchaseContactForm`.
 - [views.py](views.md): обработка четырёх публичных форм.
+- [приложение квиза](../quiz/overview.md): наследование общей телефонной формы для финального шага.
 - `django.core.signing`: подписанная временная метка.
 
 ## Особенности и риски

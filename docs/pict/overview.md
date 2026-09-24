@@ -2,7 +2,7 @@
 
 ## Назначение
 
-Единственное прикладное Django-приложение проекта. Отвечает за хранение изображений и их классификацию, публичный поиск, каталог, избранное, фотогалерею готовых работ и контактные заявки, а также управление данными через Django Admin.
+Основное прикладное Django-приложение каталога. Отвечает за хранение изображений и их классификацию, публичный поиск, каталог, избранное, фотогалерею готовых работ и общие контактные заявки, а также управление этими данными через Django Admin. Последовательный модальный квиз выделен в отдельное внутреннее приложение [`quiz`](../quiz/overview.md), а управляемое меню и содержимое — в `sitecontent`.
 
 ## Карта модулей
 
@@ -32,4 +32,4 @@
 
 ## Направление зависимостей
 
-`urls.py → views.py → models.py`; корневой URLconf также вызывает `sitemaps.py → models.py`. При инициализации `apps.py` регистрирует `signals.py`, который обновляет timestamps моделей `pict` и `sitecontent.SitePage`. Отдельно действует `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery → Telegram Bot API`.
+`urls.py → views.py → models.py`; корневой URLconf также вызывает `sitemaps.py → models.py`. При инициализации `apps.py` регистрирует `signals.py`, который обновляет timestamps моделей `pict` и `sitecontent.SitePage`. Отдельно действует `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Приложение `quiz` переиспользует `PhoneContactForm`, `ContactRequest` и общую очередь доставки, не создавая второй механизм заявок. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery → Telegram Bot API`.

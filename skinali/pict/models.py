@@ -9,6 +9,7 @@ from django.urls import reverse
 from django.utils import timezone
 from sitecontent.models import SeoMetadataFields
 
+from .page_paths import matches_public_page_path, normalize_public_page_paths
 from .search import normalize_search_value
 
 
@@ -509,6 +510,7 @@ class ContactRequest(models.Model):
         QUESTION = 'question', 'Вопрос'
         EMAIL_MESSAGE = 'email_message', 'Сообщение по email'
         IMAGE_PURCHASE = 'image_purchase', 'Покупка изображения'
+        QUIZ = 'quiz', 'Квиз'
 
     request_type = models.CharField(
         max_length=20,
@@ -673,18 +675,15 @@ class Integration(models.Model):
 
     def clean(self):
         super().clean()
-        paths = list(dict.fromkeys(line.strip() for line in self.page_paths.splitlines() if line.strip()))
-        for path in paths:
-            if (not path.startswith('/') or path.startswith('//')
-                    or any(char in path for char in '?#*\\')
-                    or any(char.isspace() or ord(char) < 32 for char in path)):
-                raise ValidationError({'page_paths': 'Укажите локальные пути с / без домена, параметров и масок.'})
-        self.page_paths = '\n'.join(paths)
+        try:
+            self.page_paths = normalize_public_page_paths(self.page_paths)
+        except ValidationError as error:
+            raise ValidationError({'page_paths': error.messages}) from error
         if self.is_enabled and not any((self.head_html.strip(), self.body_start_html.strip(), self.body_end_html.strip())):
             raise ValidationError({'is_enabled': 'Для включения добавьте код хотя бы в одно поле.'})
 
     def matches_path(self, path):
-        return not self.page_paths or path in self.page_paths.splitlines()
+        return matches_public_page_path(self.page_paths, path)
 
     def save_with_revision(self, user, note=''):
         # Снимок и настройки записываются атомарно, чтобы история не расходилась с публикацией.

@@ -1,6 +1,6 @@
 # AGENTS.md — навигация по проекту Skinali
 
-Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет опубликованное изображение по номеру, тегу или поисковому синониму, просматривает опубликованную часть каталога, фильтрует её по категории, цвету и тегу, ведет персональное избранное в Django-сессии и смотрит опубликованные элементы фотогалереи готовых работ; контент и его публикация редактируются через Django Admin.
+Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет опубликованное изображение по номеру, тегу или поисковому синониму, просматривает опубликованную часть каталога, фильтрует её по категории, цвету и тегу, ведет персональное избранное в Django-сессии, смотрит опубликованные элементы фотогалереи готовых работ и проходит встроенный модальный квиз; контент, публикация и настройки квиза редактируются через Django Admin.
 
 ## Порядок работы для ИИ-агента
 
@@ -39,6 +39,7 @@
 | Цена на странице дизайнера | [pict/views.md](docs/pict/views.md) | [pict/tests.md](docs/pict/tests.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
 | Интеграции, вставки HTML/JS, выбор страниц и восстановление версий | [pict/integrations.md](docs/pict/integrations.md) | [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md) |
+| Встроенный квиз, `#popup:skinali-quiz`, автопоказ, вопросы, ответы и заявки типа `quiz` | [quiz/overview.md](docs/quiz/overview.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/services.md](docs/pict/services.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Управляемое меню, SEO постоянных страниц и будущие блоки сайта | [sitecontent/overview.md](docs/sitecontent/overview.md) | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [architecture.md](docs/architecture.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
@@ -61,6 +62,7 @@
 | `skinali/pict/models.py` | [pict/models.md](docs/pict/models.md) |
 | `skinali/pict/forms.py` | [pict/forms.md](docs/pict/forms.md) |
 | `skinali/pict/search.py` | [pict/search.md](docs/pict/search.md) |
+| `skinali/pict/page_paths.py` | [pict/integrations.md](docs/pict/integrations.md), [quiz/overview.md](docs/quiz/overview.md) |
 | `skinali/pict/sitemaps.py` | [pict/sitemaps.md](docs/pict/sitemaps.md) |
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
@@ -78,6 +80,15 @@
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
+| `skinali/quiz/apps.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/models.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/forms.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/context_processors.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/views.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/urls.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/admin.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/tests.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/quiz/migrations/*.py` | [migrations/README.md](docs/migrations/README.md), [quiz/overview.md](docs/quiz/overview.md) |
 | Пустые `__init__.py` | [architecture.md](docs/architecture.md) |
 
 ## Границы документации

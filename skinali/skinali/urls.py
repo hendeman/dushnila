@@ -44,6 +44,7 @@ def robots_txt(request):
         'User-agent: *',
         f'Disallow: /{settings.ADMIN_URL}',
         f'Disallow: {reverse("contact_submit")}',
+        'Disallow: /quiz/',
         f'Clean-param: {tracking_parameters}',
         '',
         f'Sitemap: {settings.PUBLIC_SITE_ORIGIN}{reverse("sitemap")}',
@@ -78,6 +79,7 @@ urlpatterns = [
 if settings.ENABLE_DEBUG_TOOLBAR:
     urlpatterns.append(path('__debug__/', include('debug_toolbar.urls')))
 
+urlpatterns.append(path('quiz/', include('quiz.urls')))
 urlpatterns.append(path('', include('pict.urls')))
 
 if settings.DEBUG:

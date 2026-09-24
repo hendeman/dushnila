@@ -260,6 +260,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sitemaps',
     'pict.apps.PictConfig',
+    'quiz.apps.QuizConfig',
     'sitecontent.apps.SiteContentConfig',
     'sorl.thumbnail',
 ]
@@ -298,6 +299,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'pict.context_processors.site_identity',
                 'pict.context_processors.contact_forms',
+                'quiz.context_processors.public_quiz',
                 'sitecontent.context_processors.site_navigation',
             ],
         },

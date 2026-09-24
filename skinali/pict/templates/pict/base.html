@@ -14,6 +14,7 @@
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
+    {% if site_quiz %}<link type="text/css" href="{% static 'quiz/css/quiz.css' %}" rel="stylesheet" />{% endif %}
 <!--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css"/>-->
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% for integration in site_integration_list %}{{ integration.head_html|safe }}{% endfor %}
@@ -119,6 +120,10 @@
     <div class="contact-toast__message" data-contact-success-message></div>
 </div>
 
+{% if site_quiz %}
+    {% include 'quiz/dialog.html' with quiz=site_quiz.quiz form=site_quiz.form %}
+{% endif %}
+
 <main class="site-main">
 <div class="site-content">
 {% if breadcrumbs %}
@@ -204,6 +209,7 @@
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
     <script src="{% static 'skinali/js/site-menu.js' %}" defer></script>
     <script src="{% static 'skinali/js/contact-forms.js' %}" defer></script>
+    {% if site_quiz %}<script src="{% static 'quiz/js/quiz.js' %}" defer></script>{% endif %}
     <script src="{% static 'skinali/js/image-sharing.js' %}" defer></script>
     <script src="{% static 'skinali/js/fancybox.js' %}"></script>
     <script>

@@ -448,6 +448,11 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             'image_number',
             'get_catalog_image_thumbnail',
         ],
+        ContactRequest.RequestType.QUIZ: [
+            'name',
+            'phone',
+            'get_quiz_answers',
+        ],
     }
     service_fields = ['request_type', 'get_delivery_status', 'created_at']
     list_display = [
@@ -465,6 +470,7 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     search_fields = ['name', 'phone', 'email', 'question', 'comment', '=image_number']
     readonly_fields = [
         'get_catalog_image_thumbnail',
+        'get_quiz_answers',
         'get_delivery_status',
         'created_at',
     ]
@@ -491,7 +497,7 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
-            .select_related('catalog_image')
+            .select_related('catalog_image', 'quiz_submission')
             .prefetch_related('deliveries')
         )
 
@@ -557,6 +563,24 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             obj.catalog_image.photo,
             alt_text=f'Изображение № {obj.image_number or obj.catalog_image.name}',
             width=150,
+        )
+
+    @admin.display(description='Ответы квиза')
+    def get_quiz_answers(self, obj):
+        submission = getattr(obj, 'quiz_submission', None) if obj else None
+        if submission is None:
+            return '—'
+        rows = (
+            (
+                answer.get('question', 'Вопрос'),
+                answer.get('answer') or 'Не указано',
+            )
+            for answer in submission.answers
+        )
+        return format_html_join(
+            '',
+            '<div style="margin-bottom:10px"><strong>{}</strong><br>{}</div>',
+            rows,
         )
 
     @admin.action(description='Поставить выбранные заявки в очередь Telegram')

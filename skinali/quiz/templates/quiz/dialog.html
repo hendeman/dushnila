@@ -1,0 +1,211 @@
+{% load static %}
+{% if quiz.show_launcher %}
+<button class="site-quiz-launcher site-quiz-launcher--{{ quiz.launcher_position }}"
+        type="button"
+        data-quiz-open
+        aria-haspopup="dialog"
+        aria-controls="site-quiz-dialog">
+    <span aria-hidden="true">✓</span>
+    {{ quiz.launcher_text }}
+</button>
+{% endif %}
+
+<dialog class="site-quiz-dialog"
+        id="site-quiz-dialog"
+        data-site-quiz
+        data-trigger-hash="{{ quiz.trigger_hash }}"
+        data-auto-open="{{ quiz.auto_open_enabled|yesno:'1,0' }}"
+        data-auto-open-delay="{{ quiz.auto_open_delay_seconds }}"
+        data-repeat-days="{{ quiz.repeat_after_days }}"
+        data-auto-open-mobile="{{ quiz.auto_open_on_mobile|yesno:'1,0' }}"
+        data-disable-after-submit="{{ quiz.disable_auto_open_after_submit|yesno:'1,0' }}"
+        data-restart-on-close="{{ quiz.restart_on_close|yesno:'1,0' }}"
+        aria-labelledby="site-quiz-title">
+    <div class="site-quiz-dialog__panel">
+        <button class="site-quiz-dialog__close"
+                type="button"
+                data-quiz-close
+                aria-label="Закрыть квиз">&times;</button>
+
+        <form class="site-quiz-form"
+              method="post"
+              action="{% url 'quiz:submit' quiz.trigger_key %}"
+              data-quiz-form
+              novalidate>
+            {% csrf_token %}
+            {% for hidden_field in form.hidden_fields %}
+                {{ hidden_field }}
+            {% endfor %}
+            <div class="site-quiz-form__honeypot" aria-hidden="true">
+                <label for="{{ form.website.id_for_label }}">{{ form.website.label }}</label>
+                {{ form.website }}
+            </div>
+
+            <header class="site-quiz-dialog__header">
+                <p class="site-quiz-dialog__eyebrow">Квиз ОДИУМ</p>
+                <h2 id="site-quiz-title">{{ quiz.title }}</h2>
+            </header>
+
+            <div class="site-quiz-dialog__body" data-quiz-body>
+                {% for entry in form.question_fields %}
+                <section class="site-quiz-step"
+                         data-quiz-step
+                         data-quiz-field="{{ entry.field.name }}"
+                         {% if not forloop.first %}hidden{% endif %}>
+                    <div class="site-quiz-question">
+                        <p class="site-quiz-question__number">Вопрос {{ forloop.counter }} из {{ form.question_fields|length }}</p>
+                        <h2 id="quiz-question-{{ entry.question.pk }}" tabindex="-1">{{ entry.question.title }}</h2>
+                        {% if entry.question.description %}<p>{{ entry.question.description }}</p>{% endif %}
+                    </div>
+
+                    <div class="site-quiz-errors"
+                         data-quiz-errors="{{ entry.field.name }}"
+                         aria-live="polite"
+                         hidden></div>
+
+                    {% if entry.question.kind == 'text' %}
+                        <div class="site-quiz-text-answer">
+                            <label class="site-quiz-visually-hidden" for="{{ entry.field.id_for_label }}">
+                                {{ entry.question.title }}
+                            </label>
+                            {{ entry.field }}
+                        </div>
+                    {% elif entry.question.kind == 'image' %}
+                        <div class="site-quiz-image-options"
+                             role="radiogroup"
+                             aria-labelledby="quiz-question-{{ entry.question.pk }}">
+                            {% for option in entry.options %}
+                            <label class="site-quiz-image-option">
+                                <input type="radio"
+                                       name="{{ entry.field.html_name }}"
+                                       value="{{ option.pk }}"
+                                       data-quiz-answer
+                                       data-field-name="{{ entry.field.name }}"
+                                       {% if entry.question.is_required %}required{% endif %}>
+                                <span class="site-quiz-image-option__surface">
+                                    {% if option.image_url %}
+                                    <img src="{{ option.image_url }}"
+                                         width="640"
+                                         height="640"
+                                         loading="lazy"
+                                         alt="{{ option.title }}">
+                                    {% else %}
+                                    <span class="site-quiz-image-option__placeholder" aria-hidden="true">ОДИУМ</span>
+                                    {% endif %}
+                                    <span class="site-quiz-image-option__label">{{ option.title }}</span>
+                                    <span class="site-quiz-image-option__check" aria-hidden="true">✓</span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="site-quiz-choice-options"
+                             role="radiogroup"
+                             aria-labelledby="quiz-question-{{ entry.question.pk }}">
+                            {% for option in entry.options %}
+                            <label class="site-quiz-choice-option">
+                                <input type="radio"
+                                       name="{{ entry.field.html_name }}"
+                                       value="{{ option.pk }}"
+                                       data-quiz-answer
+                                       data-field-name="{{ entry.field.name }}"
+                                       {% if entry.question.is_required %}required{% endif %}>
+                                <span class="site-quiz-choice-option__surface">
+                                    <span class="site-quiz-choice-option__radio" aria-hidden="true"></span>
+                                    <span>{{ option.title }}</span>
+                                </span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                </section>
+                {% endfor %}
+
+                <section class="site-quiz-step site-quiz-contact-step"
+                         data-quiz-contact-step
+                         hidden>
+                    <div class="site-quiz-question site-quiz-question--centered">
+                        <p class="site-quiz-question__number">Финальный шаг</p>
+                        <h2 tabindex="-1">{{ quiz.final_title }}</h2>
+                        <p>{{ quiz.final_text }}</p>
+                    </div>
+
+                    <div class="site-quiz-errors"
+                         data-quiz-errors="__all__"
+                         aria-live="polite"
+                         hidden></div>
+                    <div class="site-quiz-errors"
+                         data-quiz-errors="form_token"
+                         aria-live="polite"
+                         hidden></div>
+
+                    <div class="site-quiz-contact-fields">
+                        <div class="site-quiz-contact-field">
+                            <div class="site-quiz-errors"
+                                 data-quiz-errors="name"
+                                 aria-live="polite"
+                                 hidden></div>
+                            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+                            {{ form.name }}
+                        </div>
+                        <div class="site-quiz-contact-field">
+                            <div class="site-quiz-errors"
+                                 data-quiz-errors="phone"
+                                 aria-live="polite"
+                                 hidden></div>
+                            <label for="{{ form.phone.id_for_label }}">{{ form.phone.label }}</label>
+                            {{ form.phone }}
+                        </div>
+                    </div>
+
+                    <div class="site-quiz-contact-actions">
+                        <button class="site-quiz-button site-quiz-button--secondary"
+                                type="button"
+                                data-quiz-contact-back>Назад</button>
+                        <button class="site-quiz-button site-quiz-button--primary"
+                                type="submit"
+                                data-quiz-submit
+                                data-default-label="{{ quiz.submit_button_text }}">
+                            {{ quiz.submit_button_text }}
+                        </button>
+                    </div>
+                </section>
+
+                <section class="site-quiz-step site-quiz-success"
+                         data-quiz-success-step
+                         hidden>
+                    <span class="site-quiz-success__icon" aria-hidden="true">✓</span>
+                    <h2 data-quiz-success-title tabindex="-1">{{ quiz.success_title }}</h2>
+                    <p data-quiz-success-message>{{ quiz.success_text }}</p>
+                    <p class="site-quiz-success__extra" data-quiz-success-extra{% if not quiz.success_extra %} hidden{% endif %}>
+                        {{ quiz.success_extra }}
+                    </p>
+                    <button class="site-quiz-button site-quiz-button--primary"
+                            type="button"
+                            data-quiz-close>Закрыть</button>
+                </section>
+            </div>
+
+            <footer class="site-quiz-dialog__footer" data-quiz-navigation>
+                <div class="site-quiz-progress">
+                    <div class="site-quiz-progress__labels">
+                        <span>Готово</span>
+                        <strong data-quiz-progress-value>0%</strong>
+                    </div>
+                    <div class="site-quiz-progress__track" aria-hidden="true">
+                        <span data-quiz-progress-bar></span>
+                    </div>
+                </div>
+                <div class="site-quiz-navigation">
+                    <button class="site-quiz-button site-quiz-button--secondary"
+                            type="button"
+                            data-quiz-back
+                            disabled>Назад</button>
+                    <button class="site-quiz-button site-quiz-button--primary"
+                            type="button"
+                            data-quiz-next>Далее</button>
+                </div>
+            </footer>
+        </form>
+    </div>
+</dialog>
