@@ -2152,13 +2152,11 @@ ul.mainmenu li a:focus-visible {
 	margin: 0;
 }
 
-.catalog-categories--catalog ul {
-	display: grid;
-	grid-template-columns: repeat(8, auto);
-}
-
-.catalog-categories--catalog ul .page-num {
-	justify-self: center;
+.category-navigation__rows {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 10px;
 }
 
 .catalog-categories ul .page-num,
@@ -2464,12 +2462,12 @@ background-color: coral;
 .catalog-gallery-modal .fancybox__content {
 	position: relative;
 	display: grid !important;
-	grid-template-rows: var(--catalog-modal-image-height) minmax(0, 1fr);
+	grid-template-rows: var(--catalog-modal-image-height) auto;
 	flex: 0 0 auto;
 	box-sizing: border-box;
 	width: min(980px, calc(100vw - 40px)) !important;
 	max-width: calc(100vw - 40px) !important;
-	height: 435px !important;
+	height: auto !important;
 	max-height: none !important;
 	padding: 0 !important;
 	border-radius: 18px;
@@ -2512,13 +2510,13 @@ background-color: coral;
 	position: static;
 	width: 100%;
 	max-width: none;
-	height: 100%;
+	height: auto;
 	margin: 0;
 	padding: 0;
 	color: #1f231f;
 	background: #fbfaf6;
 	border-radius: 0 0 18px 18px;
-	overflow: hidden;
+	overflow: visible;
 	pointer-events: auto;
 	visibility: hidden;
 }
@@ -2536,7 +2534,7 @@ background-color: coral;
 	flex-direction: column;
 	box-sizing: border-box;
 	min-height: 0;
-	height: 100%;
+	height: auto;
 	padding: 24px 36px 22px;
 	font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 	cursor: default;

@@ -435,7 +435,21 @@ class PopularTagsTests(TestCase):
         self.assertIn('height: var(--catalog-modal-nav-height);', styles)
         self.assertIn('background: rgba(255, 255, 255, .72);', styles)
         self.assertIn('background: rgba(220, 217, 207, .82);', styles)
-        self.assertIn('height: 435px !important;', styles)
+        self.assertIn(
+            '.catalog-gallery-modal .fancybox__content {\n'
+            '\tposition: relative;\n'
+            '\tdisplay: grid !important;\n'
+            '\tgrid-template-rows: var(--catalog-modal-image-height) auto;\n'
+            '\tflex: 0 0 auto;',
+            styles,
+        )
+        self.assertIn(
+            '.catalog-gallery-modal .fancybox__caption {\n'
+            '\tgrid-row: 2;\n'
+            '\talign-self: stretch;',
+            styles,
+        )
+        self.assertNotIn('height: 435px !important;', styles)
         self.assertIn(
             '.catalog-modal__actions {\n'
             '\tdisplay: flex;\n'
@@ -1170,8 +1184,9 @@ class TagPageAndSitemapTests(TestCase):
             self.assertContains(response, category.get_absolute_url())
         self.assertContains(
             response,
-            'class="list-pages catalog-categories catalog-categories--catalog"',
+            'class="list-pages catalog-categories catalog-category-navigation"',
         )
+        self.assertContains(response, 'class="category-navigation__row"', count=2)
         styles = (
             settings.BASE_DIR
             / 'pict'
@@ -1181,14 +1196,11 @@ class TagPageAndSitemapTests(TestCase):
             / 'styles.css'
         ).read_text(encoding='utf-8')
         self.assertIn(
-            '.catalog-categories--catalog ul {\n'
-            '\tdisplay: grid;\n'
-            '\tgrid-template-columns: repeat(8, auto);',
-            styles,
-        )
-        self.assertIn(
-            '.catalog-categories--catalog ul .page-num {\n'
-            '\tjustify-self: center;',
+            '.category-navigation__rows {\n'
+            '\tdisplay: flex;\n'
+            '\tflex-direction: column;\n'
+            '\talign-items: stretch;\n'
+            '\tgap: 10px;',
             styles,
         )
 

@@ -1,5 +1,6 @@
-<nav class="list-pages catalog-categories{% if not finished_works_filter %} catalog-categories--catalog{% endif %}" aria-label="Категории">
-  <ul>
+<nav class="list-pages catalog-categories catalog-category-navigation" aria-label="Категории">
+  <div class="category-navigation__rows">
+  <ul class="category-navigation__row">
     {% if not selected_category %}
       <li class="page-num page-num-selected">Все</li>
     {% else %}
@@ -15,6 +16,11 @@
           <a href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">{{ category.cat }}</a>
         </li>
       {% endif %}
+      {% if forloop.counter|add:"1"|divisibleby:"8" and not forloop.last %}
+        </ul>
+        <ul class="category-navigation__row">
+      {% endif %}
     {% endfor %}
   </ul>
+  </div>
 </nav>
