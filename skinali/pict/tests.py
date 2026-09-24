@@ -408,6 +408,52 @@ class PopularTagsTests(TestCase):
         self.assertIn('position: absolute;', styles)
         self.assertIn('width: 24px;', styles)
         self.assertIn('height: 24px;', styles)
+        self.assertIn('--catalog-modal-header-height: 48px;', styles)
+        self.assertIn('--fancybox-bg: #fbfaf6;', styles)
+        self.assertIn(
+            '.catalog-gallery-modal .fancybox__backdrop {\n'
+            '\t\tbackground: #fbfaf6;\n'
+            '\t\topacity: 1;',
+            styles,
+        )
+        self.assertIn('justify-content: flex-start;', styles)
+        self.assertIn('overscroll-behavior-y: contain;', styles)
+        self.assertIn(
+            '.catalog-gallery-modal .fancybox__slide::before,\n'
+            '\t.catalog-gallery-modal .fancybox__slide::after {\n'
+            '\t\tmargin: 0;',
+            styles,
+        )
+        self.assertIn('flex: 0 0 auto;', styles)
+        self.assertIn(
+            'padding: var(--catalog-modal-header-height) 0 0 !important;',
+            styles,
+        )
+        self.assertIn('top: 6px !important;', styles)
+        self.assertIn('right: 12px !important;', styles)
+        self.assertIn('width: 50px;', styles)
+        self.assertIn('height: var(--catalog-modal-nav-height);', styles)
+        self.assertIn('background: rgba(255, 255, 255, .72);', styles)
+        self.assertIn('background: rgba(220, 217, 207, .82);', styles)
+        self.assertIn('height: 435px !important;', styles)
+        self.assertIn(
+            '.catalog-modal__actions {\n'
+            '\tdisplay: flex;\n'
+            '\talign-items: center;\n'
+            '\tjustify-content: center;\n'
+            '\tmargin-top: 18px;',
+            styles,
+        )
+        self.assertContains(response, 'wheel: false')
+        self.assertIn(
+            '@media (min-width: 701px) {\n'
+            '\t.fancybox__container.catalog-gallery-modal '
+            '.fancybox__slide.has-image.has-close-btn {\n'
+            '\t\tpadding: 66px 20px 20px;\n'
+            '\t\toverflow: auto;\n'
+            '\t\toverscroll-behavior: contain;',
+            styles,
+        )
         self.assertNotContains(response, '?v=')
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
@@ -1097,18 +1143,54 @@ class TagPageAndSitemapTests(TestCase):
         self.assertGreater(home_page.updated_at, old_timestamp)
         self.assertGreater(finished_works_page.updated_at, old_timestamp)
 
-    def test_catalog_navigation_contains_only_categories_with_published_pictures(self):
+    def test_catalog_navigation_contains_all_categories(self):
+        additional_categories = [
+            Category.objects.create(
+                cat=f'Дополнительная категория {index}',
+                slug=f'additional-category-{index}',
+            )
+            for index in range(8)
+        ]
+        expected_categories = [
+            self.category,
+            self.empty_category,
+            self.hidden_category,
+            *additional_categories,
+        ]
+
         with self.assertNumQueries(1):
             categories = list(SkinaliAll.get_catalog_categories())
 
-        self.assertEqual(categories, [self.category])
+        self.assertEqual(categories, expected_categories)
 
         response = self.client.get(reverse('skinali'))
 
-        self.assertEqual(list(response.context['list_cat']), [self.category])
-        self.assertContains(response, self.category.get_absolute_url())
-        self.assertNotContains(response, self.empty_category.get_absolute_url())
-        self.assertNotContains(response, self.hidden_category.get_absolute_url())
+        self.assertEqual(list(response.context['list_cat']), expected_categories)
+        for category in expected_categories:
+            self.assertContains(response, category.get_absolute_url())
+        self.assertContains(
+            response,
+            'class="list-pages catalog-categories catalog-categories--catalog"',
+        )
+        styles = (
+            settings.BASE_DIR
+            / 'pict'
+            / 'static'
+            / 'skinali'
+            / 'css'
+            / 'styles.css'
+        ).read_text(encoding='utf-8')
+        self.assertIn(
+            '.catalog-categories--catalog ul {\n'
+            '\tdisplay: grid;\n'
+            '\tgrid-template-columns: repeat(8, auto);',
+            styles,
+        )
+        self.assertIn(
+            '.catalog-categories--catalog ul .page-num {\n'
+            '\tjustify-self: center;',
+            styles,
+        )
 
     def test_public_pages_render_visible_breadcrumbs_and_json_ld(self):
         cases = (
@@ -3682,6 +3764,40 @@ class FinishedWorkTests(TestCase):
             f'data-caption-template="finished-work-caption-{self.work.pk}"',
         )
         self.assertContains(response, 'enableFinishedWorkCallback(slide.contentEl)')
+        self.assertContains(response, 'wheel: false')
+        self.assertContains(response, 'positionFinishedWorkNavigation(slide.contentEl)')
+        self.assertContains(response, "'--catalog-modal-nav-inline-inset'")
+        self.assertContains(response, "'--catalog-modal-nav-height'")
+        self.assertContains(response, "'--catalog-modal-nav-radius'")
+        self.assertContains(response, "? '0px'")
+        self.assertIn(
+            '@media (min-width: 701px) {\n'
+            '\t.fancybox__container.catalog-gallery-modal '
+            '.fancybox__slide.has-image.has-close-btn {\n'
+            '\t\tpadding: 66px 20px 20px;\n'
+            '\t\toverflow: auto;\n'
+            '\t\toverscroll-behavior: contain;',
+            styles,
+        )
+        self.assertIn(
+            '.finished-works-modal .fancybox__content {\n'
+            '\tgrid-template-rows: var(--catalog-modal-image-height) auto;\n'
+            '\tflex: 0 0 auto;\n'
+            '\theight: auto !important;\n'
+            '\tmax-height: none !important;',
+            styles,
+        )
+        self.assertIn(
+            '.finished-works-modal .fancybox__caption {\n'
+            '\theight: auto;\n'
+            '\toverflow: visible;',
+            styles,
+        )
+        self.assertIn(
+            '.finished-work-modal__actions {\n'
+            '\tmargin-top: 24px;',
+            styles,
+        )
         self.assertNotContains(response, 'class="site-search"')
         self.assertContains(
             response,
@@ -3706,6 +3822,11 @@ class FinishedWorkTests(TestCase):
         self.assertIn(
             '.catalog-categories.finished-work-types {\n'
             '\t\tdisplay: block;',
+            styles,
+        )
+        self.assertIn(
+            '.catalog-gallery-modal.finished-works-modal .fancybox__content {\n'
+            '\t\tmax-width: 100% !important;',
             styles,
         )
 

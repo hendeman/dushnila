@@ -2,7 +2,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import Count, Exists, F, IntegerField, OuterRef, Q, Value
+from django.db.models import Count, F, IntegerField, Q, Value
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -304,10 +304,7 @@ class SkinaliMix(FavoritesContextMixin, ListView):
 
     @staticmethod
     def get_catalog_categories():
-        published_pictures = Pict.objects.published().filter(cat=OuterRef('pk'))
-        return Category.objects.filter(
-            Exists(published_pictures),
-        ).order_by('pk')
+        return Category.objects.order_by('pk')
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)

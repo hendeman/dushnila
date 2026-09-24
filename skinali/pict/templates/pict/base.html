@@ -220,6 +220,7 @@
         closeButton: true,
         Toolbar: false,
         Thumbs: false,
+        wheel: false,
         // Просмотр изображений не должен добавлять записи в историю браузера.
         Hash: false,
         contentClick: false,
@@ -269,6 +270,7 @@
         closeButton: true,
         Toolbar: false,
         Thumbs: false,
+        wheel: false,
         contentClick: false,
         Images: {
           zoom: false
@@ -328,6 +330,7 @@
 
         if (fancybox.container?.classList.contains('finished-works-modal')) {
           enableFinishedWorkCallback(slide.contentEl);
+          positionFinishedWorkNavigation(slide.contentEl);
         }
 
         const button = slide.contentEl.querySelector('[data-favorite-toggle]');
@@ -371,6 +374,54 @@
           }
         });
         button.dataset.callbackEnabled = 'true';
+      }
+
+      function positionFinishedWorkNavigation(content) {
+        const image = content.querySelector('.fancybox-image');
+        if (!image) {
+          return;
+        }
+
+        if (!image.complete && image.dataset.navigationLoadBound !== 'true') {
+          image.dataset.navigationLoadBound = 'true';
+          image.addEventListener('load', () => positionFinishedWorkNavigation(content), {
+            once: true
+          });
+        }
+
+        const boxWidth = image.clientWidth;
+        const boxHeight = image.clientHeight;
+        if (!boxWidth || !boxHeight || !image.naturalWidth || !image.naturalHeight) {
+          return;
+        }
+
+        const scale = Math.min(
+          boxWidth / image.naturalWidth,
+          boxHeight / image.naturalHeight
+        );
+        const renderedWidth = image.naturalWidth * scale;
+        const renderedHeight = image.naturalHeight * scale;
+        const inlineInset = Math.max(0, (boxWidth - renderedWidth) / 2);
+        const blockInset = Math.max(0, (boxHeight - renderedHeight) / 2);
+
+        content.style.setProperty(
+          '--catalog-modal-nav-inline-inset',
+          `${inlineInset.toFixed(2)}px`
+        );
+        content.style.setProperty(
+          '--catalog-modal-nav-block-inset',
+          `${blockInset.toFixed(2)}px`
+        );
+        content.style.setProperty(
+          '--catalog-modal-nav-height',
+          `${renderedHeight.toFixed(2)}px`
+        );
+        content.style.setProperty(
+          '--catalog-modal-nav-radius',
+          inlineInset > 0.5 || blockInset > 0.5
+            ? '0px'
+            : 'var(--catalog-modal-image-radius)'
+        );
       }
 
       function revealPreparedCatalogSlide(content) {
