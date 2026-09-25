@@ -451,6 +451,7 @@ class PopularTagsTests(TestCase):
             '\t\tmargin: 0;',
             styles,
         )
+
         self.assertIn('flex: 0 0 auto;', styles)
         self.assertIn(
             'padding: var(--catalog-modal-header-height) 0 0 !important;',
@@ -499,6 +500,23 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'data-catalog-favorite-toggle')
         self.assertContains(response, 'skinali/images/icon-favorite-inactive.png')
         self.assertContains(response, 'skinali/images/icon-favorite-active.png')
+
+    def test_catalog_places_popular_images_before_newer_regular_images(self):
+        popular_picture = Pict.objects.get(name=100)
+        popular_picture.is_popular = True
+        popular_picture.save(update_fields=['is_popular'])
+
+        catalog_response = self.client.get(reverse('skinali'))
+        category_response = self.client.get(self.first_category.get_absolute_url())
+
+        self.assertEqual(
+            [picture.name for picture in catalog_response.context['object_list']],
+            [100, 202, 201, 200, 102, 101],
+        )
+        self.assertEqual(
+            [picture.name for picture in category_response.context['object_list']],
+            [100, 102, 101],
+        )
 
     def test_homepage_shows_hero_and_redirects_legacy_search(self):
         finished_works = [
@@ -2077,8 +2095,10 @@ class PictUploadNamingTests(TestCase):
     def test_admin_field_configuration(self):
         name_field = Pict._meta.get_field('name')
         alt_field = Pict._meta.get_field('alt')
+        popular_field = Pict._meta.get_field('is_popular')
         model_admin = PictAdmin(Pict, AdminSite())
         main_fieldset, seo_fieldset = model_admin.get_fieldsets(None)
+        main_fields = main_fieldset[1]['fields']
         styles = Path(
             settings.BASE_DIR,
             'pict/static/skinali/css/admin-image-preview.css',
@@ -2087,6 +2107,30 @@ class PictUploadNamingTests(TestCase):
         self.assertEqual(name_field.verbose_name, 'Номер изображения')
         self.assertFalse(alt_field.blank)
         self.assertTrue(alt_field.formfield().required)
+        self.assertIs(popular_field.default, False)
+        self.assertEqual(popular_field.verbose_name, 'Популярное изображение')
+        self.assertEqual(popular_field.formfield().widget.input_type, 'checkbox')
+        self.assertEqual(
+            main_fields.index('is_popular'),
+            main_fields.index('photo') + 1,
+        )
+        self.assertEqual(
+            main_fields.index('get_html_photo_fields'),
+            main_fields.index('is_popular') + 1,
+        )
+        Pict.objects.create(
+            name=900,
+            alt='Исходное изображение',
+            photo='photos/admin-form-seed.jpg',
+        )
+        admin_form = model_admin.get_form(None)()
+        self.assertIn('is_popular', admin_form.fields)
+        self.assertEqual(
+            admin_form.fields['is_popular'].label,
+            'Популярное изображение',
+        )
+        self.assertFalse(admin_form['is_popular'].value())
+        self.assertIn('type="checkbox"', str(admin_form['is_popular']))
         self.assertIn('#id_alt.vTextField {', styles)
         self.assertIn('width: 26em;', styles)
         self.assertIn('max-width: 100%;', styles)
@@ -3715,6 +3759,90 @@ class SessionFavoritesTests(TestCase):
         )
 
 
+class FinishedWorkAdminPhotoRenameTests(TestCase):
+    def setUp(self):
+        self.model_admin = FinishedWorkAdmin(FinishedWork, AdminSite())
+        self.request = RequestFactory().post('/admin/pict/finishedwork/')
+        self.storage = FinishedWork._meta.get_field('photo').storage
+
+    def create_legacy_work(self, *, name, filename):
+        stored_name = self.storage.save(
+            f'finished_works/{filename}',
+            create_test_image_file(filename),
+        )
+        return FinishedWork.objects.create(name=name, photo=stored_name)
+
+    def test_action_renames_original_deletes_old_file_and_clears_thumbnail(self):
+        work = self.create_legacy_work(
+            name='Белая кухня',
+            filename='legacy-work.jpg',
+        )
+        old_name = work.photo.name
+        thumbnail = get_thumbnail(work.photo, '760x760', crop='center')
+        self.assertTrue(thumbnail.storage.exists(thumbnail.name))
+
+        with patch.object(self.model_admin, 'message_user') as message_user:
+            self.model_admin.rename_photos_from_name(
+                self.request,
+                FinishedWork.objects.filter(pk=work.pk),
+            )
+
+        work.refresh_from_db()
+        self.assertEqual(work.photo.name, 'finished_works/belaya-kuhnya.jpg')
+        self.assertTrue(self.storage.exists(work.photo.name))
+        self.assertFalse(self.storage.exists(old_name))
+        self.assertFalse(thumbnail.storage.exists(thumbnail.name))
+        self.assertEqual(message_user.call_args.kwargs['level'], messages.SUCCESS)
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_name(
+                self.request,
+                FinishedWork.objects.filter(pk=work.pk),
+            )
+        work.refresh_from_db()
+        self.assertEqual(work.photo.name, 'finished_works/belaya-kuhnya.jpg')
+
+    def test_action_keeps_storage_collision_suffix_stable_on_repeated_run(self):
+        occupied_name = self.storage.save(
+            'finished_works/sinyaya-kuhnya.jpg',
+            create_test_image_file('occupied-work.jpg'),
+        )
+        work = self.create_legacy_work(
+            name='Синяя кухня',
+            filename='legacy-collision.jpg',
+        )
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_name(
+                self.request,
+                FinishedWork.objects.filter(pk=work.pk),
+            )
+        work.refresh_from_db()
+        collision_name = work.photo.name
+
+        self.assertNotEqual(collision_name, occupied_name)
+        self.assertTrue(collision_name.startswith(
+            'finished_works/sinyaya-kuhnya_',
+        ))
+        self.assertTrue(collision_name.endswith('.jpg'))
+
+        with patch.object(self.model_admin, 'message_user'):
+            self.model_admin.rename_photos_from_name(
+                self.request,
+                FinishedWork.objects.filter(pk=work.pk),
+            )
+        work.refresh_from_db()
+
+        self.assertEqual(work.photo.name, collision_name)
+
+    def test_action_is_available_only_with_change_permission(self):
+        action = self.model_admin.rename_photos_from_name
+
+        self.assertIn('rename_photos_from_name', self.model_admin.actions)
+        self.assertEqual(action.allowed_permissions, ['change'])
+        self.assertEqual(action.short_description, 'Переименовать файлы по имени')
+
+
 class FinishedWorkTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -3734,6 +3862,26 @@ class FinishedWorkTests(TestCase):
             photo=create_test_image_file('finished-kitchen.jpg'),
             catalog_image=cls.catalog_image,
         )
+
+    def test_photo_filename_uses_name_only_when_file_is_uploaded(self):
+        work = FinishedWork.objects.create(
+            name='Светлая кухня',
+            photo=create_test_image_file('IMG_0273.JPG'),
+        )
+
+        self.assertEqual(work.photo.name, 'finished_works/svetlaya-kuhnya.jpg')
+        self.assertEqual(FinishedWork._meta.get_field('photo').max_length, 255)
+
+        original_photo_name = work.photo.name
+        work.name = 'Новая кухня'
+        work.save(update_fields=['name'])
+        work.refresh_from_db()
+        self.assertEqual(work.photo.name, original_photo_name)
+
+        work.photo = create_test_image_file('replacement.PNG')
+        work.save(update_fields=['photo'])
+        work.refresh_from_db()
+        self.assertEqual(work.photo.name, 'finished_works/novaya-kuhnya.png')
 
     def test_glass_and_skinali_types_have_safe_defaults(self):
         self.assertEqual(self.work.glass_type, FinishedWork.GlassType.STANDARD)

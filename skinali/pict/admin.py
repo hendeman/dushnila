@@ -25,6 +25,7 @@ from pict.models import (
     Pict,
     TagAlias,
     TagPict,
+    finished_work_photo_upload_to,
     pict_photo_upload_to,
 )
 
@@ -59,7 +60,125 @@ class AdminImagePreviewMixin:
         js = ('skinali/js/admin-image-preview.js',)
 
 
-class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
+class AdminPhotoRenameMixin:
+    @staticmethod
+    def photo_name_matches_storage_variant(current_name, target_name):
+        """Учитывает уникальный суффикс, который добавляет FileSystemStorage."""
+        current_path = Path(current_name)
+        target_path = Path(target_name)
+        if (
+            current_path.parent != target_path.parent
+            or current_path.suffix.lower() != target_path.suffix.lower()
+        ):
+            return False
+        return bool(re.fullmatch(
+            rf'{re.escape(target_path.stem)}(?:_[A-Za-z0-9]{{7}})?',
+            current_path.stem,
+        ))
+
+    def rename_photo_files(
+        self,
+        request,
+        queryset,
+        *,
+        model,
+        upload_to,
+        source_value,
+        unchanged_description,
+        log_description,
+    ):
+        """Безопасно переименовывает оригиналы выбранных записей."""
+        renamed_count = 0
+        unchanged_count = 0
+        skipped_count = 0
+        failed_count = 0
+        cleanup_warning_count = 0
+
+        for item in queryset.iterator(chunk_size=100):
+            if not source_value(item).strip() or not item.photo:
+                skipped_count += 1
+                continue
+
+            old_photo = item.photo
+            old_name = old_photo.name
+            storage = old_photo.storage
+            target_name = upload_to(item, Path(old_name).name)
+
+            if self.photo_name_matches_storage_variant(old_name, target_name):
+                unchanged_count += 1
+                continue
+            if not storage.exists(old_name):
+                skipped_count += 1
+                continue
+
+            saved_name = None
+            try:
+                with storage.open(old_name, 'rb') as source_file:
+                    saved_name = storage.save(
+                        target_name,
+                        source_file,
+                        max_length=model._meta.get_field('photo').max_length,
+                    )
+                with transaction.atomic(using=item._state.db):
+                    item.photo = saved_name
+                    item.save(update_fields=['photo'])
+            except Exception:
+                failed_count += 1
+                logger.exception(
+                    'Не удалось переименовать %s pk=%s.',
+                    log_description,
+                    item.pk,
+                )
+                if saved_name:
+                    try:
+                        storage.delete(saved_name)
+                    except Exception:
+                        logger.exception(
+                            'Не удалось удалить незавершённую копию %s.',
+                            saved_name,
+                        )
+                continue
+
+            renamed_count += 1
+            try:
+                delete_thumbnail(old_photo, delete_file=False)
+            except Exception:
+                cleanup_warning_count += 1
+                logger.exception(
+                    'Не удалось очистить миниатюры прежнего файла %s.',
+                    old_name,
+                )
+            try:
+                storage.delete(old_name)
+            except Exception:
+                cleanup_warning_count += 1
+                logger.exception(
+                    'Не удалось удалить прежний файл %s.',
+                    old_name,
+                )
+
+        summary = (
+            f'Переименовано: {renamed_count}. '
+            f'Уже соответствовали {unchanged_description}: {unchanged_count}. '
+            f'Пропущено: {skipped_count}. '
+            f'Ошибок: {failed_count}.'
+        )
+        if cleanup_warning_count:
+            summary += f' Предупреждений очистки: {cleanup_warning_count}.'
+
+        level = messages.SUCCESS
+        if failed_count:
+            level = messages.ERROR
+        elif skipped_count or cleanup_warning_count:
+            level = messages.WARNING
+        self.message_user(request, summary, level=level)
+
+
+class PictAdmin(
+    AdminImagePreviewMixin,
+    AdminPhotoRenameMixin,
+    admin.ModelAdmin,
+):
     list_per_page = 20
     list_display = ['name', 'is_published', 'get_html_photo', 'get_list_category', 'get_list_color']
     list_editable = ['is_published']
@@ -76,6 +195,7 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
                     'alt',
                     'slug',
                     'photo',
+                    'is_popular',
                     'get_html_photo_fields',
                     'created_at',
                     'updated_at',
@@ -130,109 +250,20 @@ class PictAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
         fieldsets[0] = (title, {**options, 'fields': fields})
         return fieldsets
 
-    @staticmethod
-    def photo_name_matches_storage_variant(current_name, target_name):
-        """Учитывает уникальный суффикс, который добавляет FileSystemStorage."""
-        current_path = Path(current_name)
-        target_path = Path(target_name)
-        if (
-            current_path.parent != target_path.parent
-            or current_path.suffix.lower() != target_path.suffix.lower()
-        ):
-            return False
-        return bool(re.fullmatch(
-            rf'{re.escape(target_path.stem)}(?:_[A-Za-z0-9]{{7}})?',
-            current_path.stem,
-        ))
-
     @admin.action(
         description='Переименовать файлы по описанию и номеру',
         permissions=['change'],
     )
     def rename_photos_from_description(self, request, queryset):
-        renamed_count = 0
-        unchanged_count = 0
-        skipped_count = 0
-        failed_count = 0
-        cleanup_warning_count = 0
-
-        for picture in queryset.iterator(chunk_size=100):
-            if not picture.alt.strip() or not picture.photo:
-                skipped_count += 1
-                continue
-
-            old_photo = picture.photo
-            old_name = old_photo.name
-            storage = old_photo.storage
-            target_name = pict_photo_upload_to(picture, Path(old_name).name)
-
-            if self.photo_name_matches_storage_variant(old_name, target_name):
-                unchanged_count += 1
-                continue
-            if not storage.exists(old_name):
-                skipped_count += 1
-                continue
-
-            saved_name = None
-            try:
-                with storage.open(old_name, 'rb') as source_file:
-                    saved_name = storage.save(
-                        target_name,
-                        source_file,
-                        max_length=Pict._meta.get_field('photo').max_length,
-                    )
-                with transaction.atomic(using=picture._state.db):
-                    picture.photo = saved_name
-                    picture.save(update_fields=['photo'])
-            except Exception:
-                failed_count += 1
-                logger.exception(
-                    'Не удалось переименовать изображение каталога pk=%s.',
-                    picture.pk,
-                )
-                if saved_name:
-                    try:
-                        storage.delete(saved_name)
-                    except Exception:
-                        logger.exception(
-                            'Не удалось удалить незавершённую копию %s.',
-                            saved_name,
-                        )
-                continue
-
-            renamed_count += 1
-            try:
-                delete_thumbnail(old_photo, delete_file=False)
-            except Exception:
-                cleanup_warning_count += 1
-                logger.exception(
-                    'Не удалось очистить миниатюры прежнего файла %s.',
-                    old_name,
-                )
-            try:
-                storage.delete(old_name)
-            except Exception:
-                cleanup_warning_count += 1
-                logger.exception(
-                    'Не удалось удалить прежний файл %s.',
-                    old_name,
-                )
-
-        summary = (
-            f'Переименовано: {renamed_count}. '
-            f'Уже соответствовали описанию и номеру: {unchanged_count}. '
-            f'Пропущено: {skipped_count}. '
-            f'Ошибок: {failed_count}.'
+        self.rename_photo_files(
+            request,
+            queryset,
+            model=Pict,
+            upload_to=pict_photo_upload_to,
+            source_value=lambda picture: picture.alt,
+            unchanged_description='описанию и номеру',
+            log_description='изображение каталога',
         )
-        if cleanup_warning_count:
-            summary += f' Предупреждений очистки: {cleanup_warning_count}.'
-
-        level = messages.SUCCESS
-        if failed_count:
-            level = messages.ERROR
-        elif skipped_count or cleanup_warning_count:
-            level = messages.WARNING
-        self.message_user(request, summary, level=level)
 
     def get_html_photo(self, object):
         return self.render_image_preview(
@@ -331,7 +362,11 @@ class ColorAdmin(admin.ModelAdmin):
 
 
 @admin.register(FinishedWork)
-class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
+class FinishedWorkAdmin(
+    AdminImagePreviewMixin,
+    AdminPhotoRenameMixin,
+    admin.ModelAdmin,
+):
     form = FinishedWorkAdminForm
     list_display = [
         'name',
@@ -363,6 +398,7 @@ class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     ]
     ordering = ['-created_at', '-id']
     list_per_page = 20
+    actions = ['rename_photos_from_name']
 
     class Media(AdminImagePreviewMixin.Media):
         js = AdminImagePreviewMixin.Media.js + (
@@ -374,6 +410,21 @@ class FinishedWorkAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             super().get_queryset(request)
             .select_related('catalog_image')
             .prefetch_related('catalog_image__cat')
+        )
+
+    @admin.action(
+        description='Переименовать файлы по имени',
+        permissions=['change'],
+    )
+    def rename_photos_from_name(self, request, queryset):
+        self.rename_photo_files(
+            request,
+            queryset,
+            model=FinishedWork,
+            upload_to=finished_work_photo_upload_to,
+            source_value=lambda work: work.name,
+            unchanged_description='имени',
+            log_description='фотографию готовой работы',
         )
 
     @admin.display(description='Миниатюра')

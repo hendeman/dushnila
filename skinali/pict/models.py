@@ -15,6 +15,7 @@ from .search import normalize_search_value
 
 PICT_FILENAME_STEM_MAX_LENGTH = 200
 PICT_PAGE_SLUG_MAX_LENGTH = 220
+FINISHED_WORK_FILENAME_STEM_MAX_LENGTH = 200
 CYRILLIC_FILENAME_TRANSLITERATION = str.maketrans({
     'а': 'a',
     'б': 'b',
@@ -55,13 +56,20 @@ CYRILLIC_FILENAME_TRANSLITERATION = str.maketrans({
     'ґ': 'g',
     'ў': 'u',
 })
+FINISHED_WORK_FILENAME_TRANSLITERATION = {
+    **CYRILLIC_FILENAME_TRANSLITERATION,
+    ord('х'): 'h',
+}
 
 
-def transliterate_filename_part(value):
-    """Преобразует описание в безопасную латинскую часть имени файла."""
+def transliterate_filename_part(
+    value,
+    translation_table=CYRILLIC_FILENAME_TRANSLITERATION,
+):
+    """Преобразует текст в безопасную латинскую часть имени файла."""
     normalized_value = unicodedata.normalize('NFKC', value).casefold()
     transliterated_value = normalized_value.translate(
-        CYRILLIC_FILENAME_TRANSLITERATION,
+        translation_table,
     )
     ascii_value = (
         unicodedata.normalize('NFKD', transliterated_value)
@@ -99,6 +107,23 @@ def pict_photo_upload_to(instance, original_filename):
         PICT_FILENAME_STEM_MAX_LENGTH,
     )
     return f'photos/{filename_stem}{original_path.suffix.lower()}'
+
+
+def finished_work_photo_upload_to(instance, original_filename):
+    """Формирует имя фотографии готовой работы из поля «Имя»."""
+    original_path = Path(original_filename)
+    filename_stem = (
+        transliterate_filename_part(
+            instance.name,
+            FINISHED_WORK_FILENAME_TRANSLITERATION,
+        )
+        or 'gotovaya-rabota'
+    )
+    filename_stem = (
+        filename_stem[:FINISHED_WORK_FILENAME_STEM_MAX_LENGTH].rstrip('-')
+        or 'gotovaya-rabota'
+    )
+    return f'finished_works/{filename_stem}{original_path.suffix.lower()}'
 
 
 def build_pict_page_slug(description, image_number):
@@ -301,6 +326,10 @@ class Pict(SeoPageContent):
         max_length=255,
         verbose_name='Изображение',
     )
+    is_popular = models.BooleanField(
+        default=False,
+        verbose_name='Популярное изображение',
+    )
     is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Время добавления')
     cat = models.ManyToManyField(Category, verbose_name="Категории")
@@ -402,7 +431,11 @@ class FinishedWork(models.Model):
 
     name = models.CharField(max_length=200, verbose_name='Имя')
     description = models.TextField(blank=True, verbose_name='Описание')
-    photo = models.ImageField(upload_to='finished_works/', verbose_name='Фото')
+    photo = models.ImageField(
+        upload_to=finished_work_photo_upload_to,
+        max_length=255,
+        verbose_name='Фото',
+    )
     is_published = models.BooleanField(default=True, verbose_name='Опубликовано')
     glass_type = models.CharField(
         max_length=10,

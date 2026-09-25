@@ -310,8 +310,13 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
 
     @staticmethod
     def get_catalog_queryset():
-        # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
-        return Pict.objects.published().prefetch_related('tags', 'cat')
+        # Популярные изображения идут первыми, а внутри обеих групп сохраняется
+        # прежний порядок от новых записей к старым.
+        return (
+            Pict.objects.published()
+            .order_by('-is_popular', '-id')
+            .prefetch_related('tags', 'cat')
+        )
 
     def is_search_requested(self):
         return SEARCH_QUERY_PARAMETER in self.request.GET
