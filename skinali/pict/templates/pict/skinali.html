@@ -66,125 +66,14 @@
 
 <nav class="mobile-catalog-filters" aria-label="Фильтры каталога">
   {% include 'pict/includes/category_filter_trigger.html' with selected_category=selected_category %}
-  <button type="button"
-          class="mobile-catalog-filters__trigger{% if selected_colors %} is-selected{% endif %}"
-          data-mobile-filter-open="mobile-color-filter"
-          aria-controls="mobile-color-filter"
-          aria-expanded="false">
-    <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
-    <span>{% if selected_colors|length == 1 %}{{ selected_colors.0 }}{% elif selected_colors %}Выбрано: {{ selected_colors|length }}{% else %}Все цвета{% endif %}</span>
-  </button>
+  {% include 'pict/includes/color_filter_trigger.html' %}
 </nav>
 
 {% include 'pict/includes/category_filter_dialog.html' with categories=list_cat selected_category=selected_category color_query=color_query %}
-
-<dialog class="mobile-filter-dialog"
-        id="mobile-color-filter"
-        aria-labelledby="mobile-color-filter-title">
-  <div class="mobile-filter-dialog__content">
-    <header class="mobile-filter-dialog__header">
-      <h2 id="mobile-color-filter-title">Цвета</h2>
-      <button type="button"
-              class="mobile-filter-dialog__close"
-              data-mobile-filter-close
-              aria-label="Закрыть список цветов">&times;</button>
-    </header>
-    <form class="mobile-color-filter__form"
-          action="{{ color_reset_url }}"
-          method="get"
-          data-mobile-color-form
-          data-max-colors="{{ max_catalog_colors }}">
-      <div class="mobile-filter-dialog__hint mobile-color-filter__header">
-        <p>Можно выбрать до {{ max_catalog_colors }} цветов. После выбора нажмите кнопку «Применить цвета».</p>
-        <div class="mobile-color-filter__actions">
-          <button type="submit" class="mobile-color-filter__apply">Применить цвета</button>
-        </div>
-      </div>
-      <ul class="mobile-filter-dialog__list">
-        <li>
-          <button type="button"
-                  class="mobile-filter-dialog__item mobile-filter-dialog__item--button{% if not selected_color_slugs %} is-selected{% endif %}"
-                  data-mobile-color-clear
-                  {% if not selected_color_slugs %}aria-current="true"{% endif %}>
-            <span>Все цвета</span>
-            <span class="mobile-filter-dialog__check"
-                  data-mobile-color-all-check
-                  aria-hidden="true"
-                  {% if selected_color_slugs %}hidden{% endif %}>&#10003;</span>
-          </button>
-        </li>
-        {% for option in color_options %}
-          <li>
-            <label class="mobile-filter-dialog__item mobile-filter-dialog__item--color{% if option.is_selected %} is-selected{% elif not option.can_toggle %} is-disabled{% endif %}">
-              <input class="mobile-color-filter__checkbox"
-                     type="checkbox"
-                     name="color"
-                     value="{{ option.color.slug_color }}"
-                     data-mobile-color-checkbox
-                     {% if option.is_selected %}checked{% elif not option.can_toggle %}disabled{% endif %}>
-              <span class="mobile-filter-dialog__color-name">
-                <span class="mobile-filter-dialog__swatch" style="background-color: {{ option.color.slug_color }};" aria-hidden="true"></span>
-                <span>{{ option.color }}</span>
-              </span>
-              <span class="mobile-filter-dialog__check"
-                    data-mobile-color-check
-                    aria-hidden="true"
-                    {% if not option.is_selected %}hidden{% endif %}>&#10003;</span>
-            </label>
-          </li>
-        {% endfor %}
-      </ul>
-    </form>
-  </div>
-</dialog>
+{% include 'pict/includes/color_filter_dialog.html' %}
 
 {% include 'pict/includes/category_navigation.html' with categories=list_cat selected_category=selected_category color_query=color_query %}
-<nav class="list-pages-color" aria-label="Фильтр по цвету">
-  <p class="color-filter__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите выбранный цвет, чтобы убрать его.</p>
-  <div class="color-filter__row">
-    <ul class="color-filter__options">
-        {% for option in color_options %}
-          {% if option.is_selected %}
-            <li class="page-num color-option color-option--selected">
-                <a class="color-option__link color-option__link--selected"
-                   href="{{ option.toggle_url }}"
-                   style="background-color: {{ option.color.slug_color }};"
-                   aria-label="Убрать цвет: {{ option.color }}">
-                  <span class="color-option__selected-mark" aria-hidden="true"></span>
-                </a>
-                <p class="color-description">{{ option.color }}</p>
-            </li>
-          {% elif option.can_toggle %}
-            <li class="page-num color-option">
-                <a class="color-option__link"
-                   href="{{ option.toggle_url }}"
-                   style="background-color: {{ option.color.slug_color }};"
-                   aria-label="Добавить цвет: {{ option.color }}"></a>
-                <p class="color-description">{{ option.color }}</p>
-            </li>
-          {% else %}
-            <li class="page-num color-option color-option--disabled">
-                <span class="color-option__link color-option__link--disabled"
-                      style="background-color: {{ option.color.slug_color }};"
-                      aria-disabled="true"
-                      aria-label="Сначала уберите один из выбранных цветов"></span>
-                <p class="color-description">{{ option.color }}</p>
-            </li>
-          {% endif %}
-        {% endfor %}
-    </ul>
-    {% if not selected_color_slugs %}
-        <div class="list-all">Все цвета</div>
-    {% else %}
-        <div class="list-all">
-            <a class="list-all__reset" href="{{ color_reset_url }}">
-                <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
-                Сбросить цвета
-            </a>
-        </div>
-    {% endif %}
-  </div>
-</nav>
+{% include 'pict/includes/color_filter_navigation.html' %}
 
 <nav class="list-pages-tags" aria-labelledby="popular-tags-title">
   <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные темы:</h2>
@@ -209,6 +98,12 @@
         </div>
       {% endfor %}
     </div>
+  {% elif selected_colors %}
+    <section class="search-empty catalog-filter-empty" aria-labelledby="catalog-filter-empty-title">
+      <h2 id="catalog-filter-empty-title">Пока нет изображений</h2>
+      <p>{% if selected_category %}В этой категории{% else %}В каталоге{% endif %} нет изображений с выбранным сочетанием цветов.</p>
+      <a href="{{ color_reset_url }}">Сбросить цвета</a>
+    </section>
   {% elif is_search %}
     <section class="search-empty" aria-labelledby="search-empty-title">
       <h2 id="search-empty-title">Ничего не найдено</h2>

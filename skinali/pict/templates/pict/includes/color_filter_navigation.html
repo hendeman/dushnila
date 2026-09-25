@@ -1,0 +1,46 @@
+<nav class="list-pages-color" aria-label="Фильтр по цвету">
+  <p class="color-filter__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите выбранный цвет, чтобы убрать его.</p>
+  <div class="color-filter__row">
+    <ul class="color-filter__options">
+      {% for option in color_options %}
+        {% if option.is_selected %}
+          <li class="page-num color-option color-option--selected">
+            <a class="color-option__link color-option__link--selected"
+               href="{{ option.toggle_url }}"
+               style="background-color: {{ option.color.slug_color }};"
+               aria-label="Убрать цвет: {{ option.color }}">
+              <span class="color-option__selected-mark" aria-hidden="true"></span>
+            </a>
+            <p class="color-description">{{ option.color }}</p>
+          </li>
+        {% elif option.can_toggle %}
+          <li class="page-num color-option">
+            <a class="color-option__link"
+               href="{{ option.toggle_url }}"
+               style="background-color: {{ option.color.slug_color }};"
+               aria-label="Добавить цвет: {{ option.color }}"></a>
+            <p class="color-description">{{ option.color }}</p>
+          </li>
+        {% else %}
+          <li class="page-num color-option color-option--disabled">
+            <span class="color-option__link color-option__link--disabled"
+                  style="background-color: {{ option.color.slug_color }};"
+                  aria-disabled="true"
+                  aria-label="Сначала уберите один из выбранных цветов"></span>
+            <p class="color-description">{{ option.color }}</p>
+          </li>
+        {% endif %}
+      {% endfor %}
+    </ul>
+    {% if not selected_color_slugs %}
+      <div class="list-all">Все цвета</div>
+    {% else %}
+      <div class="list-all">
+        <a class="list-all__reset" href="{{ color_reset_url }}">
+          <span class="list-all__reset-icon" aria-hidden="true">&times;</span>
+          Сбросить цвета
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</nav>

@@ -451,6 +451,13 @@ ul.mainmenu li a:focus-visible {
 	background: #60785c;
 }
 
+@media screen and (min-width: 701px) {
+	.catalog-filter-empty {
+		margin: 40px auto 0;
+		text-align: center;
+	}
+}
+
 .home-hero {
 	position: relative;
 	isolation: isolate;
@@ -3945,6 +3952,72 @@ background-color: coral;
 		line-height: 1;
 	}
 
+	.mobile-filter-dialog__scroll-down {
+		position: fixed;
+		right: 16px;
+		bottom: 16px;
+		right: calc(16px + env(safe-area-inset-right));
+		bottom: calc(16px + env(safe-area-inset-bottom));
+		z-index: 3;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		box-sizing: border-box;
+		width: 48px;
+		height: 48px;
+		padding: 0;
+		border: 1px solid rgba(115, 117, 130, .28);
+		border-radius: 8px;
+		color: #737582;
+		background: rgba(242, 242, 242, .82);
+		box-shadow: 0 6px 18px rgba(31, 35, 31, .16);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
+		cursor: pointer;
+	}
+
+	.mobile-filter-dialog__scroll-down:hover,
+	.mobile-filter-dialog__scroll-down:focus-visible {
+		background: rgba(225, 225, 225, .94);
+	}
+
+	.mobile-filter-dialog__scroll-down:focus-visible {
+		outline: 2px solid #6f8a68;
+		outline-offset: 2px;
+	}
+
+	.mobile-filter-dialog__scroll-down[hidden] {
+		display: none;
+	}
+
+	.mobile-filter-dialog__scroll-down-icon {
+		position: relative;
+		display: block;
+		width: 20px;
+		height: 22px;
+	}
+
+	.mobile-filter-dialog__scroll-down-icon::before,
+	.mobile-filter-dialog__scroll-down-icon::after {
+		position: absolute;
+		left: 50%;
+		box-sizing: border-box;
+		width: 12px;
+		height: 12px;
+		border-right: 2px solid currentColor;
+		border-bottom: 2px solid currentColor;
+		content: "";
+		transform: translateX(-50%) rotate(45deg);
+	}
+
+	.mobile-filter-dialog__scroll-down-icon::before {
+		top: -2px;
+	}
+
+	.mobile-filter-dialog__scroll-down-icon::after {
+		top: 7px;
+	}
+
 	.mobile-filter-dialog__list {
 		margin: 0;
 		padding: 0;
@@ -4175,12 +4248,14 @@ background-color: coral;
 		opacity: 1;
 	}
 
-	.catalog-gallery-modal .fancybox__slide {
+	.fancybox__container.catalog-gallery-modal .fancybox__slide.has-image.has-close-btn {
 		justify-content: flex-start;
 		padding: 0;
 		overflow-x: hidden;
 		overflow-y: auto;
 		overscroll-behavior-y: contain;
+		touch-action: pan-y;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.catalog-gallery-modal .fancybox__slide::before,

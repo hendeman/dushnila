@@ -185,6 +185,24 @@
     }
   }
 
+  function updateDialogScrollButton(dialog) {
+    const button = dialog.querySelector('[data-mobile-filter-scroll-down]');
+    if (!button) {
+      return;
+    }
+
+    const remainingScroll = dialog.scrollHeight - dialog.clientHeight - dialog.scrollTop;
+    const canScrollDown = dialog.scrollHeight > dialog.clientHeight + 1
+      && remainingScroll > 1;
+    button.hidden = !dialog.open || !canScrollDown;
+  }
+
+  function scheduleDialogScrollButtonUpdate(dialog) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => updateDialogScrollButton(dialog));
+    });
+  }
+
   triggers.forEach((trigger) => {
     trigger.setAttribute('aria-expanded', 'false');
     trigger.addEventListener('click', () => {
@@ -200,16 +218,36 @@
       } else {
         dialog.setAttribute('open', '');
       }
+      scheduleDialogScrollButtonUpdate(dialog);
     });
   });
 
   document.querySelectorAll('.mobile-filter-dialog').forEach((dialog) => {
+    const scrollDownButton = dialog.querySelector('[data-mobile-filter-scroll-down]');
+
     dialog.querySelectorAll('[data-mobile-filter-close]').forEach((button) => {
       button.addEventListener('click', () => closeDialog(dialog));
     });
 
+    scrollDownButton?.addEventListener('click', () => {
+      dialog.scrollBy({
+        top: Math.max(160, Math.round(dialog.clientHeight * 0.75)),
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth'
+      });
+    });
+
+    dialog.addEventListener('scroll', () => updateDialogScrollButton(dialog), {
+      passive: true
+    });
+    window.addEventListener('resize', () => scheduleDialogScrollButtonUpdate(dialog));
+
     dialog.addEventListener('close', () => {
       setExpanded(dialog.id, false);
+      if (scrollDownButton) {
+        scrollDownButton.hidden = true;
+      }
     });
   });
 })();

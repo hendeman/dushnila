@@ -1,0 +1,8 @@
+<button type="button"
+        class="mobile-catalog-filters__trigger{% if selected_colors %} is-selected{% endif %}"
+        data-mobile-filter-open="mobile-color-filter"
+        aria-controls="mobile-color-filter"
+        aria-expanded="false">
+  <span class="mobile-catalog-filters__chevron" aria-hidden="true"></span>
+  <span>{% if selected_colors|length == 1 %}{{ selected_colors.0 }}{% elif selected_colors %}Выбрано: {{ selected_colors|length }}{% else %}Все цвета{% endif %}</span>
+</button>

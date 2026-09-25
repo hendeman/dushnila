@@ -224,27 +224,7 @@ class PictHome(FavoritesContextMixin, TemplateView):
         )
 
 
-class SkinaliMix(FavoritesContextMixin, ListView):
-    template_name = 'pict/skinali.html'
-    paginate_by = CATALOG_PAGE_SIZE
-
-    @staticmethod
-    def get_catalog_queryset():
-        # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
-        return Pict.objects.published().prefetch_related('tags', 'cat')
-
-    def is_search_requested(self):
-        return SEARCH_QUERY_PARAMETER in self.request.GET
-
-    def get_search_form(self):
-        if not hasattr(self, 'search_form'):
-            data = self.request.GET if self.is_search_requested() else None
-            self.search_form = CatalogSearchForm(data=data)
-        return self.search_form
-
-    def filter_catalog_queryset(self, queryset):
-        return queryset
-
+class ColorFilterMixin:
     def get_selected_color_slugs(self):
         if not hasattr(self, 'selected_color_slugs'):
             selected_slugs = []
@@ -274,6 +254,76 @@ class SkinaliMix(FavoritesContextMixin, ListView):
             f'{self.request.path}?{color_query}'
             if color_query else self.request.path
         )
+
+    def get_color_filter_context(self, *, enabled=True):
+        selected_color_slugs = self.get_selected_color_slugs() if enabled else ()
+        color_list = list(Color.objects.all()) if enabled else []
+        color_by_slug = {color.slug_color: color for color in color_list}
+        selected_colors = tuple(
+            color_by_slug[color_slug]
+            for color_slug in selected_color_slugs
+            if color_slug in color_by_slug
+        )
+        selected_color_set = set(selected_color_slugs)
+        color_options = []
+        for color in color_list:
+            is_selected = color.slug_color in selected_color_set
+            if is_selected:
+                target_slugs = tuple(
+                    color_slug for color_slug in selected_color_slugs
+                    if color_slug != color.slug_color
+                )
+                toggle_url = self.build_color_url(target_slugs)
+                can_toggle = True
+            elif len(selected_color_slugs) < MAX_CATALOG_COLORS:
+                target_slugs = selected_color_slugs + (color.slug_color,)
+                toggle_url = self.build_color_url(target_slugs)
+                can_toggle = True
+            else:
+                toggle_url = ''
+                can_toggle = False
+            color_options.append({
+                'color': color,
+                'is_selected': is_selected,
+                'can_toggle': can_toggle,
+                'toggle_url': toggle_url,
+            })
+
+        color_query = self.build_color_query(selected_color_slugs)
+        return {
+            'col': selected_color_slugs[0] if len(selected_color_slugs) == 1 else '',
+            'col_ru': selected_colors[0] if len(selected_colors) == 1 else '',
+            'color_list': color_list,
+            'color_options': color_options,
+            'selected_color_slugs': selected_color_slugs,
+            'selected_colors': selected_colors,
+            'selected_color_names': ', '.join(str(color) for color in selected_colors),
+            'color_query': color_query,
+            'color_reset_url': self.request.path,
+            'max_catalog_colors': MAX_CATALOG_COLORS,
+        }
+
+
+class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
+    template_name = 'pict/skinali.html'
+    paginate_by = CATALOG_PAGE_SIZE
+
+    @staticmethod
+    def get_catalog_queryset():
+        # Данные модальной карточки загружаются заранее и не создают N+1 запросов.
+        return Pict.objects.published().prefetch_related('tags', 'cat')
+
+    def is_search_requested(self):
+        return SEARCH_QUERY_PARAMETER in self.request.GET
+
+    def get_search_form(self):
+        if not hasattr(self, 'search_form'):
+            data = self.request.GET if self.is_search_requested() else None
+            self.search_form = CatalogSearchForm(data=data)
+        return self.search_form
+
+    def filter_catalog_queryset(self, queryset):
+        return queryset
 
     def get_route_category(self):
         category_slug = self.kwargs.get('slug_cat')
@@ -311,9 +361,11 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         is_search = self.is_search_requested()
         search_form = self.get_search_form()
         search_is_valid = is_search and search_form.is_valid()
-        selected_color_slugs = (
-            () if is_search else self.get_selected_color_slugs()
-        )
+        color_filter_context = self.get_color_filter_context(enabled=not is_search)
+        context.update(color_filter_context)
+        selected_color_slugs = color_filter_context['selected_color_slugs']
+        selected_colors = color_filter_context['selected_colors']
+        color_query = color_filter_context['color_query']
         route_category = self.get_route_category()
         selected_category = None if is_search else route_category
         context['title'] = 'Результаты поиска' if is_search else 'Каталог скинали'
@@ -333,52 +385,6 @@ class SkinaliMix(FavoritesContextMixin, ListView):
         context['search_form'] = search_form
         context['is_search'] = is_search
         context['search_is_valid'] = search_is_valid
-        color_list = [] if is_search else list(Color.objects.all())
-        color_by_slug = {color.slug_color: color for color in color_list}
-        selected_colors = tuple(
-            color_by_slug[color_slug]
-            for color_slug in selected_color_slugs
-            if color_slug in color_by_slug
-        )
-        selected_color_set = set(selected_color_slugs)
-        color_options = []
-        for color in color_list:
-            is_selected = color.slug_color in selected_color_set
-            if is_selected:
-                target_slugs = tuple(
-                    color_slug for color_slug in selected_color_slugs
-                    if color_slug != color.slug_color
-                )
-                toggle_url = self.build_color_url(target_slugs)
-                can_toggle = True
-            elif len(selected_color_slugs) < MAX_CATALOG_COLORS:
-                target_slugs = selected_color_slugs + (color.slug_color,)
-                toggle_url = self.build_color_url(target_slugs)
-                can_toggle = True
-            else:
-                toggle_url = ''
-                can_toggle = False
-            color_options.append({
-                'color': color,
-                'is_selected': is_selected,
-                'can_toggle': can_toggle,
-                'toggle_url': toggle_url,
-            })
-
-        color_query = self.build_color_query(selected_color_slugs)
-        context['col'] = (
-            selected_color_slugs[0] if len(selected_color_slugs) == 1 else ''
-        )
-        context['color_list'] = color_list
-        context['color_options'] = color_options
-        context['selected_color_slugs'] = selected_color_slugs
-        context['selected_colors'] = selected_colors
-        context['selected_color_names'] = ', '.join(
-            str(color) for color in selected_colors
-        )
-        context['color_query'] = color_query
-        context['color_reset_url'] = self.request.path
-        context['max_catalog_colors'] = MAX_CATALOG_COLORS
         context['list_cat'] = (
             Category.objects.none()
             if is_search else self.get_catalog_categories()
@@ -401,8 +407,6 @@ class SkinaliMix(FavoritesContextMixin, ListView):
             context['col_tag'] = f'&{color_query}' if color_query else ''
             context['search_result_count'] = 0
             context['search_terms'] = ()
-
-        context['col_ru'] = selected_colors[0] if len(selected_colors) == 1 else ''
 
         result_count = context['paginator'].count
         is_empty_category = bool(selected_category) and result_count == 0
@@ -525,7 +529,7 @@ class SkinaliSlug(SkinaliMix):
         return self.filter_queryset_by_selected_colors(queryset)
 
 
-class PictTag(FavoritesContextMixin, ListView):
+class PictTag(ColorFilterMixin, FavoritesContextMixin, ListView):
     template_name = 'pict/tag.html'
     paginate_by = CATALOG_PAGE_SIZE
 
@@ -540,9 +544,18 @@ class PictTag(FavoritesContextMixin, ListView):
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)
         tag = self.get_tag()
+        color_filter_context = self.get_color_filter_context()
+        context.update(color_filter_context)
+        selected_color_slugs = color_filter_context['selected_color_slugs']
+        color_query = color_filter_context['color_query']
+        context['col_tag'] = f'&{color_query}' if color_query else ''
         result_count = context['paginator'].count
         page_number = context['page_obj'].number
-        page_suffix = f' — страница {page_number}' if page_number > 1 else ''
+        metadata_page_number = 1 if selected_color_slugs else page_number
+        page_suffix = (
+            f' — страница {metadata_page_number}'
+            if metadata_page_number > 1 else ''
+        )
 
         default_heading = f'Изображения с тегом «{tag.tag}»'
         default_page_title = f'Изображения для скинали: {tag.tag}'
@@ -568,8 +581,8 @@ class PictTag(FavoritesContextMixin, ListView):
                 default_meta_description,
             ),
             canonical_path=tag.get_absolute_url(),
-            page_number=page_number,
-            noindex=result_count == 0,
+            page_number=metadata_page_number,
+            noindex=bool(selected_color_slugs) or result_count == 0,
             breadcrumbs=(
                 ('Главная', reverse('home')),
                 ('Каталог', reverse('skinali')),
@@ -578,12 +591,13 @@ class PictTag(FavoritesContextMixin, ListView):
         )
 
     def get_queryset(self):
-        return Pict.objects.published().filter(
+        queryset = Pict.objects.published().filter(
             tags=self.get_tag(),
         ).prefetch_related(
             'tags',
             'cat',
         )
+        return self.filter_queryset_by_selected_colors(queryset)
 
 
 class FinishedWorkList(FavoritesContextMixin, ListView):

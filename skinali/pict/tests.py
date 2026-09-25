@@ -68,7 +68,7 @@ from .models import (
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
 from .services.contact_delivery import format_contact_request_message
-from .views import SkinaliAll, serverError, set_page_metadata
+from .views import PictTag, SkinaliAll, serverError, set_page_metadata
 
 
 TEST_MEDIA_DIRECTORY = TemporaryDirectory()
@@ -350,6 +350,12 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
         self.assertContains(response, 'id="mobile-category-filter"')
         self.assertContains(response, 'id="mobile-color-filter"')
+        self.assertContains(
+            response,
+            'data-mobile-filter-scroll-down',
+            count=2,
+        )
+        self.assertContains(response, 'aria-label="Прокрутить список ниже"', count=2)
         self.assertContains(response, 'mobile-catalog-filters__chevron')
         self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
         self.assertContains(response, 'data-mobile-color-form')
@@ -385,6 +391,13 @@ class PopularTagsTests(TestCase):
         )
         self.assertIn("form.addEventListener('submit'", mobile_filters_script)
         self.assertIn('clearColorSelection', mobile_filters_script)
+        self.assertIn('updateDialogScrollButton', mobile_filters_script)
+        self.assertIn(
+            'dialog.scrollHeight - dialog.clientHeight - dialog.scrollTop',
+            mobile_filters_script,
+        )
+        self.assertIn("dialog.addEventListener('scroll'", mobile_filters_script)
+        self.assertIn('dialog.scrollBy({', mobile_filters_script)
         self.assertIn('.mobile-color-filter__apply {', styles)
         self.assertIn('background: #1f2722;', styles)
         self.assertIn('border-radius: 3px;', styles)
@@ -408,6 +421,13 @@ class PopularTagsTests(TestCase):
         self.assertIn('position: absolute;', styles)
         self.assertIn('width: 24px;', styles)
         self.assertIn('height: 24px;', styles)
+        self.assertIn('.mobile-filter-dialog__scroll-down {', styles)
+        self.assertIn('background: rgba(242, 242, 242, .82);', styles)
+        self.assertIn('border-radius: 8px;', styles)
+        self.assertIn(
+            '.mobile-filter-dialog__scroll-down-icon::before,',
+            styles,
+        )
         self.assertIn('--catalog-modal-header-height: 48px;', styles)
         self.assertIn('--fancybox-bg: #fbfaf6;', styles)
         self.assertIn(
@@ -418,6 +438,13 @@ class PopularTagsTests(TestCase):
         )
         self.assertIn('justify-content: flex-start;', styles)
         self.assertIn('overscroll-behavior-y: contain;', styles)
+        self.assertIn(
+            '.fancybox__container.catalog-gallery-modal '
+            '.fancybox__slide.has-image.has-close-btn {',
+            styles,
+        )
+        self.assertIn('touch-action: pan-y;', styles)
+        self.assertIn('-webkit-overflow-scrolling: touch;', styles)
         self.assertIn(
             '.catalog-gallery-modal .fancybox__slide::before,\n'
             '\t.catalog-gallery-modal .fancybox__slide::after {\n'
@@ -803,6 +830,26 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'mobile-filter-dialog__item--color is-disabled')
         self.assertNotContains(response, 'color=yellow')
 
+    def test_catalog_shows_empty_state_when_selected_colors_have_no_results(self):
+        response = self.client.get(
+            reverse('skinali'),
+            {'color': self.fourth_color.slug_color},
+        )
+
+        self.assertEqual(response.context['paginator'].count, 0)
+        self.assertContains(response, 'class="search-empty catalog-filter-empty"')
+        self.assertContains(response, 'Пока нет изображений')
+        self.assertContains(
+            response,
+            'В каталоге нет изображений с выбранным сочетанием цветов.',
+        )
+        self.assertContains(
+            response,
+            f'<a href="{reverse("skinali")}">Сбросить цвета</a>',
+            html=True,
+        )
+        self.assertNotContains(response, 'Ничего не найдено')
+
     def test_category_links_have_no_color_parameter_when_color_is_not_selected(self):
         response = self.client.get(
             reverse('skinali', kwargs={'slug_cat': self.first_category.slug})
@@ -850,6 +897,9 @@ class TagPageAndSitemapTests(TestCase):
             slug='sitemap-hidden-category',
         )
         cls.tag = TagPict.objects.create(tag='Розы', slug='tag-page-roses')
+        cls.red = Color.objects.create(color='Красный', slug_color='red')
+        cls.blue = Color.objects.create(color='Синий', slug_color='blue')
+        cls.green = Color.objects.create(color='Зелёный', slug_color='green')
         cls.empty_tag = TagPict.objects.create(
             tag='Пустая тема',
             slug='tag-page-empty',
@@ -865,6 +915,7 @@ class TagPageAndSitemapTests(TestCase):
         )
         cls.picture.cat.add(cls.category)
         cls.picture.tags.add(cls.tag)
+        cls.picture.color.add(cls.red, cls.blue)
         cls.hidden_picture = Pict.objects.create(
             name=651,
             alt='Скрытые цветы',
@@ -944,6 +995,66 @@ class TagPageAndSitemapTests(TestCase):
         self.assertContains(response, 'Красные и светлые розы.<br>')
         self.assertContains(response, 'Выберите подходящий сюжет.')
 
+    def test_tag_page_filters_by_multiple_colors_and_shows_controls(self):
+        red_picture = Pict.objects.create(
+            name=652,
+            alt='Только красные розы',
+            photo=create_test_image_file('tag-page-red-roses.jpg'),
+        )
+        red_picture.tags.add(self.tag)
+        red_picture.color.add(self.red)
+
+        response = self.client.get(
+            self.tag.get_absolute_url(),
+            [('color', 'red'), ('color', 'blue')],
+        )
+
+        self.assertEqual(list(response.context['object_list']), [self.picture])
+        self.assertEqual(response.context['selected_color_slugs'], ('red', 'blue'))
+        self.assertContains(response, 'Выбранные цвета: Красный, Синий')
+        self.assertContains(response, 'aria-label="Фильтр по цвету"')
+        self.assertContains(response, 'id="mobile-color-filter"')
+        self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
+        self.assertContains(
+            response,
+            f'href="{self.tag.get_absolute_url()}?color=red&amp;color=blue&amp;color=green"',
+        )
+        self.assertContains(
+            response,
+            '<meta name="robots" content="noindex,follow">',
+            html=True,
+        )
+        self.assertContains(
+            response,
+            f'<link rel="canonical" href="https://odium.by{self.tag.get_absolute_url()}">',
+            html=True,
+        )
+
+    def test_tag_pagination_preserves_selected_colors(self):
+        second_picture = Pict.objects.create(
+            name=653,
+            alt='Ещё одни красные розы',
+            photo=create_test_image_file('tag-page-second-red-roses.jpg'),
+        )
+        second_picture.tags.add(self.tag)
+        second_picture.color.add(self.red)
+
+        with patch.object(PictTag, 'paginate_by', 1):
+            first_page = self.client.get(
+                self.tag.get_absolute_url(),
+                {'color': 'red'},
+            )
+            second_page = self.client.get(
+                self.tag.get_absolute_url(),
+                {'page': 2, 'color': 'red'},
+            )
+
+        self.assertEqual(first_page.context['paginator'].num_pages, 2)
+        self.assertEqual(len(first_page.context['object_list']), 1)
+        self.assertEqual(len(second_page.context['object_list']), 1)
+        self.assertContains(first_page, '?page=2&amp;color=red')
+        self.assertEqual(second_page.context['selected_color_slugs'], ('red',))
+
     def test_category_page_uses_managed_seo_content(self):
         self.category.seo_h1 = 'Каталог изображений цветов'
         self.category.seo_title = 'Цветы для скинали'
@@ -975,6 +1086,15 @@ class TagPageAndSitemapTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['result_count'], 0)
         self.assertContains(response, 'Пока нет изображений')
+        self.assertContains(response, 'class="search-empty catalog-filter-empty"')
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
+        self.assertIn('@media screen and (min-width: 701px) {', styles)
+        self.assertIn('.catalog-filter-empty {', styles)
+        self.assertIn('margin: 40px auto 0;', styles)
+        self.assertIn('text-align: center;', styles)
         self.assertContains(
             response,
             '<meta name="robots" content="noindex,follow">',
@@ -3751,6 +3871,7 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, '?skinali_type=paint')
         self.assertContains(response, '?skinali_type=transparent')
         self.assertContains(response, 'aria-label="Категории"')
+        self.assertContains(response, 'data-mobile-filter-scroll-down', count=1)
         self.assertNotContains(response, 'Номер изображения')
         self.assertContains(response, '№ 701')
         self.assertContains(

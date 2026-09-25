@@ -1,4 +1,5 @@
 {% extends 'pict/base.html' %}
+{% load static %}
 
 {% block content %}
 <h1>{{ title }}</h1>
@@ -6,6 +7,15 @@
   <p class="catalog-intro catalog-intro--managed">{{ tag_intro|linebreaksbr }}</p>
 {% endif %}
 <p class="search-results__count">{{ result_summary }}</p>
+{% if selected_colors %}
+  <p>Выбранные цвета: {{ selected_color_names }}</p>
+{% endif %}
+
+<nav class="mobile-catalog-filters" aria-label="Фильтры изображений по тегу">
+  {% include 'pict/includes/color_filter_trigger.html' %}
+</nav>
+{% include 'pict/includes/color_filter_dialog.html' %}
+{% include 'pict/includes/color_filter_navigation.html' %}
 
 {% if page_obj.object_list %}
   <div class="container catalog-gallery">
@@ -16,13 +26,20 @@
     {% endfor %}
   </div>
 {% else %}
-  <section class="search-empty" aria-labelledby="tag-empty-title">
+  <section class="search-empty catalog-filter-empty" aria-labelledby="tag-empty-title">
     <h2 id="tag-empty-title">Пока нет изображений</h2>
-    <p>Для этого тега ещё не опубликовано ни одного изображения.</p>
-    <a href="{% url 'skinali' %}">Показать весь каталог</a>
+    {% if selected_colors %}
+      <p>Для этого тега нет изображений с выбранным сочетанием цветов.</p>
+      <a href="{{ color_reset_url }}">Сбросить цвета</a>
+    {% else %}
+      <p>Для этого тега ещё не опубликовано ни одного изображения.</p>
+      <a href="{% url 'skinali' %}">Показать весь каталог</a>
+    {% endif %}
   </section>
 {% endif %}
 
 {% include 'pict/includes/paginator.html' %}
+
+<script src="{% static 'skinali/js/mobile-filters.js' %}" defer></script>
 
 {% endblock %}
