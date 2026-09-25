@@ -95,10 +95,12 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 |---|---|---|
 | `cat` | `CharField(100)` | отображаемое название |
 | `slug` | `SlugField(100)` | уникальный, индексированный |
+| `position` | `PositiveIntegerField` | индексированная служебная позиция; не редактируется в обычной форме |
 | `seo_h1`, `seo_title`, `seo_description`, `intro_text`, `updated_at` | унаследованы от `SeoLandingContent` | управляемое содержимое страницы и служебное время его изменения |
 
 - `__str__()` возвращает `cat`.
 - `get_absolute_url()` строит именованный URL `skinali` с `slug_cat=self.slug`.
+- `Meta.ordering = ['position', 'pk']`: сохранённый в admin порядок применяется к публичной навигации, спискам выбора и связанным категориям; `pk` обеспечивает стабильность при одинаковых позициях.
 - Явный `related_name` у связи `Pict.cat` не задан, поэтому обратный manager — `pict_set`.
 
 ## `Pict`

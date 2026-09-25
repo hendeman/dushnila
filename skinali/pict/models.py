@@ -289,6 +289,12 @@ class TagAlias(models.Model):
 class Category(SeoLandingContent):
     cat = models.CharField(max_length=100, verbose_name='Категория')
     slug = models.SlugField(max_length=100, unique=True, db_index=True, verbose_name='Slug')
+    position = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        editable=False,
+        verbose_name='Порядок',
+    )
 
     def __str__(self):
         return self.cat
@@ -299,6 +305,7 @@ class Category(SeoLandingContent):
     class Meta:
         verbose_name = 'Категории'
         verbose_name_plural = 'Категории'
+        ordering = ['position', 'pk']
 
 
 class Pict(SeoPageContent):

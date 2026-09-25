@@ -359,7 +359,7 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
 
     @staticmethod
     def get_catalog_categories():
-        return Category.objects.order_by('pk')
+        return Category.objects.all()
 
     def get_context_data(self, *, object_list=None, **kwargs):
         context = super().get_context_data(**kwargs)

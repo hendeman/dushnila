@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 from pathlib import Path
@@ -5,7 +6,7 @@ from pathlib import Path
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
-from django.http import HttpResponseNotAllowed
+from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -311,14 +312,120 @@ class PictAdmin(
 
 
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ['cat', 'slug']
+    list_display = ['drag_handle', 'cat', 'slug']
     list_display_links = ['cat']
+    sortable_by = []
     search_fields = ['cat', *SEO_LANDING_FIELDS]
     prepopulated_fields = {"slug": ("cat",)}
+    ordering = ['position', 'pk']
     fieldsets = (
         (None, {'fields': ('cat', 'slug')}),
         ('SEO и текст страницы', {'fields': SEO_LANDING_FIELDS}),
     )
+
+    class Media:
+        css = {'all': ('skinali/css/admin-category-order.css',)}
+        js = ('skinali/js/admin-category-order.js',)
+
+    def get_list_display(self, request):
+        if self.has_change_permission(request):
+            return self.list_display
+        return ['cat', 'slug']
+
+    def get_urls(self):
+        return [
+            path(
+                'reorder/',
+                self.admin_site.admin_view(self.reorder_view),
+                name='pict_category_reorder',
+            ),
+        ] + super().get_urls()
+
+    @admin.display(description='Порядок')
+    def drag_handle(self, obj):
+        return format_html(
+            '<button type="button" class="category-order-handle" '
+            'draggable="true" data-category-id="{}" '
+            'title="Перетащить категорию" '
+            'aria-label="Изменить порядок категории {}">⋮⋮</button>',
+            obj.pk,
+            obj.cat,
+        )
+
+    def reorder_view(self, request):
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
+        try:
+            payload = json.loads(request.body)
+            raw_ids = payload['ordered_ids']
+            if not isinstance(raw_ids, list) or not raw_ids:
+                raise ValueError
+            if any(
+                not isinstance(category_id, int) or isinstance(category_id, bool)
+                for category_id in raw_ids
+            ):
+                raise TypeError
+            ordered_ids = raw_ids
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            return JsonResponse(
+                {'error': 'Некорректный список категорий.'},
+                status=400,
+            )
+
+        if len(ordered_ids) != len(set(ordered_ids)):
+            return JsonResponse(
+                {'error': 'Категория не может встречаться в порядке дважды.'},
+                status=400,
+            )
+
+        with transaction.atomic():
+            categories = list(
+                Category.objects.select_for_update()
+                .order_by('position', 'pk')
+                .only('pk', 'position')
+            )
+            current_ids = [category.pk for category in categories]
+            submitted_ids = set(ordered_ids)
+            if not submitted_ids.issubset(current_ids):
+                return JsonResponse(
+                    {'error': 'Одна из категорий больше не существует.'},
+                    status=409,
+                )
+
+            # При поиске или пагинации меняются только места видимых строк.
+            visible_slots = [
+                index
+                for index, category_id in enumerate(current_ids)
+                if category_id in submitted_ids
+            ]
+            if len(visible_slots) != len(ordered_ids):
+                return JsonResponse(
+                    {'error': 'Список категорий изменился. Обновите страницу.'},
+                    status=409,
+                )
+            for slot, category_id in zip(visible_slots, ordered_ids):
+                current_ids[slot] = category_id
+
+            category_by_id = {category.pk: category for category in categories}
+            for position, category_id in enumerate(current_ids, start=1):
+                category_by_id[category_id].position = position
+            Category.objects.bulk_update(categories, ['position'])
+
+        return JsonResponse({'saved': True})
+
+    def save_model(self, request, obj, form, change):
+        if not change and obj.position == 0:
+            last_position = (
+                Category.objects.order_by('-position')
+                .values_list('position', flat=True)
+                .first()
+                or 0
+            )
+            obj.position = last_position + 1
+        super().save_model(request, obj, form, change)
 
 
 class TagAliasInline(admin.TabularInline):

@@ -1,0 +1,42 @@
+.column-drag_handle,
+.field-drag_handle {
+	width: 48px;
+	text-align: center;
+}
+
+.category-order-handle {
+	border: 0;
+	background: transparent;
+	color: var(--body-quiet-color);
+	cursor: grab;
+	font-size: 22px;
+	line-height: 1;
+	padding: 6px 10px;
+	touch-action: none;
+}
+
+.category-order-handle:hover,
+.category-order-handle:focus-visible {
+	color: var(--link-fg);
+}
+
+.category-order-handle:active {
+	cursor: grabbing;
+}
+
+tr.category-order-dragging {
+	opacity: 0.45;
+}
+
+#category-order-status {
+	margin: 0 0 12px;
+	padding: 10px 12px;
+}
+
+#category-order-status.category-order-status--success {
+	background: var(--message-success-bg);
+}
+
+#category-order-status.category-order-status--error {
+	background: var(--message-error-bg);
+}

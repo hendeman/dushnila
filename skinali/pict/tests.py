@@ -1582,6 +1582,127 @@ class TaxonomySeoAdminTests(SimpleTestCase):
                 self.assertEqual(seo_fields, expected_fields)
 
 
+class CategoryOrderingAdminTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.first = Category.objects.create(
+            cat='Первая категория',
+            slug='ordered-first',
+            position=1,
+        )
+        cls.second = Category.objects.create(
+            cat='Вторая категория',
+            slug='ordered-second',
+            position=2,
+        )
+        cls.third = Category.objects.create(
+            cat='Третья категория',
+            slug='ordered-third',
+            position=3,
+        )
+        cls.admin_user = get_user_model().objects.create_superuser(
+            username='category-order-admin',
+            email='category-order@example.com',
+            password='test-password',
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin_user)
+
+    def test_category_default_order_is_used_by_catalog(self):
+        Category.objects.filter(pk=self.first.pk).update(position=30)
+        Category.objects.filter(pk=self.second.pk).update(position=10)
+        Category.objects.filter(pk=self.third.pk).update(position=20)
+
+        self.assertEqual(Category._meta.ordering, ['position', 'pk'])
+        self.assertEqual(
+            list(SkinaliAll.get_catalog_categories()),
+            [self.second, self.third, self.first],
+        )
+
+    def test_reorder_endpoint_saves_dragged_order(self):
+        response = self.client.post(
+            reverse('admin:pict_category_reorder'),
+            data=json.dumps({
+                'ordered_ids': [self.third.pk, self.first.pk, self.second.pk],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'saved': True})
+        self.assertEqual(
+            list(Category.objects.values_list('pk', flat=True)),
+            [self.third.pk, self.first.pk, self.second.pk],
+        )
+        self.assertEqual(
+            list(Category.objects.values_list('position', flat=True)),
+            [1, 2, 3],
+        )
+
+    def test_reorder_endpoint_rejects_duplicate_categories(self):
+        response = self.client.post(
+            reverse('admin:pict_category_reorder'),
+            data=json.dumps({
+                'ordered_ids': [self.first.pk, self.first.pk],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('дважды', response.json()['error'])
+
+    def test_reorder_endpoint_requires_category_change_permission(self):
+        viewer = get_user_model().objects.create_user(
+            username='category-order-viewer',
+            password='test-password',
+            is_staff=True,
+        )
+        viewer.user_permissions.add(Permission.objects.get(codename='view_category'))
+        self.client.force_login(viewer)
+
+        changelist_response = self.client.get(
+            reverse('admin:pict_category_changelist'),
+        )
+        response = self.client.post(
+            reverse('admin:pict_category_reorder'),
+            data=json.dumps({
+                'ordered_ids': [self.second.pk, self.first.pk, self.third.pk],
+            }),
+            content_type='application/json',
+        )
+
+        self.assertEqual(changelist_response.status_code, 200)
+        self.assertNotContains(changelist_response, 'category-order-handle')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(
+            list(Category.objects.values_list('pk', flat=True)),
+            [self.first.pk, self.second.pk, self.third.pk],
+        )
+
+    def test_category_changelist_loads_drag_controls(self):
+        response = self.client.get(reverse('admin:pict_category_changelist'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'category-order-handle', count=3)
+        self.assertContains(response, 'skinali/js/admin-category-order.js')
+        self.assertContains(response, 'skinali/css/admin-category-order.css')
+
+    def test_new_admin_category_is_appended_to_current_order(self):
+        model_admin = CategoryAdmin(Category, AdminSite())
+        category = Category(cat='Новая категория', slug='ordered-new')
+
+        model_admin.save_model(
+            RequestFactory().post('/admin/pict/category/add/'),
+            category,
+            form=Mock(),
+            change=False,
+        )
+
+        self.assertEqual(category.position, 4)
+        self.assertEqual(Category.objects.last(), category)
+
+
 class RemovedTestRouteTests(SimpleTestCase):
     def test_legacy_numeric_category_route_is_not_available(self):
         with self.assertRaises(NoReverseMatch):
