@@ -50,6 +50,12 @@ class QuizQuerySet(models.QuerySet):
 class Quiz(models.Model):
     """Настройки единственного публичного квиза и его способа показа."""
 
+    class LauncherPosition(models.TextChoices):
+        LEFT = 'left', 'Слева'
+        RIGHT = 'right', 'Справа'
+        LEFT_MIDDLE = 'left-middle', 'Слева посередине'
+        RIGHT_MIDDLE = 'right-middle', 'Справа посередине'
+
     name = models.CharField('Название в admin', max_length=200)
     title = models.CharField('Заголовок квиза', max_length=300)
     is_enabled = models.BooleanField('Включён', default=False, db_index=True)
@@ -70,11 +76,25 @@ class Quiz(models.Model):
     )
     show_launcher = models.BooleanField('Показывать кнопку запуска', default=True)
     launcher_text = models.CharField('Текст кнопки запуска', max_length=80, default='Пройти тест')
+    launcher_icon = models.ImageField(
+        'Иконка кнопки запуска',
+        upload_to='quiz/launcher/',
+        max_length=255,
+        blank=True,
+        help_text=(
+            'Рекомендуется квадратное изображение с прозрачным фоном. '
+            'Если поле пустое, используется стандартная иконка.'
+        ),
+    )
     launcher_position = models.CharField(
         'Сторона кнопки запуска',
-        max_length=10,
-        choices=(('left', 'Слева'), ('right', 'Справа')),
-        default='left',
+        max_length=12,
+        choices=LauncherPosition.choices,
+        default=LauncherPosition.LEFT_MIDDLE,
+        help_text=(
+            'На компьютере варианты «посередине» показываются вертикально. '
+            'На мобильном все левые и правые варианты сводятся к соответствующему краю.'
+        ),
     )
     auto_open_enabled = models.BooleanField('Включить автопоказ', default=True)
     auto_open_delay_seconds = models.PositiveSmallIntegerField(

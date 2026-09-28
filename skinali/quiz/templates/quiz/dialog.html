@@ -4,9 +4,21 @@
         type="button"
         data-quiz-open
         aria-haspopup="dialog"
-        aria-controls="site-quiz-dialog">
-    <span aria-hidden="true">✓</span>
-    {{ quiz.launcher_text }}
+        aria-controls="site-quiz-dialog"
+        aria-label="{{ quiz.launcher_text }}">
+    <span class="site-quiz-launcher__text">{{ quiz.launcher_text }}</span>
+    <span class="site-quiz-launcher__icon" aria-hidden="true">
+        {% if quiz.launcher_icon %}
+        <img src="{{ quiz.launcher_icon.url }}" width="32" height="32" alt="">
+        {% else %}
+        <svg class="site-quiz-launcher__default-icon"
+             viewBox="0 0 32 32"
+             focusable="false">
+            <circle cx="13" cy="13" r="6.5"></circle>
+            <path d="m18 18 6 6M13 9.5v7M9.5 13h7"></path>
+        </svg>
+        {% endif %}
+    </span>
 </button>
 {% endif %}
 
@@ -42,7 +54,6 @@
             </div>
 
             <header class="site-quiz-dialog__header">
-                <p class="site-quiz-dialog__eyebrow">Квиз ОДИУМ</p>
                 <h2 id="site-quiz-title">{{ quiz.title }}</h2>
             </header>
 
@@ -53,8 +64,16 @@
                          data-quiz-field="{{ entry.field.name }}"
                          {% if not forloop.first %}hidden{% endif %}>
                     <div class="site-quiz-question">
-                        <p class="site-quiz-question__number">Вопрос {{ forloop.counter }} из {{ form.question_fields|length }}</p>
                         <h2 id="quiz-question-{{ entry.question.pk }}" tabindex="-1">{{ entry.question.title }}</h2>
+                        {% if not entry.question.is_required %}
+                        <p class="site-quiz-question__optional">
+                            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                                <circle cx="8" cy="8" r="6.25"></circle>
+                                <path d="M8 7.1v3.4M8 5.1h.01"></path>
+                            </svg>
+                            <span>Можно пропустить</span>
+                        </p>
+                        {% endif %}
                         {% if entry.question.description %}<p>{{ entry.question.description }}</p>{% endif %}
                     </div>
 
@@ -71,32 +90,64 @@
                             {{ entry.field }}
                         </div>
                     {% elif entry.question.kind == 'image' %}
-                        <div class="site-quiz-image-options"
-                             role="radiogroup"
-                             aria-labelledby="quiz-question-{{ entry.question.pk }}">
-                            {% for option in entry.options %}
-                            <label class="site-quiz-image-option">
-                                <input type="radio"
-                                       name="{{ entry.field.html_name }}"
-                                       value="{{ option.pk }}"
-                                       data-quiz-answer
-                                       data-field-name="{{ entry.field.name }}"
-                                       {% if entry.question.is_required %}required{% endif %}>
-                                <span class="site-quiz-image-option__surface">
-                                    {% if option.image_url %}
-                                    <img src="{{ option.image_url }}"
-                                         width="640"
-                                         height="640"
-                                         loading="lazy"
-                                         alt="{{ option.title }}">
-                                    {% else %}
-                                    <span class="site-quiz-image-option__placeholder" aria-hidden="true">ОДИУМ</span>
-                                    {% endif %}
-                                    <span class="site-quiz-image-option__label">{{ option.title }}</span>
-                                    <span class="site-quiz-image-option__check" aria-hidden="true">✓</span>
-                                </span>
-                            </label>
-                            {% endfor %}
+                        <div class="site-quiz-image-carousel" data-quiz-carousel>
+                            <button class="site-quiz-image-carousel__button site-quiz-image-carousel__button--previous"
+                                    type="button"
+                                    data-quiz-carousel-previous
+                                    aria-controls="quiz-carousel-track-{{ entry.question.pk }}"
+                                    aria-label="Прокрутить варианты влево">
+                                <svg class="site-quiz-image-carousel__icon"
+                                     viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+                                    <path d="M15 5 8 12l7 7"></path>
+                                </svg>
+                            </button>
+                            <div class="site-quiz-image-options"
+                                 id="quiz-carousel-track-{{ entry.question.pk }}"
+                                 data-quiz-carousel-track
+                                 role="radiogroup"
+                                 aria-labelledby="quiz-question-{{ entry.question.pk }}">
+                                {% for option in entry.options %}
+                                <label class="site-quiz-image-option">
+                                    <input type="radio"
+                                           name="{{ entry.field.html_name }}"
+                                           value="{{ option.pk }}"
+                                           data-quiz-answer
+                                           data-field-name="{{ entry.field.name }}"
+                                           {% if entry.question.is_required %}required{% endif %}>
+                                    <span class="site-quiz-image-option__surface">
+                                        {% if option.image_url %}
+                                        <img src="{{ option.image_url }}"
+                                             width="640"
+                                             height="640"
+                                             loading="lazy"
+                                             draggable="false"
+                                             alt="{{ option.title }}">
+                                        {% else %}
+                                        <span class="site-quiz-image-option__placeholder" aria-hidden="true">ОДИУМ</span>
+                                        {% endif %}
+                                        <span class="site-quiz-image-option__label">{{ option.title }}</span>
+                                        <span class="site-quiz-image-option__check" aria-hidden="true">✓</span>
+                                    </span>
+                                </label>
+                                {% endfor %}
+                            </div>
+                            <button class="site-quiz-image-carousel__button site-quiz-image-carousel__button--next"
+                                    type="button"
+                                    data-quiz-carousel-next
+                                    aria-controls="quiz-carousel-track-{{ entry.question.pk }}"
+                                    aria-label="Прокрутить варианты вправо">
+                                <svg class="site-quiz-image-carousel__icon"
+                                     viewBox="0 0 24 24"
+                                     aria-hidden="true"
+                                     focusable="false">
+                                    <path d="m9 5 7 7-7 7"></path>
+                                </svg>
+                            </button>
+                            <div class="site-quiz-image-carousel__indicator" aria-hidden="true">
+                                <span data-quiz-carousel-progress></span>
+                            </div>
                         </div>
                     {% else %}
                         <div class="site-quiz-choice-options"
@@ -159,9 +210,6 @@
                     </div>
 
                     <div class="site-quiz-contact-actions">
-                        <button class="site-quiz-button site-quiz-button--secondary"
-                                type="button"
-                                data-quiz-contact-back>Назад</button>
                         <button class="site-quiz-button site-quiz-button--primary"
                                 type="submit"
                                 data-quiz-submit

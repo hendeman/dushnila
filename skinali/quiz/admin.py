@@ -15,14 +15,20 @@ class QuizQuestionInline(admin.TabularInline):
 @admin.register(Quiz)
 class QuizAdmin(admin.ModelAdmin):
     list_display = ['name', 'is_enabled', 'trigger_link', 'auto_open_enabled', 'updated_at']
-    readonly_fields = ['trigger_link', 'updated_at']
+    readonly_fields = ['trigger_link', 'launcher_icon_preview', 'updated_at']
     inlines = [QuizQuestionInline]
     fieldsets = (
         ('Публикация', {
             'fields': ('name', 'title', 'is_enabled', 'trigger_key', 'trigger_link', 'page_paths'),
         }),
         ('Кнопка запуска', {
-            'fields': ('show_launcher', 'launcher_text', 'launcher_position'),
+            'fields': (
+                'show_launcher',
+                'launcher_text',
+                'launcher_icon',
+                'launcher_icon_preview',
+                'launcher_position',
+            ),
         }),
         ('Автопоказ', {
             'fields': (
@@ -54,6 +60,17 @@ class QuizAdmin(admin.ModelAdmin):
     @admin.display(description='Ссылка')
     def trigger_link(self, obj):
         return obj.trigger_hash if obj and obj.pk else 'Будет создана после сохранения'
+
+    @admin.display(description='Текущая иконка')
+    def launcher_icon_preview(self, obj):
+        if not obj or not obj.launcher_icon:
+            return 'Используется стандартная иконка'
+        return format_html(
+            '<img src="{}" alt="" '
+            'style="width:64px;height:64px;object-fit:contain;background:#fff;'
+            'border:1px solid #dcd9cf;border-radius:6px">',
+            obj.launcher_icon.url,
+        )
 
 
 class QuizOptionInline(admin.TabularInline):

@@ -30,6 +30,8 @@ class SeededQuizTests(TestCase):
         self.assertEqual(quiz.auto_open_delay_seconds, 10)
         self.assertEqual(quiz.repeat_after_days, 3)
         self.assertTrue(quiz.restart_on_close)
+        self.assertEqual(quiz.launcher_position, Quiz.LauncherPosition.LEFT_MIDDLE)
+        self.assertFalse(quiz.launcher_icon)
         self.assertEqual(len(questions), 6)
         self.assertEqual(sum(question.options.count() for question in questions), 23)
         self.assertEqual(questions[0].title, 'Какая планировка у Вашей кухни:')
@@ -85,11 +87,102 @@ class QuizModelTests(TestCase):
 
         self.assertFalse(quiz_admin.has_add_permission(None))
         self.assertFalse(quiz_admin.has_delete_permission(None, self.quiz))
+        self.assertIn('launcher_icon', quiz_admin.fieldsets[1][1]['fields'])
+        self.assertIn('launcher_icon_preview', quiz_admin.readonly_fields)
+        self.assertEqual(
+            quiz_admin.launcher_icon_preview(self.quiz),
+            'Используется стандартная иконка',
+        )
+
+    def test_launcher_positions_keep_legacy_and_middle_side_admin_labels(self):
+        choices = dict(Quiz._meta.get_field('launcher_position').flatchoices)
+
+        self.assertEqual(choices['left'], 'Слева')
+        self.assertEqual(choices['right'], 'Справа')
+        self.assertEqual(choices['left-middle'], 'Слева посередине')
+        self.assertEqual(choices['right-middle'], 'Справа посередине')
 
 
 class QuizRenderingTests(TestCase):
     def setUp(self):
         self.quiz = Quiz.objects.get(trigger_key='skinali-quiz')
+
+    def test_image_cards_use_square_draggable_carousel_contract(self):
+        css = Path(
+            settings.BASE_DIR,
+            'quiz/static/quiz/css/quiz.css',
+        ).read_text(encoding='utf-8')
+        script = Path(
+            settings.BASE_DIR,
+            'quiz/static/quiz/js/quiz.js',
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('aspect-ratio: 1;', css)
+        self.assertRegex(
+            css,
+            r'\.site-quiz-image-option__surface img\s*\{\s*height:\s*auto;',
+        )
+        self.assertIn('background: #b7c5b4;', css)
+        self.assertIn('font-size: clamp(21.6px, 2.8vw, 33.6px);', css)
+        self.assertIn('font-size: clamp(19.44px, 2.52vw, 30.24px);', css)
+        self.assertIn('padding-top: clamp(14px, 2vw, 24px);', css)
+        self.assertIn('@media (max-width: 900px)', css)
+        self.assertIn('flex-basis: calc((100% - 16px) / 2);', css)
+        self.assertIn('width: 100vw;', css)
+        self.assertIn('border-radius: 0;', css)
+        self.assertIn("track.addEventListener('pointerdown'", script)
+        self.assertIn('track.scrollBy({', script)
+        self.assertIn('progress.style.transform = `scaleX(${visibleProgress})`;', script)
+        self.assertIn('const answerAutoAdvanceDelay = 3000;', script)
+        self.assertIn("'.site-quiz-image-option > input[data-quiz-answer]'", script)
+        self.assertIn("'.site-quiz-choice-option > input[data-quiz-answer]'", script)
+        self.assertIn('scheduleAnswerAutoAdvance(field);', script)
+        self.assertIn('nextButton.click();', script)
+
+    def test_launcher_supports_four_positions_and_directional_shimmer(self):
+        css = Path(
+            settings.BASE_DIR,
+            'quiz/static/quiz/css/quiz.css',
+        ).read_text(encoding='utf-8')
+
+        self.assertIn('top: 50%;', css)
+        self.assertIn('@keyframes site-quiz-launcher-shimmer-horizontal', css)
+        self.assertIn('@keyframes site-quiz-launcher-shimmer-vertical', css)
+        self.assertIn('animation-name: site-quiz-launcher-shimmer-vertical;', css)
+        self.assertIn('writing-mode: vertical-rl;', css)
+        self.assertIn('justify-content: flex-start;', css)
+        self.assertIn('padding-block: 12px;', css)
+        self.assertIn('padding-inline: 7px;', css)
+        self.assertIn('font-size: 17px;', css)
+        self.assertIn('.site-quiz-launcher__text {', css)
+        self.assertIn('width: 54px;', css)
+        self.assertIn('border-radius: 50%;', css)
+        self.assertIn('animation: none;', css)
+
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'site-quiz-launcher--left-middle')
+        self.assertContains(response, 'class="site-quiz-launcher__text"')
+        self.assertContains(response, 'class="site-quiz-launcher__default-icon"')
+        self.assertContains(response, 'aria-label="Пройти тест"')
+
+        self.quiz.launcher_position = Quiz.LauncherPosition.RIGHT_MIDDLE
+        self.quiz.launcher_icon = 'quiz/launcher/custom-icon.png'
+        self.quiz.save(update_fields=['launcher_position', 'launcher_icon'])
+
+        response = self.client.get(reverse('home'))
+        self.assertContains(response, 'site-quiz-launcher--right-middle')
+        self.assertContains(response, '/media/quiz/launcher/custom-icon.png')
+        self.assertNotContains(response, 'class="site-quiz-launcher__default-icon"')
+
+        for position in (
+            Quiz.LauncherPosition.LEFT,
+            Quiz.LauncherPosition.RIGHT,
+        ):
+            with self.subTest(position=position):
+                self.quiz.launcher_position = position
+                self.quiz.save(update_fields=['launcher_position'])
+                response = self.client.get(reverse('home'))
+                self.assertContains(response, f'site-quiz-launcher--{position}')
 
     def test_public_page_contains_native_dialog_launcher_and_all_questions(self):
         response = self.client.get(reverse('home'))
@@ -105,6 +198,15 @@ class QuizRenderingTests(TestCase):
         self.assertContains(response, 'Укажите ваш город')
         self.assertContains(response, 'Выберите Ваш подарок!')
         self.assertContains(response, '/static/quiz/images/answers/layout-straight.jpg')
+        self.assertContains(response, 'class="site-quiz-image-carousel"', count=3)
+        self.assertContains(response, 'data-quiz-carousel-previous', count=3)
+        self.assertContains(response, 'data-quiz-carousel-next', count=3)
+        self.assertContains(response, 'data-quiz-carousel-progress', count=3)
+        self.assertContains(response, 'class="site-quiz-image-carousel__icon"', count=6)
+        self.assertContains(response, 'Можно пропустить', count=2)
+        self.assertNotContains(response, 'data-quiz-contact-back')
+        self.assertNotContains(response, 'Квиз ОДИУМ')
+        self.assertNotContains(response, 'Вопрос 1 из 6')
         self.assertNotContains(response, 'обработку персональных данных')
         self.assertNotContains(response, 'leadforms.ru')
 
