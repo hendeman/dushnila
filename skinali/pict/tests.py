@@ -1365,13 +1365,32 @@ class TagPageAndSitemapTests(TestCase):
             / 'styles.css'
         ).read_text(encoding='utf-8')
         self.assertIn(
-            '.finished-work-types__content,\n'
-            '.category-navigation__content {',
+            '.category-navigation__content {\n'
+            '\tdisplay: flex;\n'
+            '\tflex-wrap: nowrap;\n'
+            '\talign-items: flex-start;\n'
+            '\tjustify-content: center;\n'
+            '\tgap: 16px;',
             styles,
         )
         self.assertIn(
-            '.finished-work-types__label,\n'
-            '.category-navigation__label {',
+            '.category-navigation__label,\n'
+            '.list-pages-tags__title {\n'
+            '\tflex: 0 0 auto;\n'
+            '\tmargin: 5px 0 0;\n'
+            '\tcolor: #1f231f;\n'
+            '\tfont-size: 16px;\n'
+            '\tfont-weight: 600;\n'
+            '\ttext-align: left;',
+            styles,
+        )
+        self.assertIn(
+            '.category-navigation__label {\n'
+            '\tdisplay: inline-flex;\n'
+            '\talign-items: center;\n'
+            '\tmin-height: 44px;\n'
+            '\tmargin-top: 0;\n'
+            '\tline-height: 1;',
             styles,
         )
         self.assertIn(
@@ -1379,6 +1398,7 @@ class TagPageAndSitemapTests(TestCase):
             '\tdisplay: flex;\n'
             '\tflex-direction: column;\n'
             '\talign-items: stretch;\n'
+            '\tmin-width: 0;\n'
             '\tgap: 10px;',
             styles,
         )

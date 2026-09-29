@@ -2158,8 +2158,7 @@ ul.mainmenu li a:focus-visible {
 	border-bottom: 1px solid #dcd9cf;
 }
 
-.finished-work-types__content,
-.category-navigation__content {
+.finished-work-types__content {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -2167,12 +2166,19 @@ ul.mainmenu li a:focus-visible {
 	gap: 12px;
 }
 
-.finished-work-types__label,
-.category-navigation__label {
+.finished-work-types__label {
 	color: #1f231f;
 	font-size: 16px;
 	font-weight: 700;
 	line-height: 1.3;
+}
+
+.category-navigation__content {
+	display: flex;
+	flex-wrap: nowrap;
+	align-items: flex-start;
+	justify-content: center;
+	gap: 16px;
 }
 
 .catalog-categories ul,
@@ -2189,6 +2195,7 @@ ul.mainmenu li a:focus-visible {
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
+	min-width: 0;
 	gap: 10px;
 }
 
@@ -2433,6 +2440,7 @@ background-color: coral;
 	margin: 0 0 20px 0;
 	padding-top: 20px;
 }
+.category-navigation__label,
 .list-pages-tags__title {
 	flex: 0 0 auto;
 	margin: 5px 0 0;
@@ -2441,6 +2449,15 @@ background-color: coral;
 	font-weight: 600;
 	text-align: left;
 }
+
+.category-navigation__label {
+	display: inline-flex;
+	align-items: center;
+	min-height: 44px;
+	margin-top: 0;
+	line-height: 1;
+}
+
 .list-pages-tags ul {
 	flex: 1 1 auto;
 	margin: 0;
