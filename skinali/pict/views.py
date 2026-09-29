@@ -31,6 +31,7 @@ CONTACT_SUCCESS_MESSAGE = (
 )
 CATALOG_PAGE_SIZE = 30
 MAX_CATALOG_COLORS = 3
+ALL_FINISHED_WORK_TYPES = 'all'
 CONTACT_FORM_CLASSES = {
     CallbackContactForm.form_kind: CallbackContactForm,
     QuestionContactForm.form_kind: QuestionContactForm,
@@ -338,9 +339,15 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
             self.route_category = get_object_or_404(Category, slug=category_slug)
         return self.route_category
 
+    def get_search_base_url(self):
+        route_category = self.get_route_category()
+        return (
+            route_category.get_absolute_url()
+            if route_category else reverse('skinali')
+        )
+
     def get_queryset(self):
-        # URL категории остается валидируемым ресурсом даже при глобальном поиске.
-        self.get_route_category()
+        route_category = self.get_route_category()
         queryset = self.get_catalog_queryset()
         if not self.is_search_requested():
             return self.filter_catalog_queryset(queryset)
@@ -348,6 +355,9 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
         search_form = self.get_search_form()
         if not search_form.is_valid():
             return queryset.none()
+        if route_category:
+            # Поиск из категории не выходит за пределы выбранного раздела.
+            queryset = queryset.filter(cat=route_category)
         return apply_catalog_search(queryset, search_form.parsed_query)
 
     def get_popular_tags(self):
@@ -372,7 +382,7 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
         selected_colors = color_filter_context['selected_colors']
         color_query = color_filter_context['color_query']
         route_category = self.get_route_category()
-        selected_category = None if is_search else route_category
+        selected_category = route_category
         context['title'] = 'Результаты поиска' if is_search else 'Каталог скинали'
         default_catalog_heading = (
             f'Изображения для скинали: {selected_category}'
@@ -388,6 +398,8 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
         context['cat_name'] = selected_category or 'Каталог скинали'
         context['selected_category'] = selected_category
         context['search_form'] = search_form
+        context['search_base_url'] = self.get_search_base_url()
+        context['search_scope_category'] = route_category
         context['is_search'] = is_search
         context['search_is_valid'] = search_is_valid
         context['list_cat'] = (
@@ -457,10 +469,13 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
                 None if not selected_category and not is_search else reverse('skinali'),
             ),
         ]
+        if selected_category:
+            breadcrumbs.append((
+                str(selected_category),
+                selected_category.get_absolute_url() if is_search else None,
+            ))
         if is_search:
             breadcrumbs.append(('Результаты поиска', None))
-        elif selected_category:
-            breadcrumbs.append((str(selected_category), None))
         return set_page_metadata(
             context,
             self.request,
@@ -472,13 +487,12 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
             breadcrumbs=breadcrumbs,
         )
 
-    @staticmethod
-    def get_search_term_links(terms):
-        catalog_url = reverse('skinali')
+    def get_search_term_links(self, terms):
+        search_base_url = self.get_search_base_url()
         links = []
         for index, term in enumerate(terms):
             remaining_terms = terms[:index] + terms[index + 1:]
-            remove_url = catalog_url
+            remove_url = search_base_url
             if remaining_terms:
                 remove_url += '?' + urlencode({
                     SEARCH_QUERY_PARAMETER: ' '.join(remaining_terms),
@@ -609,15 +623,22 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
     model = FinishedWork
     template_name = 'pict/finished_works.html'
     context_object_name = 'finished_works'
-    paginate_by = 6
+    paginate_by = 30
 
     def get_selected_skinali_type(self):
         if not hasattr(self, 'selected_skinali_type'):
-            selected_type = self.request.GET.get(
-                'skinali_type',
-                FinishedWork.SkinaliType.PRINT,
-            ).strip() or FinishedWork.SkinaliType.PRINT
-            valid_types = {
+            requested_type = self.request.GET.get('skinali_type')
+            if (
+                requested_type is None
+                and self.request.GET.get('category', '').strip()
+            ):
+                # Старые ссылки с одной категорией по-прежнему означают печать.
+                selected_type = FinishedWork.SkinaliType.PRINT
+            else:
+                selected_type = (
+                    requested_type or ALL_FINISHED_WORK_TYPES
+                ).strip() or ALL_FINISHED_WORK_TYPES
+            valid_types = {ALL_FINISHED_WORK_TYPES} | {
                 value for value, _label in FinishedWork.SkinaliType.choices
             }
             if selected_type not in valid_types:
@@ -641,9 +662,10 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
         return self.selected_category
 
     def get_queryset(self):
-        queryset = get_finished_work_gallery_queryset().filter(
-            skinali_type=self.get_selected_skinali_type(),
-        )
+        queryset = get_finished_work_gallery_queryset()
+        selected_skinali_type = self.get_selected_skinali_type()
+        if selected_skinali_type != ALL_FINISHED_WORK_TYPES:
+            queryset = queryset.filter(skinali_type=selected_skinali_type)
         selected_category = self.get_selected_category()
         if selected_category:
             queryset = queryset.filter(
@@ -659,17 +681,17 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
         )
         context['title'] = 'Наши работы'
         context['selected_skinali_type'] = selected_skinali_type
-        context['skinali_type_options'] = tuple(
+        context['skinali_type_options'] = ({
+            'value': ALL_FINISHED_WORK_TYPES,
+            'label': 'Все',
+            'url': reverse('finished_works'),
+        },) + tuple(
             {
                 'value': value,
                 'label': label,
                 'url': (
-                    reverse('finished_works')
-                    if value == FinishedWork.SkinaliType.PRINT
-                    else (
-                        f'{reverse("finished_works")}?'
-                        f'{urlencode({"skinali_type": value})}'
-                    )
+                    f'{reverse("finished_works")}?'
+                    f'{urlencode({"skinali_type": value})}'
                 ),
             }
             for value, label in FinishedWork.SkinaliType.choices
@@ -678,10 +700,12 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
         context['categories'] = Category.objects.all() if show_categories else ()
         context['selected_category'] = self.get_selected_category()
         if context['selected_category']:
-            context['col_tag'] = (
-                f'&category={context["selected_category"].slug}'
-            )
-        elif not show_categories:
+            category_query = urlencode({
+                'skinali_type': FinishedWork.SkinaliType.PRINT,
+                'category': context['selected_category'].slug,
+            })
+            context['col_tag'] = f'&{category_query}'
+        elif selected_skinali_type != ALL_FINISHED_WORK_TYPES:
             context['col_tag'] = (
                 f'&{urlencode({"skinali_type": selected_skinali_type})}'
             )
@@ -689,7 +713,8 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
             context['col_tag'] = ''
         page_number = context['page_obj'].number
         is_filtered = (
-            context['selected_category'] is not None or not show_categories
+            context['selected_category'] is not None
+            or selected_skinali_type != ALL_FINISHED_WORK_TYPES
         )
         canonical_page = 1 if is_filtered else page_number
         page_suffix = (
@@ -705,7 +730,7 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
         ]
         if context['selected_category']:
             breadcrumbs.append((str(context['selected_category']), None))
-        elif not show_categories:
+        elif selected_skinali_type != ALL_FINISHED_WORK_TYPES:
             skinali_type_labels = dict(FinishedWork.SkinaliType.choices)
             breadcrumbs.append(
                 (skinali_type_labels[selected_skinali_type], None)

@@ -4,7 +4,7 @@
 {% block content %}
 <section class="site-search" aria-label="Поиск изображений">
   <form class="site-search__form"
-        action="{% url 'skinali' %}"
+        action="{{ search_base_url }}"
         method="get"
         role="search">
     <svg class="site-search__icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -16,12 +16,15 @@
            value="{{ search_query }}"
            maxlength="{{ search_form.q.field.max_length }}"
            aria-label="Поиск изображений"
-           aria-describedby="catalog-search-hint{% if search_form.q.errors %} catalog-search-error{% endif %}"
+           aria-describedby="catalog-search-hint{% if search_scope_category %} catalog-search-scope{% endif %}{% if search_form.q.errors %} catalog-search-error{% endif %}"
            {% if search_form.q.errors %}aria-invalid="true"{% endif %}
            placeholder="Поиск, например море">
     <button type="submit">Найти</button>
   </form>
   <p class="site-search__hint" id="catalog-search-hint">Введите номер изображения или до пяти ключевых слов</p>
+  {% if search_scope_category %}
+    <p class="site-search__scope" id="catalog-search-scope">Поиск будет выполнен в категории <strong>«{{ search_scope_category }}»</strong>.</p>
+  {% endif %}
   {% if search_form.q.errors %}
     <div class="site-search__errors" id="catalog-search-error" role="alert">
       {% for error in search_form.q.errors %}<p>{{ error }}</p>{% endfor %}
@@ -55,10 +58,6 @@
 
 {% if cat_name == title and not selected_colors %}
   <p class="catalog-intro">Выберите сюжет по теме и цвету. Нажмите на изображение, чтобы увидеть его номер, теги и раздел каталога.</p>
-{% elif selected_colors %}
-  <p>{{ cat_name }}. Выбранные цвета: {{ selected_color_names }}</p>
-{% elif not catalog_intro %}
-  <p>{{cat_name}}</p>
 {% endif %}
 {% if catalog_intro %}
   <p class="catalog-intro catalog-intro--managed">{{ catalog_intro|linebreaksbr }}</p>
@@ -76,7 +75,7 @@
 {% include 'pict/includes/color_filter_navigation.html' %}
 
 <nav class="list-pages-tags" aria-labelledby="popular-tags-title">
-  <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные темы:</h2>
+  <h2 class="list-pages-tags__title" id="popular-tags-title">Популярные теги:</h2>
   <ul>
         {% for p in list_tag %}
             <li class="page-num">
@@ -85,6 +84,12 @@
         {% endfor %}
   </ul>
 </nav>
+
+{% if selected_colors %}
+  <p class="catalog-filter-summary">{{ cat_name }}. Выбранные цвета: {{ selected_color_names }}</p>
+{% elif cat_name != title and not catalog_intro %}
+  <p class="catalog-filter-summary">{{ cat_name }}</p>
+{% endif %}
 
 {% endif %}
 
@@ -108,7 +113,7 @@
     <section class="search-empty" aria-labelledby="search-empty-title">
       <h2 id="search-empty-title">Ничего не найдено</h2>
       <p>Удалите одно из слов или измените поисковый запрос.</p>
-      <a href="{% url 'skinali' %}">Показать весь каталог</a>
+      <a href="{{ search_base_url }}">{% if search_scope_category %}Показать всю категорию{% else %}Показать весь каталог{% endif %}</a>
     </section>
   {% endif %}
 {% endif %}

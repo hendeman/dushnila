@@ -68,7 +68,13 @@ from .models import (
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
 from .services.contact_delivery import format_contact_request_message
-from .views import PictTag, SkinaliAll, serverError, set_page_metadata
+from .views import (
+    ALL_FINISHED_WORK_TYPES,
+    PictTag,
+    SkinaliAll,
+    serverError,
+    set_page_metadata,
+)
 
 
 TEST_MEDIA_DIRECTORY = TemporaryDirectory()
@@ -226,7 +232,12 @@ class PopularTagsTests(TestCase):
         self.assertIn(self.second_tag.slug, tag_slugs)
         self.assertContains(response, f'>{self.first_tag.tag}</a>', html=False)
         self.assertNotContains(response, f'{self.first_tag.tag} (3)')
-        self.assertContains(response, 'Популярные темы:')
+        self.assertContains(response, 'Популярные теги:')
+        self.assertContains(
+            response,
+            f'<p class="catalog-filter-summary">{self.first_category.cat}</p>',
+            html=True,
+        )
         self.assertContains(response, 'data-fancybox="catalog-gallery"')
         self.assertContains(response, 'data-caption-template="catalog-gallery-caption-')
         self.assertContains(response, 'data-caption="Описание изображения 100"')
@@ -332,7 +343,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, '<main class="site-main">')
         self.assertContains(response, '<div class="site-content">')
         self.assertContains(response, 'class="site-search__form"')
-        self.assertContains(response, 'Популярные темы:')
+        self.assertContains(response, 'Популярные теги:')
         self.assertContains(response, 'class="container catalog-gallery"')
         self.assertContains(
             response,
@@ -758,7 +769,22 @@ class PopularTagsTests(TestCase):
             response.context['selected_color_slugs'],
             ('red', 'blue'),
         )
-        self.assertContains(response, 'Выбранные цвета: Красный, Синий')
+        self.assertContains(
+            response,
+            '<p class="catalog-filter-summary">'
+            'Первая. Выбранные цвета: Красный, Синий'
+            '</p>',
+            html=True,
+        )
+        response_html = response.content.decode()
+        self.assertLess(
+            response_html.index('id="popular-tags-title"'),
+            response_html.index('class="catalog-filter-summary"'),
+        )
+        self.assertLess(
+            response_html.index('class="catalog-filter-summary"'),
+            response_html.index('class="container catalog-gallery"'),
+        )
         self.assertContains(
             response,
             (
@@ -1324,6 +1350,11 @@ class TagPageAndSitemapTests(TestCase):
             response,
             'class="list-pages catalog-categories catalog-category-navigation"',
         )
+        self.assertContains(
+            response,
+            '<span class="category-navigation__label">Категории:</span>',
+            html=True,
+        )
         self.assertContains(response, 'class="category-navigation__row"', count=2)
         styles = (
             settings.BASE_DIR
@@ -1334,11 +1365,26 @@ class TagPageAndSitemapTests(TestCase):
             / 'styles.css'
         ).read_text(encoding='utf-8')
         self.assertIn(
+            '.finished-work-types__content,\n'
+            '.category-navigation__content {',
+            styles,
+        )
+        self.assertIn(
+            '.finished-work-types__label,\n'
+            '.category-navigation__label {',
+            styles,
+        )
+        self.assertIn(
             '.category-navigation__rows {\n'
             '\tdisplay: flex;\n'
             '\tflex-direction: column;\n'
             '\talign-items: stretch;\n'
             '\tgap: 10px;',
+            styles,
+        )
+        self.assertIn(
+            '\t.category-navigation__label {\n'
+            '\t\tdisplay: none;',
             styles,
         )
 
@@ -1870,7 +1916,7 @@ class SitePageSeoTests(TestCase):
         SitePage.objects.filter(pk=SitePage.Code.FINISHED_WORKS).update(
             seo_title='Фото выполненных работ',
         )
-        for index in range(7):
+        for index in range(31):
             FinishedWork.objects.create(
                 name=f'Работа {index}',
                 photo=create_test_image_file(f'seo-work-{index}.jpg'),
@@ -2043,15 +2089,72 @@ class CatalogSearchTests(TestCase):
                 with self.assertRaises(ValidationError):
                     candidate.save()
 
-    def test_multiple_words_use_global_and_search_with_aliases(self):
+    def test_category_page_search_form_explains_its_scope(self):
+        category_url = self.first_category.get_absolute_url()
+        category_response = self.client.get(category_url)
+        catalog_response = self.client.get(reverse('skinali'))
+        styles = Path(
+            settings.BASE_DIR,
+            'pict/static/skinali/css/styles.css',
+        ).read_text(encoding='utf-8')
+
+        self.assertContains(category_response, f'action="{category_url}"')
+        self.assertContains(
+            category_response,
+            'aria-describedby="catalog-search-hint catalog-search-scope"',
+        )
+        self.assertContains(
+            category_response,
+            '<p class="site-search__scope" id="catalog-search-scope">'
+            'Поиск будет выполнен в категории '
+            '<strong>«Первая»</strong>.'
+            '</p>',
+            html=True,
+        )
+        self.assertContains(catalog_response, f'action="{reverse("skinali")}"')
+        self.assertNotContains(catalog_response, 'id="catalog-search-scope"')
+        self.assertIn(
+            '.site-search {\n'
+            '\tmax-width: 580px;\n'
+            '\tmargin: 0 0 22px;',
+            styles,
+        )
+        self.assertIn(
+            '.site-search__hint,\n'
+            '.site-search__scope {\n'
+            '\tmargin-right: 0;\n'
+            '\tmargin-left: 22px;\n'
+            '\ttext-align: left;',
+            styles,
+        )
+        self.assertIn(
+            '.site-search__scope {\n'
+            '\tmargin-top: 2px;\n'
+            '\tmargin-bottom: 0;\n'
+            '\tcolor: #526357;\n'
+            '\tfont-size: 14px;',
+            styles,
+        )
+
+    def test_multiple_words_search_selected_category_with_aliases(self):
+        scoped_picture = self.create_picture(
+            906,
+            self.first_category,
+            [self.sea_tag, self.sunset_tag],
+        )
+        category_url = self.first_category.get_absolute_url()
         response = self.client.get(
-            reverse('skinali', kwargs={'slug_cat': self.first_category.slug}),
+            category_url,
             {'q': '#ОКЕАН, ЗАКАТ', 'color': self.color.slug_color},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(list(response.context['object_list']), [self.both_picture])
-        self.assertIsNone(response.context['selected_category'])
+        self.assertEqual(list(response.context['object_list']), [scoped_picture])
+        self.assertNotIn(self.both_picture, response.context['object_list'])
+        self.assertEqual(
+            response.context['selected_category'],
+            self.first_category,
+        )
         self.assertEqual(response.context['col'], '')
         self.assertEqual(response.context['search_result_count'], 1)
         self.assertContains(response, '<h1 id="search-results-title">Результаты поиска</h1>')
@@ -2062,12 +2165,27 @@ class CatalogSearchTests(TestCase):
         self.assertContains(
             response,
             '<span class="catalog-thumbnail__image-number">'
-            f'<span class="catalog-thumbnail__image-number-text">№ {self.both_picture.name}</span>'
+            f'<span class="catalog-thumbnail__image-number-text">№ {scoped_picture.name}</span>'
             '</span>',
             html=True,
         )
         self.assertNotContains(response, 'data-mobile-filter-open')
         self.assertNotContains(response, 'Популярные запросы:')
+
+        links = {
+            item['label']: item['remove_url']
+            for item in response.context['search_terms']
+        }
+        self.assertEqual(urlparse(links['океан']).path, category_url)
+        self.assertEqual(
+            parse_qs(urlparse(links['океан']).query),
+            {'q': ['закат']},
+        )
+        single_term_response = self.client.get(category_url, {'q': 'океан'})
+        self.assertEqual(
+            single_term_response.context['search_terms'][0]['remove_url'],
+            category_url,
+        )
 
         missing_category_response = self.client.get(
             reverse('skinali', kwargs={'slug_cat': 'missing-category'}),
@@ -4131,16 +4249,33 @@ class FinishedWorkTests(TestCase):
         self.assertContains(response, 'src="/static/skinali/js/mobile-filters.js"')
         self.assertIn("'.finished-work-types a'", mobile_filters_script)
         self.assertIn('restoreScrollPosition();', mobile_filters_script)
+        self.assertEqual(
+            response.context['selected_skinali_type'],
+            ALL_FINISHED_WORK_TYPES,
+        )
+        self.assertEqual(
+            [
+                option['value']
+                for option in response.context['skinali_type_options']
+            ],
+            [
+                ALL_FINISHED_WORK_TYPES,
+                FinishedWork.SkinaliType.PRINT,
+                FinishedWork.SkinaliType.PAINT,
+                FinishedWork.SkinaliType.TRANSPARENT,
+            ],
+        )
         self.assertContains(
             response,
             '<li class="page-num page-num-selected" aria-current="page">'
-            ' Печать </li>',
+            ' Все </li>',
             html=True,
         )
+        self.assertContains(response, '?skinali_type=print')
         self.assertContains(response, '?skinali_type=paint')
         self.assertContains(response, '?skinali_type=transparent')
-        self.assertContains(response, 'aria-label="Категории"')
-        self.assertContains(response, 'data-mobile-filter-scroll-down', count=1)
+        self.assertNotContains(response, 'aria-label="Категории"')
+        self.assertNotContains(response, 'data-mobile-filter-scroll-down')
         self.assertNotContains(response, 'Номер изображения')
         self.assertContains(response, '№ 701')
         self.assertContains(
@@ -4286,7 +4421,7 @@ class FinishedWorkTests(TestCase):
         self.assertNotIn('Цвет покраски', transparent_caption)
         self.assertNotIn('finished-work-modal__catalog-image-link', transparent_caption)
 
-    def test_public_gallery_filters_by_skinali_type_and_hides_categories(self):
+    def test_public_gallery_defaults_to_all_and_filters_by_skinali_type(self):
         painted_works = [
             FinishedWork.objects.create(
                 name=f'Покрашенная работа {index}',
@@ -4296,7 +4431,7 @@ class FinishedWorkTests(TestCase):
                 skinali_type=FinishedWork.SkinaliType.PAINT,
                 paint_color='RAL 9000',
             )
-            for index in range(1, 8)
+            for index in range(1, 32)
         ]
         transparent_work = FinishedWork.objects.create(
             name='Прозрачная работа для фильтра',
@@ -4304,7 +4439,11 @@ class FinishedWorkTests(TestCase):
             skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
         )
 
-        printed_response = self.client.get(reverse('finished_works'))
+        all_response = self.client.get(reverse('finished_works'))
+        print_response = self.client.get(
+            reverse('finished_works'),
+            {'skinali_type': FinishedWork.SkinaliType.PRINT},
+        )
         painted_response = self.client.get(
             reverse('finished_works'),
             {'skinali_type': FinishedWork.SkinaliType.PAINT},
@@ -4315,24 +4454,40 @@ class FinishedWorkTests(TestCase):
         )
 
         self.assertEqual(
-            list(printed_response.context['finished_works']),
+            list(all_response.context['finished_works']),
+            [transparent_work, *reversed(painted_works[2:])],
+        )
+        self.assertEqual(
+            list(print_response.context['finished_works']),
             [self.work],
         )
         self.assertEqual(
             list(painted_response.context['finished_works']),
-            list(reversed(painted_works[-6:])),
+            list(reversed(painted_works[-30:])),
         )
         self.assertEqual(
             list(transparent_response.context['finished_works']),
             [transparent_work],
         )
         self.assertEqual(
+            all_response.context['selected_skinali_type'],
+            ALL_FINISHED_WORK_TYPES,
+        )
+        self.assertEqual(
             painted_response.context['selected_skinali_type'],
             FinishedWork.SkinaliType.PAINT,
         )
         self.assertFalse(
+            all_response.context['show_finished_work_categories']
+        )
+        self.assertTrue(
+            print_response.context['show_finished_work_categories']
+        )
+        self.assertFalse(
             painted_response.context['show_finished_work_categories']
         )
+        self.assertNotContains(all_response, 'aria-label="Категории"')
+        self.assertContains(print_response, 'aria-label="Категории"')
         self.assertContains(painted_response, 'aria-label="Тип скинали"')
         self.assertContains(
             painted_response,
@@ -4392,13 +4547,13 @@ class FinishedWorkTests(TestCase):
         self.assertContains(repeated_response, f'src="{thumbnail_url}"')
         self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
 
-    def test_public_gallery_is_sorted_by_novelty_and_paginated_by_six(self):
+    def test_public_gallery_is_sorted_by_novelty_and_paginated_by_thirty(self):
         newer_works = [
             FinishedWork.objects.create(
                 name=f'Работа {index}',
                 photo=create_test_image_file(f'finished-work-{index}.jpg'),
             )
-            for index in range(1, 7)
+            for index in range(1, 31)
         ]
 
         first_page = self.client.get(reverse('finished_works'))
@@ -4412,7 +4567,7 @@ class FinishedWorkTests(TestCase):
             list(second_page.context['finished_works']),
             [self.work],
         )
-        self.assertEqual(first_page.context['paginator'].per_page, 6)
+        self.assertEqual(first_page.context['paginator'].per_page, 30)
         self.assertContains(first_page, 'class="list-pages catalog-pagination"')
         self.assertContains(first_page, 'aria-current="page"')
         self.assertContains(first_page, '?page=2')
@@ -4460,7 +4615,7 @@ class FinishedWorkTests(TestCase):
                 ),
                 catalog_image=self.catalog_image,
             )
-            for index in range(1, 7)
+            for index in range(1, 31)
         ]
 
         first_page = self.client.get(
@@ -4475,6 +4630,10 @@ class FinishedWorkTests(TestCase):
         self.assertEqual(first_page.status_code, 200)
         self.assertEqual(first_page.context['selected_category'], self.category)
         self.assertEqual(
+            first_page.context['selected_skinali_type'],
+            FinishedWork.SkinaliType.PRINT,
+        )
+        self.assertEqual(
             list(first_page.context['finished_works']),
             list(reversed(filtered_works)),
         )
@@ -4487,11 +4646,20 @@ class FinishedWorkTests(TestCase):
             html=True,
         )
         self.assertContains(first_page, 'class="mobile-filter-dialog"')
+        self.assertContains(first_page, 'data-mobile-filter-scroll-down', count=1)
+        self.assertContains(
+            first_page,
+            '<span class="category-navigation__label">Категории:</span>',
+            html=True,
+        )
         self.assertContains(
             first_page,
             'src="/static/skinali/js/mobile-filters.js"',
         )
-        self.assertContains(first_page, '?page=2&amp;category=architecture')
+        self.assertContains(
+            first_page,
+            '?page=2&amp;skinali_type=print&amp;category=architecture',
+        )
 
         missing_category = self.client.get(
             reverse('finished_works'),

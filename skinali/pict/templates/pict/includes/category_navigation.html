@@ -1,26 +1,29 @@
 <nav class="list-pages catalog-categories catalog-category-navigation" aria-label="Категории">
-  <div class="category-navigation__rows">
-  <ul class="category-navigation__row">
-    {% if not selected_category %}
-      <li class="page-num page-num-selected">Все</li>
-    {% else %}
-      <li class="page-num">
-        <a href="{% if finished_works_filter %}{% url 'finished_works' %}{% else %}{% url 'skinali' %}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">Все</a>
-      </li>
-    {% endif %}
-    {% for category in categories %}
-      {% if category.slug == selected_category.slug %}
-        <li class="page-num page-num-selected">{{ category.cat }}</li>
-      {% else %}
-        <li class="page-num">
-          <a href="{% if finished_works_filter %}{% url 'finished_works' %}?category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">{{ category.cat }}</a>
-        </li>
-      {% endif %}
-      {% if forloop.counter|add:"1"|divisibleby:"8" and not forloop.last %}
-        </ul>
-        <ul class="category-navigation__row">
-      {% endif %}
-    {% endfor %}
-  </ul>
+  <div class="category-navigation__content">
+    <span class="category-navigation__label">Категории:</span>
+    <div class="category-navigation__rows">
+      <ul class="category-navigation__row">
+        {% if not selected_category %}
+          <li class="page-num page-num-selected">Все</li>
+        {% else %}
+          <li class="page-num">
+            <a href="{% if finished_works_filter %}{% url 'finished_works' %}?skinali_type=print{% else %}{% url 'skinali' %}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">Все</a>
+          </li>
+        {% endif %}
+        {% for category in categories %}
+          {% if category.slug == selected_category.slug %}
+            <li class="page-num page-num-selected">{{ category.cat }}</li>
+          {% else %}
+            <li class="page-num">
+              <a href="{% if finished_works_filter %}{% url 'finished_works' %}?skinali_type=print&amp;category={{ category.slug|urlencode }}{% else %}{{ category.get_absolute_url }}{% if color_query %}?{{ color_query }}{% endif %}{% endif %}">{{ category.cat }}</a>
+            </li>
+          {% endif %}
+          {% if forloop.counter|add:"1"|divisibleby:"8" and not forloop.last %}
+            </ul>
+            <ul class="category-navigation__row">
+          {% endif %}
+        {% endfor %}
+      </ul>
+    </div>
   </div>
 </nav>
