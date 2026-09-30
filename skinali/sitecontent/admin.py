@@ -35,6 +35,9 @@ class SitePageAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
     search_fields = ('seo_title', 'seo_description')
     actions = None
 
+    class Media:
+        css = {'all': ('skinali/css/admin-seo-landing-fields.css',)}
+
     @admin.display(description='Страница', ordering='code')
     def page_name(self, obj):
         return obj.get_code_display()
