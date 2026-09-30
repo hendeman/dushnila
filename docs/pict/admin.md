@@ -93,6 +93,8 @@
 
 Пустые SEO-поля означают использование автоматически сформированных значений. В `seo_title` не нужно дописывать бренд «ОДИУМ» или номер страницы: публичное представление добавляет их самостоятельно. `intro_text` хранится как обычный текст, а переносы строк превращаются в `<br>` уже в безопасно экранированном шаблоне.
 
+Формы `CategoryAdmin` и `TagPictAdmin` подключают общий `admin-seo-landing-fields.css`: поля `seo_h1`, `seo_title`, `seo_description` и `intro_text` имеют одинаковую адаптивную ширину. Изменение касается только отображения формы и не меняет ограничения длины значений.
+
 ## Регистрация
 
 Зарегистрированы пары `Pict/PictAdmin`, `FinishedWork/FinishedWorkAdmin`, `ContactRequest/ContactRequestAdmin`, `Category/CategoryAdmin`, `Color/ColorAdmin`, `TagPict/TagPictAdmin`. `TagAlias` управляется только inline-формой основного тега. Модель `ContactRequestDelivery` намеренно не зарегистрирована.

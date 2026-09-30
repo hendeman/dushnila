@@ -324,7 +324,10 @@ class CategoryAdmin(admin.ModelAdmin):
     )
 
     class Media:
-        css = {'all': ('skinali/css/admin-category-order.css',)}
+        css = {'all': (
+            'skinali/css/admin-category-order.css',
+            'skinali/css/admin-seo-landing-fields.css',
+        )}
         js = ('skinali/js/admin-category-order.js',)
 
     def get_list_display(self, request):
@@ -452,6 +455,9 @@ class TagPictAdmin(admin.ModelAdmin):
         (None, {'fields': ('tag', 'normalized_tag', 'slug')}),
         ('SEO и текст страницы', {'fields': SEO_LANDING_FIELDS}),
     )
+
+    class Media:
+        css = {'all': ('skinali/css/admin-seo-landing-fields.css',)}
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('search_aliases')

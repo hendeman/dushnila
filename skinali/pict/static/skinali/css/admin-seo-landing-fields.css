@@ -1,0 +1,8 @@
+#id_seo_h1,
+#id_seo_title,
+#id_seo_description,
+#id_intro_text {
+	box-sizing: border-box;
+	width: 48em;
+	max-width: 100%;
+}
