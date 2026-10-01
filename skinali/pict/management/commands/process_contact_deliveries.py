@@ -3,13 +3,12 @@ from django.core.management.base import BaseCommand, CommandError
 from pict.services.contact_delivery import (
     DEFAULT_MAX_ATTEMPTS,
     DEFAULT_PROCESSING_TIMEOUT_SECONDS,
-    TelegramConfigurationError,
-    process_pending_telegram_deliveries,
+    process_pending_deliveries,
 )
 
 
 class Command(BaseCommand):
-    help = 'Отправляет ожидающие контактные заявки в Telegram.'
+    help = 'Отправляет ожидающие заявки и тестовые сообщения подключённым сервисам.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -33,19 +32,20 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         try:
-            stats = process_pending_telegram_deliveries(
+            stats = process_pending_deliveries(
                 limit=options['limit'],
                 max_attempts=options['max_attempts'],
                 stale_after_seconds=options['stale_after'],
             )
-        except (TelegramConfigurationError, ValueError) as error:
+        except ValueError as error:
             raise CommandError(str(error)) from error
 
         self.stdout.write(self.style.SUCCESS(
-            'Обработка Telegram завершена: '
+            'Обработка доставок завершена: '
             f'восстановлено={stats["recovered"]}, '
             f'взято={stats["claimed"]}, '
             f'отправлено={stats["sent"]}, '
             f'повтор={stats["retry"]}, '
-            f'ошибка={stats["failed"]}.'
+            f'ошибка={stats["failed"]}, '
+            f'ошибки настроек={stats["configuration_errors"]}.'
         ))

@@ -30,7 +30,7 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
-from sitecontent.models import SitePage
+from sitecontent.models import LeadConnection, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .admin import (
@@ -2913,7 +2913,7 @@ class ContactPageTests(TestCase):
 
 class ContactFormSubmissionTests(TestCase):
     @staticmethod
-    def create_token(age_seconds=3):
+    def create_token(age_seconds=6):
         return signing.dumps(
             {'issued_at': time.time() - age_seconds},
             salt=CONTACT_FORM_TOKEN_SALT,
@@ -3243,7 +3243,7 @@ class ContactFormSubmissionTests(TestCase):
         fast_response = self.client.post(
             reverse('contact_submit'),
             self.callback_data(**{
-                'callback-form_token': self.create_token(age_seconds=0),
+                'callback-form_token': self.create_token(age_seconds=4),
             }),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
         )
@@ -3295,6 +3295,7 @@ class ContactFormSubmissionTests(TestCase):
         ContactRequestDelivery.objects.create(
             contact_request=purchase_request,
             channel=ContactRequestDelivery.Channel.TELEGRAM,
+            connection=LeadConnection.objects.get(use_environment=True),
         )
 
         self.assertEqual(request_admin.list_display, [
@@ -3348,12 +3349,14 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('email', request_admin.search_fields)
         self.assertIn('=image_number', request_admin.search_fields)
         self.assertIn('created_at', request_admin.readonly_fields)
-        self.assertIn('queue_missing_telegram_deliveries', request_admin.actions)
-        self.assertIn('retry_failed_telegram_deliveries', request_admin.actions)
+        self.assertIn('queue_missing_deliveries', request_admin.actions)
+        self.assertIn('retry_failed_deliveries', request_admin.actions)
         self.assertEqual(request_admin.inlines, [ContactRequestDeliveryInline])
         delivery_inline = ContactRequestDeliveryInline(ContactRequest, site)
         self.assertEqual(delivery_inline.fields, [
+            'connection',
             'channel',
+            'recipient',
             'status',
             'attempts',
             'next_attempt_at',
@@ -3368,7 +3371,7 @@ class ContactFormSubmissionTests(TestCase):
         self.assertFalse(admin.site.is_registered(ContactRequestDelivery))
         self.assertEqual(str(question_request), 'Мария — +375 29 111-22-33')
         with patch.object(request_admin, 'message_user'):
-            request_admin.queue_missing_telegram_deliveries(
+            request_admin.queue_missing_deliveries(
                 None,
                 ContactRequest.objects.select_related('catalog_image'),
             )
@@ -3420,6 +3423,81 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('color: #8baec0;', styles)
 
 
+class ContactRequestAdminUnreadTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.admin_user = get_user_model().objects.create_superuser(
+            username='unviewed-requests-admin',
+            email='unviewed-requests@example.com',
+            password='test-password',
+        )
+        cls.first = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.CALLBACK,
+            name='Первая',
+            phone='+375 29 111-22-33',
+        )
+        cls.second = ContactRequest.objects.create(
+            request_type=ContactRequest.RequestType.QUESTION,
+            name='Вторая',
+            phone='+375 29 111-22-34',
+        )
+
+    def setUp(self):
+        self.client.force_login(self.admin_user)
+
+    def test_sidebar_count_updates_after_opening_request(self):
+        index = self.client.get(reverse('admin:index'))
+        self.assertContains(index, 'Заявки (2)')
+
+        change_url = reverse('admin:pict_contactrequest_change', args=[self.first.pk])
+        change = self.client.get(change_url)
+        self.assertContains(change, 'Заявки (1)')
+
+        self.first.refresh_from_db()
+        self.assertIsNotNone(self.first.viewed_at)
+        self.assertIsNone(self.second.viewed_at)
+        self.assertContains(self.client.get(change_url), 'Заявки (1)')
+
+    def test_bulk_action_marks_only_selected_unviewed_requests(self):
+        changelist_url = reverse('admin:pict_contactrequest_changelist')
+        self.assertContains(
+            self.client.get(changelist_url),
+            'Просмотреть выбранные заявки',
+        )
+        action_data = {
+            'action': 'mark_selected_as_viewed',
+            '_selected_action': [str(self.first.pk)],
+            'index': '0',
+        }
+
+        result = self.client.post(changelist_url, action_data, follow=True)
+        self.assertContains(result, 'Заявки (1)')
+        self.first.refresh_from_db()
+        self.assertIsNotNone(self.first.viewed_at)
+        self.assertIsNone(self.second.viewed_at)
+
+        viewed_at = self.first.viewed_at
+        repeated = self.client.post(changelist_url, action_data, follow=True)
+        self.assertContains(repeated, 'Отмечено как просмотренные: 0.')
+        self.first.refresh_from_db()
+        self.assertEqual(self.first.viewed_at, viewed_at)
+
+    def test_add_only_staff_does_not_see_unviewed_count(self):
+        staff = get_user_model().objects.create_user(
+            username='add-only-requests-staff',
+            password='test-password',
+            is_staff=True,
+        )
+        staff.user_permissions.add(
+            Permission.objects.get(codename='add_contactrequest'),
+        )
+        self.client.force_login(staff)
+
+        index = self.client.get(reverse('admin:index'))
+        self.assertContains(index, 'Заявки')
+        self.assertNotContains(index, 'Заявки (2)')
+
+
 @override_settings(
     TELEGRAM_BOT_TOKEN='test-token',
     TELEGRAM_CHAT_ID='123456',
@@ -3438,11 +3516,12 @@ class ContactDeliveryTests(TestCase):
         defaults = {
             'contact_request': contact_request,
             'channel': ContactRequestDelivery.Channel.TELEGRAM,
+            'connection': LeadConnection.objects.get(use_environment=True),
         }
         defaults.update(overrides)
         return ContactRequestDelivery.objects.create(**defaults)
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_management_command_marks_successful_telegram_delivery(self, session_class):
         delivery = self.create_delivery()
         session = session_class.return_value
@@ -3460,7 +3539,7 @@ class ContactDeliveryTests(TestCase):
         delivery.refresh_from_db()
         self.assertEqual(delivery.status, ContactRequestDelivery.Status.SENT)
         self.assertEqual(delivery.attempts, 1)
-        self.assertEqual(delivery.external_message_id, 987)
+        self.assertEqual(delivery.external_message_id, '987')
         self.assertIsNotNone(delivery.sent_at)
         self.assertIsNone(delivery.next_attempt_at)
         self.assertIn('отправлено=1', output.getvalue())
@@ -3486,7 +3565,7 @@ class ContactDeliveryTests(TestCase):
         self.assertFalse(session.trust_env)
         session.close.assert_called_once_with()
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_temporary_error_schedules_retry_without_losing_request(self, session_class):
         delivery = self.create_delivery()
         post = session_class.return_value.post
@@ -3501,7 +3580,7 @@ class ContactDeliveryTests(TestCase):
         self.assertIn('не ответил', delivery.last_error)
         self.assertNotIn('test-token', delivery.last_error)
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_email_message_contains_email_and_comment_without_empty_phone(self, session_class):
         contact_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.EMAIL_MESSAGE,
@@ -3512,6 +3591,7 @@ class ContactDeliveryTests(TestCase):
         ContactRequestDelivery.objects.create(
             contact_request=contact_request,
             channel=ContactRequestDelivery.Channel.TELEGRAM,
+            connection=LeadConnection.objects.get(use_environment=True),
         )
         response = Mock(status_code=200)
         response.json.return_value = {
@@ -3535,7 +3615,7 @@ class ContactDeliveryTests(TestCase):
         )
         self.assertNotIn('📞', message)
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_image_purchase_message_contains_catalog_image_number(self, session_class):
         contact_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.IMAGE_PURCHASE,
@@ -3547,6 +3627,7 @@ class ContactDeliveryTests(TestCase):
         ContactRequestDelivery.objects.create(
             contact_request=contact_request,
             channel=ContactRequestDelivery.Channel.TELEGRAM,
+            connection=LeadConnection.objects.get(use_environment=True),
         )
         response = Mock(status_code=200)
         response.json.return_value = {
@@ -3603,7 +3684,7 @@ class ContactDeliveryTests(TestCase):
         self.assertIn('Можно &lt;сегодня&gt; &amp; завтра?', message)
         self.assertNotIn('Можно <сегодня>', message)
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_permanent_telegram_error_stops_automatic_retries(self, session_class):
         delivery = self.create_delivery()
         post = session_class.return_value.post
@@ -3620,9 +3701,9 @@ class ContactDeliveryTests(TestCase):
         delivery.refresh_from_db()
         self.assertEqual(delivery.status, ContactRequestDelivery.Status.FAILED)
         self.assertIsNone(delivery.next_attempt_at)
-        self.assertEqual(delivery.last_error, 'Bad Request: chat not found')
+        self.assertEqual(delivery.last_error, 'Telegram отклонил запрос (код 400).')
 
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_stale_processing_delivery_is_recovered_and_sent(self, session_class):
         delivery = self.create_delivery(
             status=ContactRequestDelivery.Status.PROCESSING,
@@ -3653,7 +3734,7 @@ class ContactDeliveryTests(TestCase):
     @override_settings(
         TELEGRAM_PROXY_URL='https://proxy-user:proxy-password@proxy.example:8443'
     )
-    @patch('pict.services.contact_delivery.requests.Session')
+    @patch('pict.services.telegram_delivery.requests.Session')
     def test_configured_proxy_is_used_in_strict_mode(self, session_class):
         self.create_delivery()
         session = session_class.return_value
@@ -3677,8 +3758,9 @@ class ContactDeliveryTests(TestCase):
     def test_missing_configuration_keeps_delivery_pending(self):
         delivery = self.create_delivery()
 
-        with self.assertRaises(CommandError):
-            call_command('process_contact_deliveries', stdout=StringIO())
+        output = StringIO()
+        call_command('process_contact_deliveries', stdout=output)
+        self.assertIn('ошибки настроек=1', output.getvalue())
 
         delivery.refresh_from_db()
         self.assertEqual(delivery.status, ContactRequestDelivery.Status.PENDING)
@@ -3694,9 +3776,9 @@ class ContactDeliveryTests(TestCase):
         request_admin = ContactRequestAdmin(ContactRequest, AdminSite())
 
         self.assertFalse(admin.site.is_registered(ContactRequestDelivery))
-        self.assertIn('retry_failed_telegram_deliveries', request_admin.actions)
+        self.assertIn('retry_failed_deliveries', request_admin.actions)
         with patch.object(request_admin, 'message_user'):
-            request_admin.retry_failed_telegram_deliveries(
+            request_admin.retry_failed_deliveries(
                 None,
                 ContactRequest.objects.filter(pk=delivery.contact_request_id),
             )

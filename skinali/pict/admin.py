@@ -574,7 +574,9 @@ class ContactRequestDeliveryInline(admin.TabularInline):
     extra = 0
     can_delete = False
     fields = [
+        'connection',
         'channel',
+        'recipient',
         'status',
         'attempts',
         'next_attempt_at',
@@ -630,7 +632,7 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     ]
     # Ссылку формируем сами, чтобы CSS-класс просмотра находился на самом <a>.
     list_display_links = None
-    list_filter = ['request_type', 'created_at']
+    list_filter = ['request_type', 'created_at', ('deliveries__connection', admin.RelatedOnlyFieldListFilter)]
     search_fields = ['name', 'phone', 'email', 'question', 'comment', '=image_number']
     readonly_fields = [
         'get_catalog_image_thumbnail',
@@ -654,15 +656,16 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     list_per_page = 50
     inlines = [ContactRequestDeliveryInline]
     actions = [
-        'queue_missing_telegram_deliveries',
-        'retry_failed_telegram_deliveries',
+        'mark_selected_as_viewed',
+        'queue_missing_deliveries',
+        'retry_failed_deliveries',
     ]
 
     def get_queryset(self, request):
         return (
             super().get_queryset(request)
             .select_related('catalog_image', 'quiz_submission')
-            .prefetch_related('deliveries')
+            .prefetch_related('deliveries__connection')
         )
 
     def get_readonly_fields(self, request, obj=None):
@@ -682,10 +685,15 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     def change_view(self, request, object_id, form_url='', extra_context=None):
         response = super().change_view(request, object_id, form_url, extra_context)
         if request.method == 'GET' and response.status_code == 200:
-            ContactRequest.objects.filter(
+            updated = ContactRequest.objects.filter(
                 pk=object_id,
                 viewed_at__isnull=True,
             ).update(viewed_at=timezone.now())
+            if updated:
+                # Контекст бокового меню формируется до отметки просмотра.
+                if hasattr(request, '_unviewed_contact_request_count'):
+                    del request._unviewed_contact_request_count
+                response.context_data['available_apps'] = self.admin_site.get_app_list(request)
         return response
 
     @admin.display(description='Имя', ordering='name')
@@ -699,25 +707,20 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             )
         return format_html('<a href="{}">{}</a>', change_url, obj.name)
 
-    @staticmethod
-    def get_telegram_delivery(obj):
-        return next(
-            (
-                delivery for delivery in obj.deliveries.all()
-                if delivery.channel == ContactRequestDelivery.Channel.TELEGRAM
-            ),
-            None,
-        )
-
-    @admin.display(description='Канал')
+    @admin.display(description='Каналы')
     def get_delivery_channel(self, obj):
-        delivery = self.get_telegram_delivery(obj)
-        return delivery.get_channel_display() if delivery else '—'
+        return ', '.join(sorted({delivery.get_channel_display() for delivery in obj.deliveries.all()})) or '—'
 
     @admin.display(description='Статус')
     def get_delivery_status(self, obj):
-        delivery = self.get_telegram_delivery(obj)
-        return delivery.get_status_display() if delivery else 'Не поставлено в очередь'
+        deliveries = list(obj.deliveries.all())
+        if not deliveries:
+            return 'Не поставлено в очередь'
+        if len({delivery.status for delivery in deliveries}) == 1:
+            return deliveries[0].get_status_display()
+        sent = sum(delivery.status == ContactRequestDelivery.Status.SENT for delivery in deliveries)
+        failed = sum(delivery.status == ContactRequestDelivery.Status.FAILED for delivery in deliveries)
+        return f'Отправлено {sent} из {len(deliveries)}; ошибок: {failed}'
 
     @admin.display(description='Миниатюра')
     def get_catalog_image_thumbnail(self, obj):
@@ -747,34 +750,23 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             rows,
         )
 
-    @admin.action(description='Поставить выбранные заявки в очередь Telegram')
-    def queue_missing_telegram_deliveries(self, request, queryset):
-        created_count = 0
-        for contact_request_id in queryset.values_list('pk', flat=True):
-            _, created = ContactRequestDelivery.objects.get_or_create(
-                contact_request_id=contact_request_id,
-                channel=ContactRequestDelivery.Channel.TELEGRAM,
-            )
-            created_count += int(created)
+    @admin.action(description='Отправить выбранные заявки в активные подключения')
+    def queue_missing_deliveries(self, request, queryset):
+        from .services.contact_delivery import enqueue_contact_request
+
+        created_count = sum(enqueue_contact_request(item) for item in queryset.iterator())
         self.message_user(request, f'Создано доставок: {created_count}.')
 
+    @admin.action(description='Просмотреть выбранные заявки', permissions=['change'])
+    def mark_selected_as_viewed(self, request, queryset):
+        updated = queryset.filter(viewed_at__isnull=True).update(viewed_at=timezone.now())
+        self.message_user(request, f'Отмечено как просмотренные: {updated}.')
+
     @admin.action(description='Повторить выбранные неотправленные доставки')
-    def retry_failed_telegram_deliveries(self, request, queryset):
-        updated = ContactRequestDelivery.objects.filter(
-            contact_request__in=queryset,
-            channel=ContactRequestDelivery.Channel.TELEGRAM,
-            status__in=[
-                ContactRequestDelivery.Status.RETRY,
-                ContactRequestDelivery.Status.FAILED,
-            ],
-        ).update(
-            status=ContactRequestDelivery.Status.RETRY,
-            attempts=0,
-            next_attempt_at=timezone.now(),
-            processing_started_at=None,
-            last_error='',
-            updated_at=timezone.now(),
-        )
+    def retry_failed_deliveries(self, request, queryset):
+        from .services.contact_delivery import retry_failed_deliveries
+
+        updated = retry_failed_deliveries(ContactRequestDelivery.objects.filter(contact_request__in=queryset))
         self.message_user(request, f'Поставлено в очередь: {updated}.')
 
 

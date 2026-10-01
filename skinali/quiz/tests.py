@@ -238,7 +238,7 @@ class QuizSubmissionTests(TestCase):
         )
 
     @staticmethod
-    def create_token(age_seconds=3):
+    def create_token(age_seconds=6):
         return signing.dumps(
             {'issued_at': time.time() - age_seconds},
             salt=CONTACT_FORM_TOKEN_SALT,
@@ -340,7 +340,7 @@ class QuizSubmissionTests(TestCase):
         )
         fast_response = self.client.post(
             reverse('quiz:submit', args=[self.quiz.trigger_key]),
-            self.valid_data(**{'quiz-form_token': self.create_token(age_seconds=0)}),
+            self.valid_data(**{'quiz-form_token': self.create_token(age_seconds=4)}),
             HTTP_X_REQUESTED_WITH='XMLHttpRequest',
         )
 

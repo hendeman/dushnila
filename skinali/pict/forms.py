@@ -75,7 +75,7 @@ class IntegrationAdminForm(forms.ModelForm):
 
 
 CONTACT_FORM_TOKEN_SALT = 'pict.contact-form'
-CONTACT_FORM_MIN_AGE_SECONDS = 2
+CONTACT_FORM_MIN_AGE_SECONDS = 5
 CONTACT_FORM_MAX_AGE_SECONDS = 24 * 60 * 60
 
 

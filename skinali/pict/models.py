@@ -1,5 +1,6 @@
 import re
 import unicodedata
+import uuid
 from pathlib import Path
 
 from django.conf import settings
@@ -601,7 +602,7 @@ class ContactRequest(models.Model):
 
 
 class ContactRequestDelivery(models.Model):
-    """Состояние доставки одной заявки по одному внешнему каналу."""
+    """Состояние доставки заявки или теста одному получателю подключения."""
 
     class Channel(models.TextChoices):
         TELEGRAM = 'telegram', 'Telegram'
@@ -619,7 +620,13 @@ class ContactRequestDelivery(models.Model):
         on_delete=models.CASCADE,
         related_name='deliveries',
         verbose_name='Заявка',
+        null=True,
+        blank=True,
     )
+    connection = models.ForeignKey('sitecontent.LeadConnection', on_delete=models.PROTECT, related_name='deliveries', verbose_name='Подключение')
+    recipient = models.CharField('Получатель', max_length=254, blank=True)
+    test_batch_id = models.UUIDField('Группа тестовой отправки', null=True, blank=True, editable=False)
+    message_key = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
     channel = models.CharField(
         max_length=20,
         choices=Channel.choices,
@@ -650,8 +657,9 @@ class ContactRequestDelivery(models.Model):
         blank=True,
         verbose_name='Время отправки',
     )
-    external_message_id = models.BigIntegerField(
-        null=True,
+    external_message_id = models.CharField(
+        max_length=255,
+        default='',
         blank=True,
         verbose_name='ID внешнего сообщения',
     )
@@ -660,7 +668,8 @@ class ContactRequestDelivery(models.Model):
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Время изменения')
 
     def __str__(self):
-        return f'{self.get_channel_display()}: заявка № {self.contact_request_id}'
+        subject = f'заявка № {self.contact_request_id}' if self.contact_request_id else 'тест подключения'
+        return f'{self.get_channel_display()}: {subject}'
 
     class Meta:
         verbose_name = 'Доставка заявки'
@@ -668,14 +677,18 @@ class ContactRequestDelivery(models.Model):
         ordering = ['-created_at', '-id']
         constraints = [
             models.UniqueConstraint(
-                fields=['contact_request', 'channel'],
-                name='unique_contact_request_delivery_channel',
+                fields=['contact_request', 'connection', 'recipient'],
+                name='unique_request_connection_target',
+            ),
+            models.CheckConstraint(
+                condition=(models.Q(contact_request__isnull=False, test_batch_id__isnull=True) | models.Q(contact_request__isnull=True, test_batch_id__isnull=False)),
+                name='delivery_request_or_test',
             ),
         ]
         indexes = [
             models.Index(
-                fields=['channel', 'status', 'next_attempt_at'],
-                name='pict_delivery_due_idx',
+                fields=['connection', 'status', 'next_attempt_at'],
+                name='pict_connection_due_idx',
             ),
         ]
 

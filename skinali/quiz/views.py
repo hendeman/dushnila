@@ -3,7 +3,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from pict.models import ContactRequest, ContactRequestDelivery
+from pict.models import ContactRequest
+from pict.services.contact_delivery import enqueue_contact_request
 
 from .forms import QuizContactForm
 from .models import Quiz, QuizSubmission
@@ -54,8 +55,5 @@ def submit_quiz(request, trigger_key):
             contact_request=contact_request,
             answers=form.build_answer_snapshot(),
         )
-        ContactRequestDelivery.objects.create(
-            contact_request=contact_request,
-            channel=ContactRequestDelivery.Channel.TELEGRAM,
-        )
+        enqueue_contact_request(contact_request)
     return success_response(quiz)

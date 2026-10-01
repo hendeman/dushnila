@@ -19,6 +19,7 @@ from .forms import (
     QuestionContactForm,
 )
 from .models import *
+from .services.contact_delivery import enqueue_contact_request
 from .search import (
     SEARCH_QUERY_PARAMETER,
     apply_catalog_search,
@@ -875,10 +876,7 @@ def submit_contact_form(request):
                     else None
                 ),
             )
-            ContactRequestDelivery.objects.create(
-                contact_request=contact_request,
-                channel=ContactRequestDelivery.Channel.TELEGRAM,
-            )
+            enqueue_contact_request(contact_request)
         return contact_success_response(request)
 
     if is_ajax_request(request):

@@ -34,13 +34,15 @@
 | URL приложения `pict`, добавление и удаление маршрутов | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
 | Контактные формы, заявки, валидация и антиспам | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/context_processors.md](docs/pict/context_processors.md), [pict/urls.md](docs/pict/urls.md) |
-| Список заявок в admin, статусы Telegram и отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
-| Очередь и отправка контактных заявок в Telegram | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
+| Список заявок в admin, статусы доставок и отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
+| Очередь и отправка контактных заявок в Telegram/email | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Цена на странице дизайнера | [pict/views.md](docs/pict/views.md) | [pict/tests.md](docs/pict/tests.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
+| Счётчик новых заявок в меню admin и массовая отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Порядок категорий и перетягивание в admin | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Интеграции, вставки HTML/JS, выбор страниц и восстановление версий | [pict/integrations.md](docs/pict/integrations.md) | [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md) |
 | Встроенный квиз, `#popup:skinali-quiz`, кнопка запуска и её иконка, автопоказ, вопросы, ответы и заявки типа `quiz` | [quiz/overview.md](docs/quiz/overview.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/services.md](docs/pict/services.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
+| Обработка заявок, Telegram/email-подключения, получатели, секреты и тестовые отправки | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) | [pict/services.md](docs/pict/services.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/management.md](docs/pict/management.md) |
 | Управляемое меню, SEO постоянных страниц и будущие блоки сайта | [sitecontent/overview.md](docs/sitecontent/overview.md) | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [architecture.md](docs/architecture.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
@@ -55,6 +57,8 @@
 |---|---|
 | `skinali/manage.py` | [project/manage.md](docs/project/manage.md) |
 | `skinali/skinali/settings.py` | [project/settings.md](docs/project/settings.md) |
+| `skinali/skinali/admin_config.py` | [project/settings.md](docs/project/settings.md) |
+| `skinali/skinali/admin_site.py` | [project/urls.md](docs/project/urls.md), [pict/admin.md](docs/pict/admin.md) |
 | `skinali/skinali/middleware.py` | [project/middleware.md](docs/project/middleware.md) |
 | `skinali/skinali/urls.py` | [project/urls.md](docs/project/urls.md) |
 | `skinali/skinali/asgi.py` | [project/asgi.md](docs/project/asgi.md) |
@@ -68,6 +72,7 @@
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
 | `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
+| `skinali/pict/services/telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
 | `skinali/pict/templatetags/integrations.py` | [pict/integrations.md](docs/pict/integrations.md) |
@@ -76,8 +81,9 @@
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/sitecontent/apps.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
-| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
-| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
+| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/forms.py`, `secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |

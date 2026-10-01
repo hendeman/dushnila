@@ -15,7 +15,7 @@
 | [urls.py](urls.md) | публичные URL приложения |
 | [forms.py](forms.md) | `PictAdminForm` и публичные контактные формы с валидацией |
 | [context_processors.py](context_processors.md) | глобальная форма обратного звонка для базового шаблона |
-| [services/contact_delivery.py](services.md) | Telegram API, статусы, повторные попытки и обработка очереди доставок |
+| [services/contact_delivery.py](services.md) | Общая очередь, маршрутизация и повторы; отдельные адаптеры Telegram и email |
 | [management/commands/process_contact_deliveries.py](management.md) | разовый запуск отправителя из cron или systemd timer |
 | [admin.py](admin.md) | таблицы, фильтры, миниатюры и регистрация моделей в admin |
 | [apps.py](apps.md) | конфигурация приложения |
@@ -32,4 +32,4 @@
 
 ## Направление зависимостей
 
-`urls.py → views.py → models.py`; корневой URLconf также вызывает `sitemaps.py → models.py`. При инициализации `apps.py` регистрирует `signals.py`, который обновляет timestamps моделей `pict` и `sitecontent.SitePage`. Отдельно действует `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Приложение `quiz` переиспользует `PhoneContactForm`, `ContactRequest` и общую очередь доставки, не создавая второй механизм заявок. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery → Telegram Bot API`.
+`urls.py → views.py → models.py`; корневой URLconf также вызывает `sitemaps.py → models.py`. При инициализации `apps.py` регистрирует `signals.py`, который обновляет timestamps моделей `pict` и `sitecontent.SitePage`. Отдельно действует `admin.py → forms.py → models.py`. Шаблоны потребляют контекст из `views.py`, а базовая форма обратного звонка поступает через `context_processors.py`. Приложение `quiz` переиспользует `PhoneContactForm`, `ContactRequest` и общую очередь доставки, не создавая второй механизм заявок. Очередь обрабатывается по цепочке `management command → contact_delivery service → ContactRequestDelivery + sitecontent.LeadConnection → адаптер Telegram/SMTP`.

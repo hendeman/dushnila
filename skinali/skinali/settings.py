@@ -252,7 +252,7 @@ SITE_NOINDEX = IS_PREVIEW
 # Application definition
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    'skinali.admin_config.SkinaliAdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -418,3 +418,8 @@ TELEGRAM_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID', '').strip()
 TELEGRAM_PROXY_URL = os.environ.get('TELEGRAM_PROXY_URL', '').strip()
 TELEGRAM_CONNECT_TIMEOUT = float(os.environ.get('TELEGRAM_CONNECT_TIMEOUT', '3'))
 TELEGRAM_READ_TIMEOUT = float(os.environ.get('TELEGRAM_READ_TIMEOUT', '5'))
+
+# Первый ключ используется для записи; предыдущие ключи сохраняют доступ к старым секретам.
+LEAD_DELIVERY_ENCRYPTION_KEYS = tuple(
+    value.strip() for value in os.environ.get('LEAD_DELIVERY_ENCRYPTION_KEYS', '').split(',') if value.strip()
+)

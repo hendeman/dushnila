@@ -1,368 +1,199 @@
 import logging
+import uuid
 from datetime import timedelta
-from html import escape
-from urllib.parse import urlparse
 
-import requests
-from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
+from sitecontent.models import LeadConnection
 
-from pict.models import ContactRequest, ContactRequestDelivery
+from pict.models import ContactRequestDelivery
+from . import email_delivery, telegram_delivery
+from .delivery_errors import DeliveryConfigurationError, DeliveryError
+from .delivery_messages import format_contact_request_message
 
 
 logger = logging.getLogger(__name__)
-
 DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_PROCESSING_TIMEOUT_SECONDS = 10 * 60
 RETRY_DELAYS_SECONDS = (60, 5 * 60, 15 * 60, 60 * 60)
-TELEGRAM_REQUEST_ICON_BY_TYPE = {
-    ContactRequest.RequestType.CALLBACK: '📌',
-    ContactRequest.RequestType.QUESTION: '❔',
-    ContactRequest.RequestType.EMAIL_MESSAGE: '✉',
-    ContactRequest.RequestType.IMAGE_PURCHASE: '💲',
-    ContactRequest.RequestType.QUIZ: '📋',
+ADAPTERS = {
+    LeadConnection.Provider.TELEGRAM: telegram_delivery,
+    LeadConnection.Provider.EMAIL: email_delivery,
 }
+WAITING_STATUSES = (ContactRequestDelivery.Status.PENDING, ContactRequestDelivery.Status.RETRY)
 
 
-class TelegramConfigurationError(Exception):
-    """Настройки Telegram отсутствуют или имеют некорректное значение."""
-
-
-class TelegramDeliveryError(Exception):
-    """Контролируемая ошибка Telegram с признаком возможности повтора."""
-
-    def __init__(self, message, *, retryable, retry_after=None):
-        super().__init__(message)
-        self.retryable = retryable
-        self.retry_after = retry_after
-
-
-def get_telegram_configuration():
-    token = settings.TELEGRAM_BOT_TOKEN
-    chat_id = settings.TELEGRAM_CHAT_ID
-    missing = []
-    if not token:
-        missing.append('TELEGRAM_BOT_TOKEN')
-    if not chat_id:
-        missing.append('TELEGRAM_CHAT_ID')
-    if missing:
-        raise TelegramConfigurationError(
-            f'Не заданы переменные окружения: {", ".join(missing)}.'
-        )
-
-    connect_timeout = settings.TELEGRAM_CONNECT_TIMEOUT
-    read_timeout = settings.TELEGRAM_READ_TIMEOUT
-    if connect_timeout <= 0 or read_timeout <= 0:
-        raise TelegramConfigurationError(
-            'Тайм-ауты Telegram должны быть положительными числами.'
-        )
-
-    proxy_url = settings.TELEGRAM_PROXY_URL
-    if proxy_url:
-        try:
-            parsed_proxy = urlparse(proxy_url)
-            proxy_port = parsed_proxy.port
-        except ValueError as error:
-            raise TelegramConfigurationError(
-                'TELEGRAM_PROXY_URL содержит некорректный порт.'
-            ) from error
-        if (
-            parsed_proxy.scheme not in {'http', 'https'}
-            or not parsed_proxy.hostname
-            or proxy_port is None
-        ):
-            raise TelegramConfigurationError(
-                'TELEGRAM_PROXY_URL должен иметь формат http(s)://host:port.'
+@transaction.atomic
+def enqueue_contact_request(contact_request):
+    """Создаёт недостающие доставки подходящим подключениям без внешних запросов."""
+    created_count = 0
+    for connection in LeadConnection.objects.filter(is_enabled=True):
+        if not connection.accepts(contact_request.request_type):
+            continue
+        # Адрес исторической отправки неизвестен даже после смены источника настроек.
+        if contact_request.deliveries.filter(connection=connection, recipient='').exists():
+            continue
+        for recipient in connection.get_recipients():
+            _, created = ContactRequestDelivery.objects.get_or_create(
+                contact_request=contact_request, connection=connection, recipient=recipient,
+                defaults={'channel': connection.provider},
             )
-    return token, chat_id, (connect_timeout, read_timeout), proxy_url
+            created_count += int(created)
+    return created_count
 
 
-def format_contact_request_message(contact_request):
-    created_at = timezone.localtime(contact_request.created_at)
-    request_icon = TELEGRAM_REQUEST_ICON_BY_TYPE.get(
-        contact_request.request_type,
-        '📨',
-    )
-    request_type = escape(contact_request.get_request_type_display(), quote=False)
-    lines = [
-        f'{request_icon} <b>Новая заявка №{contact_request.pk}</b>',
-        f'— <b><i>{request_type}</i></b> —',
-        '',
-        f'👤 {escape(contact_request.name, quote=False)}',
-    ]
-    if contact_request.phone:
-        lines.append(f'📞 {escape(contact_request.phone, quote=False)}')
-    if contact_request.email:
-        lines.append(f'✉ {escape(contact_request.email, quote=False)}')
-    if contact_request.question:
-        lines.append(f'❔ {escape(contact_request.question, quote=False)}')
-    if contact_request.comment:
-        lines.append(f'💬 {escape(contact_request.comment, quote=False)}')
-    if contact_request.image_number is not None:
-        lines.append(f'🖼 №{contact_request.image_number}')
-    quiz_submission = getattr(contact_request, 'quiz_submission', None)
-    if quiz_submission is not None:
-        lines.extend(('', '<b>Ответы квиза:</b>'))
-        for number, answer in enumerate(quiz_submission.answers, start=1):
-            question = escape(str(answer.get('question', 'Вопрос')), quote=False)
-            value = escape(str(answer.get('answer') or 'Не указано'), quote=False)
-            lines.append(f'{number}. <b>{question}</b>')
-            lines.append(value)
-    lines.append(f'🕒 {created_at:%d.%m.%Y %H:%M}')
-    return '\n'.join(lines)
+@transaction.atomic
+def enqueue_connection_test(connection):
+    """Отдельная группа тестовых сообщений не создаёт фиктивные заявки клиентов."""
+    recipients = connection.get_recipients()
+    if not recipients or any(not value for value in recipients):
+        raise ValidationError('Укажите получателей тестового сообщения.')
+    get_configuration(connection)
+    batch_id = uuid.uuid4()
+    ContactRequestDelivery.objects.bulk_create([
+        ContactRequestDelivery(connection=connection, channel=connection.provider, recipient=recipient, test_batch_id=batch_id)
+        for recipient in recipients
+    ])
+    return len(recipients)
 
 
-def send_telegram_message(
-    contact_request,
-    *,
-    token,
-    chat_id,
-    timeout,
-    proxy_url='',
-):
-    """Отправляет HTML-сообщение и возвращает его Telegram ID."""
-    url = f'https://api.telegram.org/bot{token}/sendMessage'
-    proxies = None
-    if proxy_url:
-        proxies = {'http': proxy_url, 'https': proxy_url}
-
-    # Не учитываем HTTP_PROXY/NO_PROXY процесса: режим зависит только от .env.
-    session = requests.Session()
-    session.trust_env = False
-    try:
-        response = session.post(
-            url,
-            json={
-                'chat_id': chat_id,
-                'text': format_contact_request_message(contact_request),
-                'parse_mode': 'HTML',
-            },
-            timeout=timeout,
-            proxies=proxies,
-        )
-    except requests.Timeout as error:
-        raise TelegramDeliveryError(
-            'Telegram не ответил за отведённое время.',
-            retryable=True,
-        ) from error
-    except requests.RequestException as error:
-        # Текст исключения requests может содержать URL с токеном, поэтому не сохраняем его.
-        raise TelegramDeliveryError(
-            'Сетевая ошибка при обращении к Telegram.',
-            retryable=True,
-        ) from error
-    finally:
-        session.close()
-
-    try:
-        payload = response.json()
-    except ValueError as error:
-        raise TelegramDeliveryError(
-            f'Telegram вернул некорректный ответ (HTTP {response.status_code}).',
-            retryable=response.status_code >= 500,
-        ) from error
-
-    if not isinstance(payload, dict) or payload.get('ok') is not True:
-        error_code = payload.get('error_code') if isinstance(payload, dict) else None
-        description = payload.get('description') if isinstance(payload, dict) else None
-        parameters = payload.get('parameters', {}) if isinstance(payload, dict) else {}
-        retry_after = parameters.get('retry_after') if isinstance(parameters, dict) else None
-        try:
-            retry_after = max(1, int(retry_after)) if retry_after is not None else None
-        except (TypeError, ValueError):
-            retry_after = None
-
-        retryable = (
-            error_code is None
-            or error_code == 429
-            or (isinstance(error_code, int) and error_code >= 500)
-        )
-        message = description or f'Telegram отклонил запрос (HTTP {response.status_code}).'
-        raise TelegramDeliveryError(
-            str(message)[:1000],
-            retryable=retryable,
-            retry_after=retry_after,
-        )
-
-    result = payload.get('result')
-    message_id = result.get('message_id') if isinstance(result, dict) else None
-    if not isinstance(message_id, int) or isinstance(message_id, bool):
-        raise TelegramDeliveryError(
-            'Telegram подтвердил запрос без корректного ID сообщения.',
-            retryable=True,
-        )
-    return message_id
+def get_configuration(connection):
+    adapter = ADAPTERS.get(connection.provider)
+    if adapter is None:
+        raise DeliveryConfigurationError('Обработчик выбранного сервиса не установлен.')
+    return adapter.get_configuration(connection)
 
 
 def recover_stale_deliveries(*, stale_after_seconds, max_attempts):
-    """Возвращает в очередь задачу, оборванную вместе с процессом-отправителем."""
     now = timezone.now()
-    cutoff = now - timedelta(seconds=stale_after_seconds)
     stale = ContactRequestDelivery.objects.filter(
-        channel=ContactRequestDelivery.Channel.TELEGRAM,
         status=ContactRequestDelivery.Status.PROCESSING,
-        processing_started_at__lt=cutoff,
+        processing_started_at__lt=now - timedelta(seconds=stale_after_seconds),
     )
     failed = stale.filter(attempts__gte=max_attempts).update(
-        status=ContactRequestDelivery.Status.FAILED,
-        next_attempt_at=None,
-        processing_started_at=None,
-        last_error='Предыдущая отправка была прервана на последней попытке.',
-        updated_at=now,
+        status=ContactRequestDelivery.Status.FAILED, next_attempt_at=None,
+        processing_started_at=None, last_error='Предыдущая отправка была прервана на последней попытке.', updated_at=now,
     )
     retried = stale.filter(attempts__lt=max_attempts).update(
-        status=ContactRequestDelivery.Status.RETRY,
-        next_attempt_at=now,
-        processing_started_at=None,
-        last_error='Предыдущая отправка была прервана и возвращена в очередь.',
-        updated_at=now,
+        status=ContactRequestDelivery.Status.RETRY, next_attempt_at=now,
+        processing_started_at=None, last_error='Предыдущая отправка была прервана и возвращена в очередь.', updated_at=now,
     )
     return failed + retried
 
 
-def claim_delivery(delivery_id, *, max_attempts):
-    """Коротким атомарным UPDATE закрепляет задачу за одним процессом."""
-    now = timezone.now()
-    claimed = ContactRequestDelivery.objects.filter(
-        pk=delivery_id,
-        channel=ContactRequestDelivery.Channel.TELEGRAM,
-        status__in=[
-            ContactRequestDelivery.Status.PENDING,
-            ContactRequestDelivery.Status.RETRY,
-        ],
-        attempts__lt=max_attempts,
+def ready_deliveries(*, max_attempts):
+    return ContactRequestDelivery.objects.filter(
+        status__in=WAITING_STATUSES, attempts__lt=max_attempts,
     ).filter(
-        Q(next_attempt_at__lte=now) | Q(next_attempt_at__isnull=True)
-    ).update(
+        Q(next_attempt_at__lte=timezone.now()) | Q(next_attempt_at__isnull=True),
+    ).filter(Q(connection__is_enabled=True) | Q(test_batch_id__isnull=False))
+
+
+def claim_delivery(delivery_id, *, max_attempts):
+    """Сетевой запрос выполняется после короткого атомарного захвата записи."""
+    now = timezone.now()
+    claimed = ready_deliveries(max_attempts=max_attempts).filter(pk=delivery_id).update(
         status=ContactRequestDelivery.Status.PROCESSING,
-        attempts=F('attempts') + 1,
-        processing_started_at=now,
-        updated_at=now,
+        attempts=F('attempts') + 1, processing_started_at=now, updated_at=now,
     )
     if not claimed:
         return None
     return ContactRequestDelivery.objects.select_related(
-        'contact_request',
-        'contact_request__quiz_submission',
+        'connection', 'contact_request', 'contact_request__quiz_submission',
     ).get(pk=delivery_id)
 
 
+def owned_delivery(delivery):
+    # Ответ старого процесса не должен перезаписывать новую попытку после восстановления.
+    return ContactRequestDelivery.objects.filter(
+        pk=delivery.pk, status=ContactRequestDelivery.Status.PROCESSING,
+        processing_started_at=delivery.processing_started_at, attempts=delivery.attempts,
+    )
+
+
 def mark_delivery_sent(delivery, message_id):
-    now = timezone.now()
-    ContactRequestDelivery.objects.filter(
-        pk=delivery.pk,
-        status=ContactRequestDelivery.Status.PROCESSING,
-    ).update(
-        status=ContactRequestDelivery.Status.SENT,
-        next_attempt_at=None,
-        processing_started_at=None,
-        sent_at=now,
-        external_message_id=message_id,
-        last_error='',
-        updated_at=now,
+    return owned_delivery(delivery).update(
+        status=ContactRequestDelivery.Status.SENT, next_attempt_at=None, processing_started_at=None,
+        sent_at=timezone.now(), external_message_id=message_id, last_error='', updated_at=timezone.now(),
     )
 
 
 def mark_delivery_failed(delivery, error, *, max_attempts):
-    exhausted = delivery.attempts >= max_attempts
-    should_retry = error.retryable and not exhausted
-    if should_retry:
-        delay_index = min(delivery.attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)
-        delay_seconds = error.retry_after or RETRY_DELAYS_SECONDS[delay_index]
+    if error.retryable and delivery.attempts < max_attempts:
+        delay = error.retry_after or RETRY_DELAYS_SECONDS[min(delivery.attempts - 1, len(RETRY_DELAYS_SECONDS) - 1)]
         status = ContactRequestDelivery.Status.RETRY
-        next_attempt_at = timezone.now() + timedelta(seconds=delay_seconds)
+        next_attempt = timezone.now() + timedelta(seconds=delay)
     else:
         status = ContactRequestDelivery.Status.FAILED
-        next_attempt_at = None
-
-    ContactRequestDelivery.objects.filter(
-        pk=delivery.pk,
-        status=ContactRequestDelivery.Status.PROCESSING,
-    ).update(
-        status=status,
-        next_attempt_at=next_attempt_at,
-        processing_started_at=None,
-        last_error=str(error)[:2000],
-        updated_at=timezone.now(),
+        next_attempt = None
+    owned_delivery(delivery).update(
+        status=status, next_attempt_at=next_attempt, processing_started_at=None,
+        last_error=str(error)[:2000], updated_at=timezone.now(),
     )
     return status
 
 
-def process_pending_telegram_deliveries(
-    *,
-    limit=20,
-    max_attempts=DEFAULT_MAX_ATTEMPTS,
-    stale_after_seconds=DEFAULT_PROCESSING_TIMEOUT_SECONDS,
-):
-    """Обрабатывает ограниченную пачку без транзакции вокруг сетевого запроса."""
-    if limit <= 0 or max_attempts <= 0 or stale_after_seconds <= 0:
-        raise ValueError('Параметры обработчика должны быть положительными числами.')
-
-    token, chat_id, timeout, proxy_url = get_telegram_configuration()
-    stats = {
-        'recovered': recover_stale_deliveries(
-            stale_after_seconds=stale_after_seconds,
-            max_attempts=max_attempts,
-        ),
-        'claimed': 0,
-        'sent': 0,
-        'retry': 0,
-        'failed': 0,
-    }
-
-    now = timezone.now()
-    delivery_ids = list(
-        ContactRequestDelivery.objects.filter(
-            channel=ContactRequestDelivery.Channel.TELEGRAM,
-            status__in=[
-                ContactRequestDelivery.Status.PENDING,
-                ContactRequestDelivery.Status.RETRY,
-            ],
-            attempts__lt=max_attempts,
-        ).filter(
-            Q(next_attempt_at__lte=now) | Q(next_attempt_at__isnull=True)
-        ).order_by('next_attempt_at', 'id').values_list('id', flat=True)[:limit]
+def retry_failed_deliveries(queryset):
+    return queryset.filter(status__in=[ContactRequestDelivery.Status.RETRY, ContactRequestDelivery.Status.FAILED]).update(
+        status=ContactRequestDelivery.Status.RETRY, attempts=0, next_attempt_at=timezone.now(),
+        processing_started_at=None, last_error='', updated_at=timezone.now(),
     )
 
+
+def process_pending_deliveries(*, limit=20, max_attempts=DEFAULT_MAX_ATTEMPTS, stale_after_seconds=DEFAULT_PROCESSING_TIMEOUT_SECONDS):
+    if limit <= 0 or max_attempts <= 0 or stale_after_seconds <= 0:
+        raise ValueError('Параметры обработчика должны быть положительными числами.')
+    stats = {
+        'recovered': recover_stale_deliveries(stale_after_seconds=stale_after_seconds, max_attempts=max_attempts),
+        'claimed': 0, 'sent': 0, 'retry': 0, 'failed': 0, 'configuration_errors': 0,
+    }
+    configurations = {}
+    legacy_recipients = {}
+    unresolved_connections = []
+    connection_ids = ready_deliveries(max_attempts=max_attempts).order_by().values('connection_id').distinct()
+    for connection in LeadConnection.objects.filter(pk__in=connection_ids):
+        try:
+            configurations[connection.pk] = get_configuration(connection)
+        except (DeliveryConfigurationError, ValidationError) as error:
+            configurations.pop(connection.pk, None)
+            message = '; '.join(error.messages) if isinstance(error, ValidationError) else str(error)
+            LeadConnection.objects.filter(pk=connection.pk).update(configuration_error=message)
+            stats['configuration_errors'] += 1
+        else:
+            legacy_recipients[connection.pk] = connection.get_legacy_recipient()
+            if not legacy_recipients[connection.pk] and ready_deliveries(max_attempts=max_attempts).filter(connection=connection, recipient='').exists():
+                unresolved_connections.append(connection.pk)
+                LeadConnection.objects.filter(pk=connection.pk).update(
+                    configuration_error='Для старой очереди укажите TELEGRAM_CHAT_ID или единственного Telegram-получателя. Отправки с сохранёнными адресами продолжаются.',
+                )
+                stats['configuration_errors'] += 1
+            else:
+                LeadConnection.objects.filter(pk=connection.pk).exclude(configuration_error='').update(configuration_error='')
+
+    delivery_ids = list(ready_deliveries(max_attempts=max_attempts).filter(
+        connection_id__in=configurations,
+    ).exclude(recipient='', connection_id__in=unresolved_connections).order_by('next_attempt_at', 'id').values_list('id', flat=True)[:limit])
     for delivery_id in delivery_ids:
         delivery = claim_delivery(delivery_id, max_attempts=max_attempts)
         if delivery is None:
             continue
         stats['claimed'] += 1
-
         try:
-            message_id = send_telegram_message(
-                delivery.contact_request,
-                token=token,
-                chat_id=chat_id,
-                timeout=timeout,
-                proxy_url=proxy_url,
-            )
-        except TelegramDeliveryError as error:
-            status = mark_delivery_failed(
-                delivery,
-                error,
-                max_attempts=max_attempts,
-            )
+            if not delivery.recipient:
+                delivery.recipient = legacy_recipients[delivery.connection_id]
+                owned_delivery(delivery).update(recipient=delivery.recipient)
+            if not delivery.recipient:
+                raise DeliveryError('Для отправки не указан получатель.', retryable=False)
+            message_id = ADAPTERS[delivery.connection.provider].send(delivery, configurations[delivery.connection_id])
+        except DeliveryError as error:
+            status = mark_delivery_failed(delivery, error, max_attempts=max_attempts)
             stats['retry' if status == ContactRequestDelivery.Status.RETRY else 'failed'] += 1
-        except Exception as error:  # Защита очереди от зависания в processing.
-            logger.error(
-                'Непредвиденная ошибка доставки заявки %s: %s',
-                delivery.contact_request_id,
-                type(error).__name__,
-            )
-            status = mark_delivery_failed(
-                delivery,
-                TelegramDeliveryError(
-                    'Непредвиденная ошибка обработчика Telegram.',
-                    retryable=True,
-                ),
-                max_attempts=max_attempts,
-            )
+        except Exception as error:
+            logger.error('Непредвиденная ошибка доставки %s: %s', delivery.pk, type(error).__name__)
+            status = mark_delivery_failed(delivery, DeliveryError('Непредвиденная ошибка обработчика доставки.', retryable=True), max_attempts=max_attempts)
             stats['retry' if status == ContactRequestDelivery.Status.RETRY else 'failed'] += 1
         else:
-            mark_delivery_sent(delivery, message_id)
-            stats['sent'] += 1
-
+            stats['sent'] += mark_delivery_sent(delivery, message_id)
     return stats
