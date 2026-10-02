@@ -12,7 +12,7 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
-from sorl.thumbnail.shortcuts import delete as delete_thumbnail
+from sorl.thumbnail.shortcuts import delete as delete_thumbnail, get_thumbnail
 
 from pict.forms import FinishedWorkAdminForm, IntegrationAdminForm, PictAdminForm
 from pict.models import (
@@ -39,19 +39,34 @@ SEO_LANDING_FIELDS = (
     'seo_description',
     'intro_text',
 )
+CATALOG_ADMIN_THUMBNAIL_GEOMETRY = '760'
+FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY = '400'
 
 
 class AdminImagePreviewMixin:
     @staticmethod
-    def render_image_preview(image_field, *, alt_text, width):
+    def get_cached_preview_url(image_field, geometry):
+        """Возвращает URL превью, сохраняя оригинал как резервный вариант."""
+        try:
+            return get_thumbnail(image_field, geometry).url
+        except Exception:
+            logger.exception('Не удалось создать admin-превью для %s.', image_field.name)
+            return image_field.url
+
+    @classmethod
+    def render_image_preview(cls, image_field, *, alt_text, width, geometry=None):
         """Формирует одинаковую кликабельную миниатюру для всех admin-таблиц."""
         if not image_field:
             return '—'
+        preview_url = (
+            cls.get_cached_preview_url(image_field, geometry)
+            if geometry else image_field.url
+        )
         return format_html(
             '<a class="admin-image-preview-link" href="{}" data-image-preview>'
             '<img src="{}" alt="{}" width="{}"></a>',
             image_field.url,
-            image_field.url,
+            preview_url,
             alt_text,
             width,
         )
@@ -271,6 +286,7 @@ class PictAdmin(
             object.photo,
             alt_text=f'Изображение № {object.name}',
             width=150,
+            geometry=CATALOG_ADMIN_THUMBNAIL_GEOMETRY,
         )
 
     def get_html_photo_fields(self, object):
@@ -278,6 +294,7 @@ class PictAdmin(
             object.photo,
             alt_text=f'Изображение № {object.name}',
             width=400,
+            geometry=CATALOG_ADMIN_THUMBNAIL_GEOMETRY,
         )
 
     def get_list_category(self, object):
@@ -300,7 +317,15 @@ class PictAdmin(
                 'style="margin: 0 8px 8px 0; border-radius: 4px;"></a>'
             ),
             (
-                (work.photo.url, work.name, work.photo.url, work.name)
+                (
+                    work.photo.url,
+                    work.name,
+                    self.get_cached_preview_url(
+                        work.photo,
+                        FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY,
+                    ),
+                    work.name,
+                )
                 for work in works
             ),
         )
@@ -546,6 +571,7 @@ class FinishedWorkAdmin(
             obj.photo,
             alt_text=obj.name,
             width=80,
+            geometry=FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY,
         )
 
     @admin.display(description='Миниатюра')
@@ -554,6 +580,7 @@ class FinishedWorkAdmin(
             obj.photo,
             alt_text=obj.name,
             width=200,
+            geometry=FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY,
         )
 
     @admin.display(description='Номер изображения', ordering='catalog_image__name')

@@ -2335,6 +2335,8 @@ class CatalogThumbnailTests(TestCase):
         )
 
         self.assertContains(response, f'href="{picture.photo.url}"')
+        self.assertContains(response, f'data-src="{thumbnail_url}"')
+        self.assertContains(response, f'src="{thumbnail_url}"')
         self.assertContains(response, 'width="760"')
         self.assertContains(response, 'loading="lazy"')
         self.assertContains(response, 'decoding="async"')
@@ -2348,6 +2350,33 @@ class CatalogThumbnailTests(TestCase):
 
         self.assertEqual(self.get_thumbnail_url(repeated_response), thumbnail_url)
         self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
+
+    def test_admin_list_and_change_form_reuse_catalog_thumbnail(self):
+        picture = Pict.objects.create(
+            name=702,
+            alt='Изображение для admin',
+            photo=create_test_image_file('admin-thumbnail-source.jpg'),
+        )
+        admin_user = get_user_model().objects.create_superuser(
+            username='admin-catalog-thumbnail',
+            email='admin-catalog-thumbnail@example.com',
+            password='test-password',
+        )
+        self.client.force_login(admin_user)
+
+        list_response = self.client.get(reverse('admin:pict_pict_changelist'))
+        thumbnail_url = get_thumbnail(picture.photo, '760').url
+        change_response = self.client.get(reverse(
+            'admin:pict_pict_change', args=[picture.pk],
+        ))
+
+        for response, width in ((list_response, 150), (change_response, 400)):
+            with self.subTest(width=width):
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, f'href="{picture.photo.url}"')
+                self.assertContains(response, f'src="{thumbnail_url}"')
+                self.assertContains(response, f'width="{width}"')
+                self.assertNotContains(response, f'src="{picture.photo.url}"')
 
 
 class PictUploadNamingTests(TestCase):
@@ -2567,7 +2596,9 @@ class PictDetailPageTests(TestCase):
         )
         self.assertContains(response, 'Изображение №810 «Яблоки на снегу»')
         self.assertContains(response, f'href="{self.picture.photo.url}"')
-        self.assertContains(response, f'src="{self.picture.photo.url}"')
+        detail_thumbnail = get_thumbnail(self.picture.photo, '760')
+        self.assertContains(response, f'src="{detail_thumbnail.url}"')
+        self.assertNotContains(response, f'src="{self.picture.photo.url}"')
         self.assertContains(response, self.category.get_absolute_url())
         self.assertContains(response, self.tag.get_absolute_url())
         self.assertContains(response, 'Красный')
@@ -4777,11 +4808,15 @@ class FinishedWorkTests(TestCase):
         list_preview = str(finished_work_admin.get_html_photo(self.work))
         form_preview = str(finished_work_admin.get_html_photo_fields(self.work))
         linked_works = str(pict_admin.get_finished_works(self.catalog_image))
+        admin_thumbnail_url = get_thumbnail(self.work.photo, '400').url
 
         self.assertIn('width="80"', list_preview)
         self.assertIn('width="200"', form_preview)
         self.assertIn('data-image-preview', list_preview)
         self.assertIn('data-image-preview', form_preview)
+        self.assertIn(f'src="{admin_thumbnail_url}"', list_preview)
+        self.assertIn(f'src="{admin_thumbnail_url}"', form_preview)
+        self.assertIn(f'href="{self.work.photo.url}"', list_preview)
         self.assertEqual(
             finished_work_admin.get_html_photo_fields.short_description,
             'Миниатюра',
@@ -4801,7 +4836,8 @@ class FinishedWorkTests(TestCase):
         self.assertIn('get_finished_works', pict_fields)
         self.assertIn('width="160"', linked_works)
         self.assertIn('data-image-preview', linked_works)
-        self.assertIn(self.work.photo.url, linked_works)
+        self.assertIn(f'src="{admin_thumbnail_url}"', linked_works)
+        self.assertIn(f'href="{self.work.photo.url}"', linked_works)
 
         image_without_works = Pict.objects.create(
             name=702,
@@ -4834,15 +4870,21 @@ class FinishedWorkTests(TestCase):
             'admin:pict_finishedwork_change',
             args=[self.work.pk],
         ))
+        finished_work_list_response = self.client.get(reverse(
+            'admin:pict_finishedwork_changelist',
+        ))
 
         self.assertEqual(linked_response.status_code, 200)
         self.assertContains(linked_response, 'field-get_finished_works')
         self.assertContains(linked_response, self.work.photo.url)
+        self.assertContains(linked_response, f'src="{admin_thumbnail_url}"')
         self.assertContains(linked_response, 'skinali/js/admin-image-preview.js')
         self.assertContains(linked_response, 'skinali/css/admin-image-preview.css')
         self.assertEqual(unlinked_response.status_code, 200)
         self.assertNotContains(unlinked_response, 'field-get_finished_works')
         self.assertEqual(finished_work_response.status_code, 200)
+        self.assertContains(finished_work_response, f'src="{admin_thumbnail_url}"')
+        self.assertContains(finished_work_list_response, f'src="{admin_thumbnail_url}"')
         self.assertContains(finished_work_response, 'Тип стекла')
         self.assertContains(finished_work_response, 'Тип скинали')
         self.assertContains(finished_work_response, 'Цвет покраски')
