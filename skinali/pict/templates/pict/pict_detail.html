@@ -27,7 +27,7 @@
          target="_blank"
          rel="noopener"
          aria-label="Открыть полноразмерное изображение №{{ picture.name }}">
-        {% thumbnail picture.photo "760" as picture_thumbnail %}
+        {% thumbnail picture.photo large_thumbnail_geometry quality=large_thumbnail_quality as picture_thumbnail %}
           <img src="{{ picture_thumbnail.url }}"
                width="{{ picture_thumbnail.width }}"
                height="{{ picture_thumbnail.height }}"

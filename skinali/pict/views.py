@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -7,9 +8,10 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonRespo
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.views.decorators.http import require_POST
+from django.views.decorators.http import require_POST, require_safe
 from django.views.generic import DetailView, ListView, TemplateView
 from sitecontent.models import SitePage
+from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .forms import (
     CallbackContactForm,
@@ -31,6 +33,8 @@ CONTACT_SUCCESS_MESSAGE = (
     'Скоро мы с Вами свяжемся😊'
 )
 CATALOG_PAGE_SIZE = 30
+CATALOG_LARGE_THUMBNAIL_GEOMETRY = '1920'
+CATALOG_LARGE_THUMBNAIL_QUALITY = 90
 MAX_CATALOG_COLORS = 3
 ALL_FINISHED_WORK_TYPES = 'all'
 CONTACT_FORM_CLASSES = {
@@ -39,6 +43,7 @@ CONTACT_FORM_CLASSES = {
     EmailCommentContactForm.form_kind: EmailCommentContactForm,
     ImagePurchaseContactForm.form_kind: ImagePurchaseContactForm,
 }
+logger = logging.getLogger(__name__)
 
 
 def set_page_metadata(
@@ -508,6 +513,33 @@ class SkinaliAll(SkinaliMix):
         return self.filter_queryset_by_selected_colors(queryset)
 
 
+@require_safe
+def pict_large_preview(request, slug):
+    """Создаёт крупное превью только при обращении к опубликованному изображению."""
+    picture = get_object_or_404(Pict.objects.published().only('photo'), slug=slug)
+    if not picture.photo:
+        raise Http404('Изображение не найдено.')
+    original_url = picture.photo.url
+    preview_url = original_url
+    try:
+        thumbnail = get_thumbnail(
+            picture.photo,
+            CATALOG_LARGE_THUMBNAIL_GEOMETRY,
+            quality=CATALOG_LARGE_THUMBNAIL_QUALITY,
+        )
+        if thumbnail.exists():
+            preview_url = thumbnail.url
+        else:
+            logger.warning('Крупное превью изображения %s отсутствует.', slug)
+    except Exception:
+        logger.exception('Не удалось создать крупное превью изображения %s.', slug)
+
+    response = redirect(preview_url)
+    response['Cache-Control'] = 'no-store'
+    response['X-Robots-Tag'] = 'noindex, nofollow'
+    return response
+
+
 class PictDetail(FavoritesContextMixin, DetailView):
     model = Pict
     template_name = 'pict/pict_detail.html'
@@ -523,6 +555,8 @@ class PictDetail(FavoritesContextMixin, DetailView):
         picture = self.object
         context['title'] = picture.get_page_heading()
         context['page_description'] = picture.get_page_description()
+        context['large_thumbnail_geometry'] = CATALOG_LARGE_THUMBNAIL_GEOMETRY
+        context['large_thumbnail_quality'] = CATALOG_LARGE_THUMBNAIL_QUALITY
         context['similar_pictures'] = get_similar_picture_queryset(picture)
         context['absolute_photo_url'] = (
             f'{settings.PUBLIC_SITE_ORIGIN.rstrip("/")}/'

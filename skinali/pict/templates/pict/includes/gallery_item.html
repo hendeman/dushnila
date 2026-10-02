@@ -1,9 +1,9 @@
 {% load static thumbnail %}
-{% with catalog_thumbnail_size="760" %}
 <a class="catalog-thumbnail{% if gallery_link_class %} {{ gallery_link_class }}{% endif %}"
    data-fancybox="{% if show_catalog_favorite or use_catalog_modal %}catalog-gallery{% else %}gallery{% endif %}"
    {% if show_catalog_favorite or use_catalog_modal %}
-   data-src="{% thumbnail p.photo catalog_thumbnail_size %}"
+   data-src="{% url 'pict_large_preview' slug=p.slug %}"
+   data-type="image"
    {% endif %}
    data-favorite-item
    data-pict-id="{{ p.pk }}"
@@ -15,7 +15,7 @@
    {% else %}
    data-caption='<div class="gallery-modal__meta"><span class="gallery-modal__description">{{ p.alt }}</span><span class="gallery-modal__number">№: {{ p.name }}</span></div><div class="gallery-modal__actions"><button type="button" class="gallery-modal__favorite{% if p.pk in favorite_ids %} is-active{% endif %}" data-favorite-toggle data-pict-id="{{ p.pk }}" data-favorite-url="{% url 'favorite_toggle' p.pk %}" aria-pressed="{% if p.pk in favorite_ids %}true{% else %}false{% endif %}"><span class="favorite-toggle__label" data-favorite-label><span class="favorite-toggle__label-add">В избранное</span><span class="favorite-toggle__label-remove">Удалить из избранного</span><span class="favorite-toggle__label-error">Не удалось сохранить</span></span></button></div>'
    {% endif %}>
-    {% thumbnail p.photo catalog_thumbnail_size as catalog_thumbnail %}
+    {% thumbnail p.photo "760" as catalog_thumbnail %}
       <img class="{% if gallery_image_class %}{{ gallery_image_class }}{% else %}item-photo{% endif %}"
            src="{{ catalog_thumbnail.url }}"
            width="{{ catalog_thumbnail.width }}"
@@ -164,4 +164,3 @@
          aria-hidden="true">
   </button>
 {% endif %}
-{% endwith %}

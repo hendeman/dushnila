@@ -2328,20 +2328,31 @@ class CatalogThumbnailTests(TestCase):
             photo=create_test_image_file('catalog-thumbnail-source.jpg'),
         )
 
+        cache_root = Path(settings.MEDIA_ROOT) / settings.THUMBNAIL_PREFIX
+        cached_before = {path for path in cache_root.rglob('*') if path.is_file()}
         response = self.client.get(reverse('skinali'))
         thumbnail_url = self.get_thumbnail_url(response)
         thumbnail_path = Path(settings.MEDIA_ROOT) / thumbnail_url.removeprefix(
             settings.MEDIA_URL
         )
+        large_preview_url = reverse(
+            'pict_large_preview', kwargs={'slug': picture.slug},
+        )
 
         self.assertContains(response, f'href="{picture.photo.url}"')
-        self.assertContains(response, f'data-src="{thumbnail_url}"')
+        self.assertContains(response, f'data-src="{large_preview_url}"')
+        self.assertContains(response, 'data-type="image"')
         self.assertContains(response, f'src="{thumbnail_url}"')
         self.assertContains(response, 'width="760"')
         self.assertContains(response, 'loading="lazy"')
         self.assertContains(response, 'decoding="async"')
         self.assertNotEqual(thumbnail_url, picture.photo.url)
         self.assertTrue(thumbnail_path.exists())
+        self.assertEqual(
+            {path for path in cache_root.rglob('*') if path.is_file()}
+            - cached_before,
+            {thumbnail_path},
+        )
         with Image.open(thumbnail_path) as thumbnail:
             self.assertEqual(thumbnail.width, 760)
 
@@ -2350,6 +2361,58 @@ class CatalogThumbnailTests(TestCase):
 
         self.assertEqual(self.get_thumbnail_url(repeated_response), thumbnail_url)
         self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
+
+    def test_large_preview_is_created_on_demand_for_published_image(self):
+        picture = Pict.objects.create(
+            name=703,
+            alt='Крупное превью',
+            photo=create_test_image_file('large-preview-source.jpg', size=(3000, 500)),
+        )
+        preview_url = reverse('pict_large_preview', kwargs={'slug': picture.slug})
+
+        response = self.client.get(preview_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Cache-Control'], 'no-store')
+        thumbnail_url = response['Location']
+        self.assertTrue(thumbnail_url.startswith('/media/cache/thumbnails/'))
+        self.assertEqual(
+            thumbnail_url,
+            get_thumbnail(picture.photo, '1920', quality=90).url,
+        )
+        thumbnail_path = Path(settings.MEDIA_ROOT) / thumbnail_url.removeprefix(
+            settings.MEDIA_URL
+        )
+        with Image.open(thumbnail_path) as thumbnail:
+            self.assertEqual(thumbnail.size, (1920, 320))
+
+        initial_mtime = thumbnail_path.stat().st_mtime_ns
+        repeated_response = self.client.get(preview_url)
+        self.assertEqual(repeated_response['Location'], thumbnail_url)
+        self.assertEqual(thumbnail_path.stat().st_mtime_ns, initial_mtime)
+
+        picture.is_published = False
+        picture.save(update_fields=['is_published'])
+        self.assertEqual(self.client.get(preview_url).status_code, 404)
+        self.assertEqual(self.client.get(reverse(
+            'pict_large_preview', kwargs={'slug': 'unknown-image'},
+        )).status_code, 404)
+
+    def test_large_preview_uses_original_if_generation_fails(self):
+        picture = Pict.objects.create(
+            name=704,
+            alt='Резервный оригинал',
+            photo=create_test_image_file('large-preview-fallback.jpg'),
+        )
+        preview_url = reverse('pict_large_preview', kwargs={'slug': picture.slug})
+
+        with self.assertLogs('pict.views', level='ERROR'):
+            with patch('pict.views.get_thumbnail', side_effect=OSError('bad image')):
+                response = self.client.get(preview_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], picture.photo.url)
+        self.assertEqual(response['Cache-Control'], 'no-store')
 
     def test_admin_list_and_change_form_reuse_catalog_thumbnail(self):
         picture = Pict.objects.create(
@@ -2596,9 +2659,15 @@ class PictDetailPageTests(TestCase):
         )
         self.assertContains(response, 'Изображение №810 «Яблоки на снегу»')
         self.assertContains(response, f'href="{self.picture.photo.url}"')
-        detail_thumbnail = get_thumbnail(self.picture.photo, '760')
+        detail_thumbnail = get_thumbnail(self.picture.photo, '1920', quality=90)
         self.assertContains(response, f'src="{detail_thumbnail.url}"')
         self.assertNotContains(response, f'src="{self.picture.photo.url}"')
+        self.assertEqual(
+            self.client.get(reverse(
+                'pict_large_preview', kwargs={'slug': self.picture.slug},
+            ))['Location'],
+            detail_thumbnail.url,
+        )
         self.assertContains(response, self.category.get_absolute_url())
         self.assertContains(response, self.tag.get_absolute_url())
         self.assertContains(response, 'Красный')

@@ -9,6 +9,7 @@ urlpatterns = [
     path('contact/request/', submit_contact_form, name='contact_submit'),
     path('foto-skinali-iz-stekla/', FinishedWorkList.as_view(), name='finished_works'),
     path('skinali/', SkinaliAll.as_view(), name='skinali'),
+    path('skinali/image/<slug:slug>/preview/', pict_large_preview, name='pict_large_preview'),
     path('skinali/image/<slug:slug>/', PictDetail.as_view(), name='pict_detail'),
     path('skinali/<slug:slug_cat>/', SkinaliSlug.as_view(), name='skinali'),
     path('designer', designer, name='designer'),
