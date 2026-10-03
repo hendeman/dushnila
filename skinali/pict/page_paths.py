@@ -9,9 +9,9 @@ INVALID_PAGE_PATH_MESSAGE = (
 def normalize_public_page_paths(value):
     """Нормализует точные публичные пути, заданные по одному на строку."""
     paths = list(dict.fromkeys(
-        line.strip()
-        for line in value.splitlines()
-        if line.strip()
+        '/designer/' if path == '/designer' else path
+        for path in (line.strip() for line in value.splitlines())
+        if path
     ))
     for path in paths:
         if (

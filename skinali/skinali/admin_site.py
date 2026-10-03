@@ -19,6 +19,7 @@ class SkinaliAdminSite(AdminSite):
 
                     count = ContactRequest.objects.filter(viewed_at__isnull=True).count()
                     request._unviewed_contact_request_count = count
-                model['name'] = f'{model["name"]} ({count})'
+                if count:
+                    model['name'] = f'{model["name"]} ({count})'
                 break
         return app_list

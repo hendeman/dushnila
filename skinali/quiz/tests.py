@@ -61,11 +61,12 @@ class QuizModelTests(TestCase):
         self.quiz = Quiz.objects.get(trigger_key='skinali-quiz')
 
     def test_page_paths_are_normalized_and_matched_exactly(self):
-        self.quiz.page_paths = ' /about/\n/about/\n/skinali/ '
+        self.quiz.page_paths = ' /about/\n/about/\n/skinali/\n/designer '
         self.quiz.full_clean()
 
-        self.assertEqual(self.quiz.page_paths, '/about/\n/skinali/')
+        self.assertEqual(self.quiz.page_paths, '/about/\n/skinali/\n/designer/')
         self.assertTrue(self.quiz.matches_path('/about/'))
+        self.assertTrue(self.quiz.matches_path('/designer/'))
         self.assertFalse(self.quiz.matches_path('/about'))
 
     def test_page_paths_reject_domains_parameters_fragments_and_masks(self):

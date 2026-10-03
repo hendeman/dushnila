@@ -1218,6 +1218,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-toast {
+	--contact-toast-accent: #6f8a68;
 	position: fixed;
 	z-index: 2200;
 	top: 24px;
@@ -1227,26 +1228,68 @@ ul.mainmenu li a:focus-visible {
 	box-sizing: border-box;
 	width: fit-content;
 	max-width: calc(100vw - 48px);
-	padding: 18px 22px;
-	border: 6px double #6f8a68;
-	border-radius: 5px;
+	padding: 18px 56px 18px 22px;
+	border: 0;
+	border-left: 4px solid var(--contact-toast-accent);
+	border-radius: 10px;
 	color: #1f231f;
 	background: #fff;
-	box-shadow: 0 12px 32px rgba(20, 25, 21, .25);
+	box-shadow: 0 6px 20px rgba(160, 160, 160, .35);
+	overflow: hidden;
 	opacity: 0;
 	transform: translateY(-12px);
 	pointer-events: none;
 	transition: opacity .18s ease, transform .18s ease;
 }
 
+.contact-toast--warning {
+	--contact-toast-accent: #ed9d17;
+}
+
+.contact-toast--error {
+	--contact-toast-accent: #ee4b43;
+}
+
 .contact-toast::before {
 	content: "✓";
 	flex: 0 0 auto;
 	margin-right: 16px;
-	color: #6f8a68;
+	color: var(--contact-toast-accent);
 	font-size: 34px;
 	font-weight: 800;
 	line-height: 1;
+}
+
+.contact-toast--warning::before {
+	content: "⚠︎";
+	font-family: "Segoe UI Symbol", Arial, sans-serif;
+}
+
+.contact-toast--error::before {
+	content: "✖";
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 27px;
+	height: 27px;
+	border-radius: 50%;
+	color: #fff;
+	background: var(--contact-toast-accent);
+	font-size: 17px;
+	font-weight: 700;
+}
+
+.contact-toast::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 4px;
+	background: var(--contact-toast-accent);
+	transform: scaleX(0);
+	transform-origin: left center;
+	pointer-events: none;
 }
 
 .contact-toast[hidden] {
@@ -1256,6 +1299,17 @@ ul.mainmenu li a:focus-visible {
 .contact-toast.is-visible {
 	opacity: 1;
 	transform: translateY(0);
+	pointer-events: auto;
+}
+
+.contact-toast.is-visible::after {
+	animation: contact-toast-progress var(--contact-toast-duration) linear forwards;
+}
+
+@keyframes contact-toast-progress {
+	to {
+		transform: scaleX(1);
+	}
 }
 
 .contact-toast__message {
@@ -1272,8 +1326,49 @@ ul.mainmenu li a:focus-visible {
 	white-space: nowrap;
 }
 
+.contact-toast--warning .contact-toast__message span,
+.contact-toast--error .contact-toast__message span {
+	white-space: normal;
+}
+
+.contact-toast--error .contact-toast__message span {
+	white-space: pre-line;
+}
+
 .contact-toast__message span:first-child {
 	font-weight: 700;
+}
+
+.contact-toast__close {
+	position: absolute;
+	top: 10px;
+	right: 10px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	padding: 0;
+	border: 0;
+	border-radius: 5px;
+	color: #aeb5ae;
+	background: transparent;
+	cursor: pointer;
+	font: inherit;
+	font-size: 24px;
+	font-weight: 300;
+	line-height: 1;
+}
+
+.contact-toast__close:hover,
+.contact-toast__close:focus-visible {
+	color: #596059;
+	background: #f2f3f1;
+}
+
+.contact-toast__close:focus-visible {
+	outline: 2px solid #6f8a68;
+	outline-offset: 2px;
 }
 
 .contact-dialog {
@@ -3621,13 +3716,17 @@ background-color: coral;
 		left: 50%;
 		width: fit-content;
 		max-width: calc(100vw - 24px);
-		padding: 14px 16px;
+		padding: 14px 46px 14px 16px;
 		transform: translate(-50%, -12px);
 	}
 
 	.contact-toast::before {
 		margin-right: 12px;
 		font-size: 30px;
+	}
+
+	.contact-toast--error .contact-toast__message span {
+		white-space: normal;
 	}
 
 	.contact-toast.is-visible {
@@ -4513,7 +4612,15 @@ background-color: coral;
 @media (max-width: 360px) {
 	.contact-toast {
 		max-width: calc(100vw - 16px);
-		padding: 12px 10px;
+		padding: 12px 36px 12px 10px;
+	}
+
+	.contact-toast__close {
+		top: 7px;
+		right: 6px;
+		width: 24px;
+		height: 24px;
+		font-size: 22px;
 	}
 
 	.contact-toast::before {

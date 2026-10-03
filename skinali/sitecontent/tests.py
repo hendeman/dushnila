@@ -56,7 +56,7 @@ class SiteMenuModelTests(TestCase):
                 ('Главная страница', '/', 10, True),
                 ('Каталог скинали', '/skinali/', 20, True),
                 ('Наши работы', '/foto-skinali-iz-stekla/', 30, True),
-                ('Услуги дизайнера', '/designer', 40, True),
+                ('Услуги дизайнера', '/designer/', 40, True),
                 ('Связаться с нами', '/about/', 50, True),
             ],
         )

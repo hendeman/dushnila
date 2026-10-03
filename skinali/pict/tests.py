@@ -3113,20 +3113,34 @@ class ContactFormSubmissionTests(TestCase):
         self.assertContains(home_response, 'role="status"')
         self.assertContains(home_response, 'aria-live="polite"')
         self.assertContains(home_response, 'data-contact-success-message')
+        self.assertContains(home_response, 'data-contact-toast-close')
+        self.assertContains(home_response, 'aria-label="Закрыть уведомление"')
         self.assertIn("split(/\\r?\\n/)", contact_script)
-        self.assertIn('showSuccessToast(result.message);', contact_script)
+        self.assertIn("showContactToast(result.message, 'success', form);", contact_script)
         self.assertIn('parentDialog.close();', contact_script)
-        self.assertIn('}, 2000);', contact_script)
+        self.assertIn('const CONTACT_TOAST_DURATION_MS = 3000;', contact_script)
+        self.assertIn('window.setTimeout(hideContactToast, CONTACT_TOAST_DURATION_MS)', contact_script)
+        self.assertIn("addEventListener('click', hideContactToast)", contact_script)
+        self.assertIn("warning: 'Проверьте выделенные поля'", contact_script)
+        self.assertIn(
+            r"error: 'Не удалось подтвердить отправку.\nПопробуйте позже'",
+            contact_script,
+        )
+        self.assertIn("response.status === 422 ? 'warning' : 'error'", contact_script)
         self.assertIn('.contact-toast {', styles)
         self.assertIn('.contact-toast.is-visible {', styles)
         self.assertIn('width: fit-content;', styles)
-        self.assertIn('border: 6px double #6f8a68;', styles)
+        self.assertIn('border-left: 4px solid var(--contact-toast-accent);', styles)
+        self.assertIn('.contact-toast--warning {', styles)
+        self.assertIn('.contact-toast--error {', styles)
+        self.assertIn('white-space: pre-line;', styles)
+        self.assertIn('.contact-toast.is-visible::after {', styles)
         self.assertIn('background: #fff;', styles)
         self.assertIn('.contact-toast::before {', styles)
         self.assertIn('content: "✓";', styles)
         self.assertIn('.contact-toast__message span {', styles)
         self.assertIn('white-space: nowrap;', styles)
-        self.assertNotContains(home_response, 'contact-toast__close')
+        self.assertIn('.contact-toast__close {', styles)
         self.assertContains(
             home_response,
             'src="/static/skinali/js/contact-forms.js"',
@@ -3545,6 +3559,22 @@ class ContactRequestAdminUnreadTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin_user)
 
+    def test_sidebar_hides_zero_count(self):
+        ContactRequest.objects.update(viewed_at=timezone.now())
+
+        index = self.client.get(reverse('admin:index'))
+
+        self.assertContains(index, 'Заявки')
+        self.assertNotContains(index, 'Заявки (0)')
+        self.assertIn(
+            'Заявки',
+            [
+                model['name']
+                for app in index.context['available_apps']
+                for model in app['models']
+            ],
+        )
+
     def test_sidebar_count_updates_after_opening_request(self):
         index = self.client.get(reverse('admin:index'))
         self.assertContains(index, 'Заявки (2)')
@@ -3891,6 +3921,15 @@ class ContactDeliveryTests(TestCase):
 
 
 class DesignerPageTests(TestCase):
+    def test_designer_uses_trailing_slash_and_redirects_old_url(self):
+        self.assertEqual(reverse('designer'), '/designer/')
+        self.assertRedirects(
+            self.client.get('/designer'),
+            '/designer/',
+            status_code=301,
+            fetch_redirect_response=False,
+        )
+
     def test_designer_page_shows_copyright_terms_and_contact_links(self):
         response = self.client.get(reverse('designer'))
 
@@ -5033,7 +5072,7 @@ class IntegrationTests(TestCase):
                 self.assertIn('page_paths', form.errors)
         form = IntegrationAdminForm(data={**data, 'page_paths': ' /about/\n/about/\n/designer '})
         self.assertTrue(form.is_valid(), form.errors)
-        self.assertEqual(form.instance.page_paths, '/about/\n/designer')
+        self.assertEqual(form.instance.page_paths, '/about/\n/designer/')
         form = IntegrationAdminForm(data={**data, 'head_html': '', 'body_start_html': '', 'body_end_html': ''})
         self.assertFalse(form.is_valid())
         self.assertIn('is_enabled', form.errors)
