@@ -120,11 +120,15 @@ class AdminPhotoRenameMixin:
             storage = old_photo.storage
             target_name = upload_to(item, Path(old_name).name)
 
-            if self.photo_name_matches_storage_variant(old_name, target_name):
-                unchanged_count += 1
-                continue
             if not storage.exists(old_name):
                 skipped_count += 1
+                continue
+            # Суффикс сохраняем только пока имя без него занято другим файлом.
+            if (
+                self.photo_name_matches_storage_variant(old_name, target_name)
+                and (old_name == target_name or storage.exists(target_name))
+            ):
+                unchanged_count += 1
                 continue
 
             saved_name = None

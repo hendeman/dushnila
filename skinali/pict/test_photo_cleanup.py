@@ -14,7 +14,7 @@ from django.utils import timezone
 from quiz.models import Quiz
 from sorl.thumbnail.shortcuts import get_thumbnail
 
-from .admin import PictAdmin
+from .admin import FinishedWorkAdmin, PictAdmin
 from .models import FinishedWork, Pict
 from .services.photo_cleanup import is_safe_photo_path, iter_stored_photos, remove_unused_photo
 from .tests import create_test_image_file
@@ -285,6 +285,176 @@ class PhotoCleanupCommitTests(PhotoStorageMixin, TransactionTestCase):
         self.assertNotEqual(record.photo.name, old_name)
         self.assertTrue(self.storage.exists(old_name))
         self.assertTrue(self.storage.exists(record.photo.name))
+
+
+class AdminPhotoRenameCanonicalNameTests(PhotoStorageMixin, TestCase):
+    def create_suffixed_record(self, model, *, suffix='nQKBtED', image_size=(1000, 200)):
+        record = self.create_record(model)
+        target_name = record.photo.name
+        target_path = Path(target_name)
+        old_name = self.storage.save(
+            f'{target_path.parent.as_posix()}/{target_path.stem}_{suffix}{target_path.suffix}',
+            create_test_image_file('suffixed.jpg', size=image_size),
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            record.photo = old_name
+            record.save(update_fields=['photo'])
+        self.assertFalse(self.storage.exists(target_name))
+        return record, old_name, target_name
+
+    def rename_records(self, model, queryset):
+        model_admin = (
+            PictAdmin(Pict, AdminSite()) if model is Pict
+            else FinishedWorkAdmin(FinishedWork, AdminSite())
+        )
+        action = (
+            model_admin.rename_photos_from_description if model is Pict
+            else model_admin.rename_photos_from_name
+        )
+        request = RequestFactory().post('/admin/pict/')
+        with self.captureOnCommitCallbacks(execute=True), patch.object(
+            model_admin, 'message_user',
+        ) as message_user:
+            action(request, queryset)
+        return message_user.call_args.args[1]
+
+    def file_contents(self, name):
+        with self.storage.open(name, 'rb') as photo:
+            return photo.read()
+
+    def test_action_removes_suffix_when_base_is_free_and_cleans_old_thumbnail(self):
+        for model in (Pict, FinishedWork):
+            with self.subTest(model=model.__name__):
+                record, old_name, target_name = self.create_suffixed_record(model)
+                thumbnail = get_thumbnail(record.photo, '109')
+                contents = self.file_contents(old_name)
+                summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertEqual(record.photo.name, target_name)
+                self.assertEqual(self.file_contents(target_name), contents)
+                self.assertFalse(self.storage.exists(old_name))
+                self.assertFalse(thumbnail.storage.exists(thumbnail.name))
+                self.assertIn('Переименовано: 1.', summary)
+                repeated_summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertEqual(record.photo.name, target_name)
+                self.assertIn('Переименовано: 0.', repeated_summary)
+
+    def test_action_keeps_existing_suffix_while_base_is_occupied(self):
+        for model in (Pict, FinishedWork):
+            with self.subTest(model=model.__name__):
+                record, old_name, target_name = self.create_suffixed_record(model)
+                occupied_name = self.storage.save(
+                    target_name, create_test_image_file('occupied.jpg', size=(400, 300)),
+                )
+                self.assertEqual(occupied_name, target_name)
+                contents = self.file_contents(occupied_name)
+                thumbnail = get_thumbnail(record.photo, '110')
+                for _ in range(2):
+                    summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                    record.refresh_from_db()
+                    self.assertEqual(record.photo.name, old_name)
+                    self.assertIn('Переименовано: 0.', summary)
+                self.assertEqual(self.file_contents(occupied_name), contents)
+                self.assertTrue(self.storage.exists(old_name))
+                self.assertTrue(thumbnail.storage.exists(thumbnail.name))
+
+    def test_action_reclaims_base_name_after_occupied_file_is_removed(self):
+        for model in (Pict, FinishedWork):
+            with self.subTest(model=model.__name__):
+                record, old_name, target_name = self.create_suffixed_record(model)
+                self.storage.save(target_name, create_test_image_file('occupied.jpg'))
+                self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertEqual(record.photo.name, old_name)
+                self.storage.delete(target_name)
+                summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertEqual(record.photo.name, target_name)
+                self.assertIn('Переименовано: 1.', summary)
+                self.assertFalse(self.storage.exists(old_name))
+
+    def test_group_rechecks_occupied_base_and_preserves_second_existing_suffix(self):
+        first, first_old_name, target_name = self.create_suffixed_record(FinishedWork)
+        second, second_old_name, second_target_name = self.create_suffixed_record(
+            FinishedWork, suffix='a1b2c3d', image_size=(400, 300),
+        )
+        self.assertEqual(target_name, second_target_name)
+        first_contents = self.file_contents(first_old_name)
+        second_contents = self.file_contents(second_old_name)
+        self.assertNotEqual(first_contents, second_contents)
+        queryset = FinishedWork.objects.filter(pk__in=[first.pk, second.pk]).order_by('pk')
+        summary = self.rename_records(FinishedWork, queryset)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.photo.name, target_name)
+        self.assertEqual(second.photo.name, second_old_name)
+        self.assertEqual(self.file_contents(first.photo.name), first_contents)
+        self.assertEqual(self.file_contents(second.photo.name), second_contents)
+        self.assertFalse(self.storage.exists(first_old_name))
+        self.assertIn('Переименовано: 1.', summary)
+        self.assertIn('Уже соответствовали имени: 1.', summary)
+        repeated_summary = self.rename_records(FinishedWork, queryset)
+        self.assertIn('Переименовано: 0.', repeated_summary)
+        self.assertIn('Уже соответствовали имени: 2.', repeated_summary)
+
+    def test_group_gives_new_suffix_to_second_file_with_unrelated_original_name(self):
+        first, first_old_name, target_name = self.create_suffixed_record(FinishedWork)
+        second_old_name = self.storage.save(
+            'finished_works/legacy-second.jpg',
+            create_test_image_file('second.jpg', size=(400, 300)),
+        )
+        second = FinishedWork.objects.create(name=first.name, photo=second_old_name)
+        first_contents = self.file_contents(first_old_name)
+        second_contents = self.file_contents(second_old_name)
+        queryset = FinishedWork.objects.filter(pk__in=[first.pk, second.pk]).order_by('pk')
+        summary = self.rename_records(FinishedWork, queryset)
+        first.refresh_from_db()
+        second.refresh_from_db()
+        self.assertEqual(first.photo.name, target_name)
+        self.assertNotEqual(second.photo.name, target_name)
+        self.assertNotEqual(second.photo.name, second_old_name)
+        self.assertTrue(PictAdmin.photo_name_matches_storage_variant(second.photo.name, target_name))
+        self.assertEqual(self.file_contents(first.photo.name), first_contents)
+        self.assertEqual(self.file_contents(second.photo.name), second_contents)
+        self.assertFalse(self.storage.exists(first_old_name))
+        self.assertFalse(self.storage.exists(second_old_name))
+        self.assertIn('Переименовано: 2.', summary)
+        repeated_summary = self.rename_records(FinishedWork, queryset)
+        self.assertIn('Переименовано: 0.', repeated_summary)
+
+    def test_storage_handles_collision_appearing_after_availability_check(self):
+        for model in (Pict, FinishedWork):
+            with self.subTest(model=model.__name__):
+                record, old_name, target_name = self.create_suffixed_record(model)
+                contents = self.file_contents(old_name)
+                original_save = self.storage.save
+
+                def save_with_collision(name, content, **kwargs):
+                    original_save(name, create_test_image_file('concurrent.jpg', size=(400, 300)))
+                    return original_save(name, content, **kwargs)
+
+                with patch.object(self.storage, 'save', side_effect=save_with_collision):
+                    summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertNotEqual(record.photo.name, target_name)
+                self.assertTrue(PictAdmin.photo_name_matches_storage_variant(record.photo.name, target_name))
+                self.assertEqual(self.file_contents(record.photo.name), contents)
+                self.assertNotEqual(self.file_contents(target_name), contents)
+                self.assertFalse(self.storage.exists(old_name))
+                self.assertIn('Переименовано: 1.', summary)
+
+    def test_missing_original_with_suffix_is_skipped(self):
+        for model in (Pict, FinishedWork):
+            with self.subTest(model=model.__name__):
+                record, old_name, target_name = self.create_suffixed_record(model)
+                self.storage.delete(old_name)
+                summary = self.rename_records(model, model.objects.filter(pk=record.pk))
+                record.refresh_from_db()
+                self.assertEqual(record.photo.name, old_name)
+                self.assertFalse(self.storage.exists(target_name))
+                self.assertIn('Переименовано: 0.', summary)
+                self.assertIn('Пропущено: 1.', summary)
 
 
 class UnusedPhotoCommandTests(PhotoStorageMixin, TestCase):
