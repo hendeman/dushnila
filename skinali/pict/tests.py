@@ -2824,7 +2824,9 @@ class PictAdminPhotoRenameTests(TestCase):
         thumbnail = get_thumbnail(picture.photo, '760')
         self.assertTrue(thumbnail.storage.exists(thumbnail.name))
 
-        with patch.object(self.model_admin, 'message_user') as message_user:
+        with self.captureOnCommitCallbacks(execute=True), patch.object(
+            self.model_admin, 'message_user',
+        ) as message_user:
             self.model_admin.rename_photos_from_description(
                 self.request,
                 Pict.objects.filter(pk=picture.pk),
@@ -4260,7 +4262,9 @@ class FinishedWorkAdminPhotoRenameTests(TestCase):
         thumbnail = get_thumbnail(work.photo, '760x760', crop='center')
         self.assertTrue(thumbnail.storage.exists(thumbnail.name))
 
-        with patch.object(self.model_admin, 'message_user') as message_user:
+        with self.captureOnCommitCallbacks(execute=True), patch.object(
+            self.model_admin, 'message_user',
+        ) as message_user:
             self.model_admin.rename_photos_from_name(
                 self.request,
                 FinishedWork.objects.filter(pk=work.pk),

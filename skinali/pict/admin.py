@@ -12,7 +12,7 @@ from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
-from sorl.thumbnail.shortcuts import delete as delete_thumbnail, get_thumbnail
+from sorl.thumbnail.shortcuts import get_thumbnail
 
 from pict.forms import FinishedWorkAdminForm, IntegrationAdminForm, PictAdminForm
 from pict.models import (
@@ -29,6 +29,7 @@ from pict.models import (
     finished_work_photo_upload_to,
     pict_photo_upload_to,
 )
+from pict.services.photo_cleanup import remove_unused_photo
 
 
 logger = logging.getLogger(__name__)
@@ -108,7 +109,6 @@ class AdminPhotoRenameMixin:
         unchanged_count = 0
         skipped_count = 0
         failed_count = 0
-        cleanup_warning_count = 0
 
         for item in queryset.iterator(chunk_size=100):
             if not source_value(item).strip() or not item.photo:
@@ -146,32 +146,10 @@ class AdminPhotoRenameMixin:
                     item.pk,
                 )
                 if saved_name:
-                    try:
-                        storage.delete(saved_name)
-                    except Exception:
-                        logger.exception(
-                            'Не удалось удалить незавершённую копию %s.',
-                            saved_name,
-                        )
+                    remove_unused_photo(saved_name, storage=storage, using=item._state.db)
                 continue
 
             renamed_count += 1
-            try:
-                delete_thumbnail(old_photo, delete_file=False)
-            except Exception:
-                cleanup_warning_count += 1
-                logger.exception(
-                    'Не удалось очистить миниатюры прежнего файла %s.',
-                    old_name,
-                )
-            try:
-                storage.delete(old_name)
-            except Exception:
-                cleanup_warning_count += 1
-                logger.exception(
-                    'Не удалось удалить прежний файл %s.',
-                    old_name,
-                )
 
         summary = (
             f'Переименовано: {renamed_count}. '
@@ -179,13 +157,11 @@ class AdminPhotoRenameMixin:
             f'Пропущено: {skipped_count}. '
             f'Ошибок: {failed_count}.'
         )
-        if cleanup_warning_count:
-            summary += f' Предупреждений очистки: {cleanup_warning_count}.'
 
         level = messages.SUCCESS
         if failed_count:
             level = messages.ERROR
-        elif skipped_count or cleanup_warning_count:
+        elif skipped_count:
             level = messages.WARNING
         self.message_user(request, summary, level=level)
 

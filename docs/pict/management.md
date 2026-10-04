@@ -1,4 +1,6 @@
-# `skinali/pict/management/commands/process_contact_deliveries.py`
+# Management-команды приложения `pict`
+
+## `process_contact_deliveries.py`
 
 ## Назначение и запуск
 
@@ -39,3 +41,21 @@ python manage.py process_contact_deliveries
 - [Сервисы](services.md): очередь, адаптеры и переходы статусов.
 - [Модели](models.md): отдельная доставка получателю.
 - [Настройки](../project/settings.md): окружение и тайм-ауты.
+
+## `cleanup_unused_photos.py`
+
+Одноразовая команда ищет неиспользуемые оригиналы в `photos/` и `finished_works/`, включая вложенные папки. По умолчанию выводит только отчёт с путями, размерами и общим объёмом. Удаление оригиналов и связанных миниатюр разрешается только явным `--delete`; `--dry-run` фиксирует режим отчёта. Файлы моложе `--min-age-hours 24` пропускаются, значение должно быть целым и не менее 1. Перед удалением повторно проверяются ссылки всех файловых полей БД и возраст файла. Новые таблицы и расписание не создаются.
+
+```console
+python manage.py cleanup_unused_photos
+python manage.py cleanup_unused_photos --delete
+```
+
+Перед первым удалением нужны проверка отчёта и резервная копия media/БД. Полная спецификация, ограничения и тесты: [Очистка фотографий](photo-cleanup.md).
+
+Параметр `--table images` ограничивает поиск и удаление папкой «Изображений» (`photos/`), `--table finished-works` — папкой «Готовых работ» (`finished_works/`). Если параметр не передан или указан `--table all`, обрабатываются обе папки. Проверка использования остаётся общей для всех файловых полей БД, независимо от выбранной таблицы.
+
+```console
+python manage.py cleanup_unused_photos --table images --dry-run
+python manage.py cleanup_unused_photos --table finished-works --delete
+```

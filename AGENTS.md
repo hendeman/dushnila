@@ -27,6 +27,7 @@
 | Номер изображения, признак популярности, обязательное описание и формирование имени загружаемого файла | [pict/models.md](docs/pict/models.md) | [pict/forms.md](docs/pict/forms.md), [pict/admin.md](docs/pict/admin.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, имена файлов фото, admin-переименование, типы стекла/скинали, связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/forms.md](docs/pict/forms.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/tests.md](docs/pict/tests.md), [pict/urls.md](docs/pict/urls.md), [migrations/README.md](docs/migrations/README.md) |
 | Флаги публикации изображений и готовых работ | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/forms.md](docs/pict/forms.md), [pict/tests.md](docs/pict/tests.md) |
+| Очистка старых фотографий при замене/удалении, миниатюр и накопившихся файлов без ссылок | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) | [pict/signals.md](docs/pict/signals.md), [pict/admin.md](docs/pict/admin.md), [pict/management.md](docs/pict/management.md), [pict/tests.md](docs/pict/tests.md) |
 | Нормализация, разделители, многословный поиск и релевантность | [pict/search.md](docs/pict/search.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md) |
 | Каталог, фильтры, пагинация и контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/search.md](docs/pict/search.md), [pict/urls.md](docs/pict/urls.md) |
 | SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
@@ -75,8 +76,10 @@
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
 | `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
+| `skinali/pict/services/photo_cleanup.py`, `test_photo_cleanup.py` | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/services/telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
+| `skinali/pict/management/commands/cleanup_unused_photos.py` | [pict/management.md](docs/pict/management.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
 | `skinali/pict/templatetags/integrations.py` | [pict/integrations.md](docs/pict/integrations.md) |
 | `skinali/pict/urls.py` | [pict/urls.md](docs/pict/urls.md) |
