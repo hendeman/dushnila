@@ -1326,17 +1326,14 @@ ul.mainmenu li a:focus-visible {
 	white-space: nowrap;
 }
 
+.contact-toast__message span:first-child {
+	font-weight: 700;
+}
+
 .contact-toast--warning .contact-toast__message span,
 .contact-toast--error .contact-toast__message span {
 	white-space: normal;
-}
-
-.contact-toast--error .contact-toast__message span {
-	white-space: pre-line;
-}
-
-.contact-toast__message span:first-child {
-	font-weight: 700;
+	font-weight: 400;
 }
 
 .contact-toast__close {
@@ -2960,6 +2957,12 @@ background-color: coral;
 	fill: currentColor;
 }
 
+.share-service--viber svg,
+.share-service--whatsapp svg {
+	width: 27.6px;
+	height: 27.6px;
+}
+
 .share-service--telegram {
 	background: #229ed9;
 }
@@ -2972,12 +2975,11 @@ background-color: coral;
 	background: #25d366;
 }
 
-.share-service--viber .share-service__phone {
-	fill: #7360f2;
-}
-
-.share-service--whatsapp .share-service__phone {
-	fill: #25d366;
+.share-service .share-service__outline {
+	fill: none;
+	stroke: currentColor;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 .catalog-modal__purchase {
@@ -3723,10 +3725,6 @@ background-color: coral;
 	.contact-toast::before {
 		margin-right: 12px;
 		font-size: 30px;
-	}
-
-	.contact-toast--error .contact-toast__message span {
-		white-space: normal;
 	}
 
 	.contact-toast.is-visible {

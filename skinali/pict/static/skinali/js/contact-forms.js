@@ -9,7 +9,7 @@
   const CONTACT_TOAST_DURATION_MS = 3000;
   const CONTACT_TOAST_MESSAGES = {
     warning: 'Проверьте выделенные поля',
-    error: 'Не удалось подтвердить отправку.\nПопробуйте позже'
+    error: 'Проверьте интернет-соединение'
   };
   let contactToastTimer = null;
   let contactToastTransitionTimer = null;
@@ -57,9 +57,7 @@
       toastHost.append(contactToast);
     }
 
-    const messageLines = kind === 'error'
-      ? [String(message || '')]
-      : String(message || '').split(/\r?\n/).filter(Boolean);
+    const messageLines = String(message || '').split(/\r?\n/).filter(Boolean);
     contactMessage.replaceChildren(...messageLines.map((line) => {
       const span = document.createElement('span');
       span.textContent = line;

@@ -3123,7 +3123,7 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn("addEventListener('click', hideContactToast)", contact_script)
         self.assertIn("warning: 'Проверьте выделенные поля'", contact_script)
         self.assertIn(
-            r"error: 'Не удалось подтвердить отправку.\nПопробуйте позже'",
+            "error: 'Проверьте интернет-соединение'",
             contact_script,
         )
         self.assertIn("response.status === 422 ? 'warning' : 'error'", contact_script)
@@ -3133,7 +3133,6 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('border-left: 4px solid var(--contact-toast-accent);', styles)
         self.assertIn('.contact-toast--warning {', styles)
         self.assertIn('.contact-toast--error {', styles)
-        self.assertIn('white-space: pre-line;', styles)
         self.assertIn('.contact-toast.is-visible::after {', styles)
         self.assertIn('background: #fff;', styles)
         self.assertIn('.contact-toast::before {', styles)
