@@ -19,6 +19,7 @@
 | Понять устройство проекта целиком | [architecture.md](docs/architecture.md) | [pict/overview.md](docs/pict/overview.md) |
 | Настройки Django, БД, язык, статика, media | [project/settings.md](docs/project/settings.md) | [project/urls.md](docs/project/urls.md) |
 | Профили development/preview/production и HTTPS-защита | [project/settings.md](docs/project/settings.md) | [project/middleware.md](docs/project/middleware.md), [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
+| Журнал Passenger и почтовые уведомления об ошибках | [project/settings.md](docs/project/settings.md) | [project/hostland.md](docs/project/hostland.md), [architecture.md](docs/architecture.md) |
 | Развёртывание на Hostland | [project/hostland.md](docs/project/hostland.md) | [project/settings.md](docs/project/settings.md), [project/wsgi.md](docs/project/wsgi.md), [pict/management.md](docs/pict/management.md) |
 | Автоматический деплой из GitHub в production | [project/github-actions-hostland.md](docs/project/github-actions-hostland.md) | [project/hostland.md](docs/project/hostland.md), [project/settings.md](docs/project/settings.md) |
 | Корневые URL, robots.txt, sitemap, admin, debug toolbar, обработчики 404 и 500 | [project/urls.md](docs/project/urls.md) | [project/settings.md](docs/project/settings.md), [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
@@ -58,6 +59,7 @@
 |---|---|
 | `skinali/manage.py` | [project/manage.md](docs/project/manage.md) |
 | `skinali/skinali/settings.py` | [project/settings.md](docs/project/settings.md) |
+| `skinali/skinali/log_alerts.py`, `test_log_alerts.py` | [project/settings.md](docs/project/settings.md) |
 | `skinali/skinali/admin_config.py` | [project/settings.md](docs/project/settings.md) |
 | `skinali/skinali/admin_site.py` | [project/urls.md](docs/project/urls.md), [pict/admin.md](docs/pict/admin.md) |
 | `skinali/skinali/middleware.py` | [project/middleware.md](docs/project/middleware.md) |

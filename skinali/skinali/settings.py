@@ -249,6 +249,58 @@ if IS_DEPLOYED and ENABLE_DEBUG_TOOLBAR:
 SITE_NOINDEX = IS_PREVIEW
 
 
+# Passenger сохраняет stderr веб-процесса в общем журнале аккаунта.
+if IS_PRODUCTION:
+    LOG_ALERT_ENABLED = get_environment_bool('LOG_ALERT_ENABLED', False)
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'formatters': {
+            'production': {
+                'format': '{asctime} {levelname} pid={process} {name}: {message}',
+                'style': '{',
+                'datefmt': '%Y-%m-%dT%H:%M:%S%z',
+            },
+        },
+        'handlers': {
+            'stderr': {
+                'class': 'logging.StreamHandler',
+                'stream': 'ext://sys.stderr',
+                'formatter': 'production',
+                'level': 'WARNING',
+            },
+        },
+        'root': {
+            'handlers': ['stderr'],
+            'level': 'WARNING',
+        },
+        'loggers': {
+            'django': {
+                'handlers': [],
+                'level': 'WARNING',
+                'propagate': True,
+            },
+            'django.request': {
+                'level': 'ERROR',
+                'propagate': True,
+            },
+            'django.security.DisallowedHost': {
+                'level': 'ERROR',
+                'propagate': True,
+            },
+        },
+    }
+    if LOG_ALERT_ENABLED:
+        from .log_alerts import read_alert_configuration
+
+        LOGGING['handlers']['alert_email'] = {
+            'class': 'skinali.log_alerts.AlertEmailHandler',
+            'level': 'ERROR',
+            **read_alert_configuration(os.environ),
+        }
+        LOGGING['root']['handlers'].append('alert_email')
+
+
 # Application definition
 
 INSTALLED_APPS = [

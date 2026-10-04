@@ -16,6 +16,8 @@ skinali/
 │   └── cache/thumbnails/     # производные превью sorl-thumbnail
 ├── skinali/                  # конфигурационный пакет проекта
 │   ├── settings.py
+│   ├── log_alerts.py         # отдельные SMTP-уведомления о production-ошибках
+│   ├── test_log_alerts.py    # проверка настроек и ограничений уведомлений
 │   ├── admin_config.py      # подключение собственного AdminSite
 │   ├── admin_site.py        # счётчик новых заявок в меню admin
 │   ├── middleware.py          # глобальный noindex технического preview
@@ -75,6 +77,8 @@ skinali/
 ```
 
 В корне репозитория также находятся исключенный из Git `.env`, отдельные шаблоны `.env.example`, `.env.preview.example`, `.env.production.example` и сокращённый `requirements-production.txt` для сервера. `settings.py` загружает первый найденный `.env` над `BASE_DIR` или внутри него до чтения настроек, не заменяя уже заданные системные переменные. `DJANGO_ENVIRONMENT` выбирает профиль `development`, технический `preview` или `production` без дублирования общих Django-настроек. Точные пути и команды текущего Hostland-окружения описаны в [project/hostland.md](project/hostland.md).
+
+В production Python logging направляет предупреждения и ошибки в `stderr` Passenger. При включённых `LOG_ALERT_*` модуль `skinali.log_alerts` дополнительно отправляет события `ERROR`/`CRITICAL` через отдельный SMTP, ограничивая повторы в памяти процесса. Он не использует `sitecontent.LeadConnection`, SQLite или очередь заявок; подробности и порядок включения описаны в [project/settings.md](project/settings.md#уведомления-об-ошибках-на-почту).
 
 Файлы `__init__.py` приложений, конфигурационного пакета и каталогов миграций пусты: они только обозначают Python-пакеты и не содержат прикладной логики.
 
