@@ -43,6 +43,19 @@ jobs:
           DJANGO_ENABLE_DEBUG_TOOLBAR: "False"
         run: python manage.py check
 
+      - name: Check production static files
+        working-directory: skinali
+        env:
+          DJANGO_ENVIRONMENT: production
+          DJANGO_DEBUG: "False"
+          DJANGO_SECRET_KEY: ci-staticfiles-check-only-key-unused-in-production
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+          DJANGO_ENABLE_DJANGO_EXTENSIONS: "False"
+          DJANGO_ENABLE_DEBUG_TOOLBAR: "False"
+          LOG_ALERT_ENABLED: "False"
+          DJANGO_STATIC_ROOT: ${{ runner.temp }}/odium-staticfiles
+        run: python manage.py collectstatic --noinput
+
       - name: Run test suite
         working-directory: skinali
         env:
