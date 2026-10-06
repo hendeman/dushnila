@@ -1,0 +1,31 @@
+{% extends 'pict/base.html' %}
+{% load static thumbnail %}
+
+{% block extra_css %}<link rel="stylesheet" href="{% static 'sitecontent/css/articles.css' %}">{% endblock %}
+
+{% block content %}
+<section class="articles-section" aria-labelledby="articles-title">
+  <h1 id="articles-title">{{ title }}</h1>
+  <div class="article-list">
+    {% for article in articles %}
+    <article class="article-card content-card{% if forloop.first %} article-card--featured{% endif %}">
+      <a class="article-card__cover" href="{{ article.get_absolute_url }}" aria-label="{{ article.title }}">
+        {% thumbnail article.cover forloop.first|yesno:'1200x800,600x400' crop='center' quality=85 as cover %}
+        <img src="{{ cover.url }}" width="{{ cover.width }}" height="{{ cover.height }}" alt="" loading="{{ forloop.first|yesno:'eager,lazy' }}" decoding="async">
+        {% endthumbnail %}
+        {% if forloop.first %}<h2 class="article-card__title">{{ article.title }}</h2>{% endif %}
+      </a>
+      {% if not forloop.first %}
+      <div class="article-card__text">
+        <h2 class="article-card__title">{{ article.title }}</h2>
+        <p class="article-card__summary">{{ article.summary }}</p>
+      </div>
+      {% endif %}
+    </article>
+    {% empty %}
+    <p class="articles-empty">Здесь скоро появятся полезные статьи о скинали.</p>
+    {% endfor %}
+  </div>
+  {% include 'pict/includes/paginator.html' %}
+</section>
+{% endblock %}

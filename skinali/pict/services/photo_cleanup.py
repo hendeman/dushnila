@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 PHOTO_TABLE_DIRECTORIES = {
     'images': 'photos',
     'finished-works': 'finished_works',
+    'articles': 'articles',
 }
 PHOTO_DIRECTORIES = tuple(PHOTO_TABLE_DIRECTORIES.values())
 

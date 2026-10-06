@@ -5,4 +5,5 @@ sorl-thumbnail==13.1.0
 requests==2.34.2
 certifi==2026.7.22
 cryptography==50.0.1
+nh3==0.3.7
 pysqlite3-binary==0.5.4.post2; platform_system == "Linux"

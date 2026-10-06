@@ -15,6 +15,7 @@ from pict.sitemaps import (
     TagSitemap,
 )
 from pict.views import pageNotFound, serverError
+from sitecontent.sitemaps import ArticleSitemap
 
 admin.site.site_header = "Админка skinali"
 admin.site.index_title = "Админка"
@@ -70,6 +71,7 @@ urlpatterns = [
                 'categories': CategorySitemap,
                 'tags': TagSitemap,
                 'pictures': PictureSitemap,
+                'articles': ArticleSitemap,
             },
         },
         name='sitemap',
@@ -80,6 +82,7 @@ if settings.ENABLE_DEBUG_TOOLBAR:
     urlpatterns.append(path('__debug__/', include('debug_toolbar.urls')))
 
 urlpatterns.append(path('quiz/', include('quiz.urls')))
+urlpatterns.append(path('', include('sitecontent.urls')))
 urlpatterns.append(path('', include('pict.urls')))
 
 if settings.DEBUG:

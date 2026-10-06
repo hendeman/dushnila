@@ -1,15 +1,29 @@
-{% extends 'pict/error_base.html' %}
+{% extends 'pict/base.html' %}
+{% load static %}
 
-{% block error_content %}
-<section class="search-empty" aria-labelledby="not-found-title">
-    <h1 id="not-found-title">Страница не найдена</h1>
-    <p>
-        Возможно, адрес изменился или в ссылке допущена ошибка.
-        Вы можете вернуться на главную страницу или продолжить выбор изображения.
-    </p>
-    <nav aria-label="Переходы со страницы ошибки">
-        <a href="{% url 'home' %}">Вернуться на главную</a>
-        <a href="{% url 'skinali' %}">Перейти в каталог</a>
-    </nav>
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'skinali/css/not-found.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="not-found-page" aria-labelledby="not-found-title">
+    <img class="not-found-page__image"
+         src="{% static 'skinali/images/404.png' %}"
+         width="568"
+         height="230"
+         alt=""
+         decoding="async">
+    <div class="not-found-page__content">
+        <h1 id="not-found-title">ОШИБКА 404</h1>
+        <p class="not-found-page__subtitle">Страница не найдена</p>
+        <p class="not-found-page__description">
+            Неправильно набран адрес или<br>
+            такой страницы не существует
+        </p>
+        <nav class="not-found-page__actions" aria-label="Переходы со страницы ошибки">
+            <a class="not-found-page__action" href="{% url 'home' %}">Перейти на главную</a>
+            <a class="not-found-page__action not-found-page__action--secondary" href="{% url 'skinali' %}">Вернуться в каталог</a>
+        </nav>
+    </div>
 </section>
 {% endblock %}

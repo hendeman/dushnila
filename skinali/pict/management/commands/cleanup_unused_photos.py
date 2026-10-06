@@ -38,8 +38,8 @@ class Command(BaseCommand):
         parser.add_argument(
             '--table', choices=('all', *PHOTO_TABLE_DIRECTORIES), default='all',
             help=(
-                'Таблица: images — Изображения, finished-works — Готовые работы; '
-                'по умолчанию all — обе таблицы.'
+                'Раздел: images — Изображения, finished-works — Готовые работы, '
+                'articles — файлы статей; по умолчанию all — все разделы.'
             ),
         )
 
@@ -50,7 +50,7 @@ class Command(BaseCommand):
         elif table in PHOTO_TABLE_DIRECTORIES:
             directories = (PHOTO_TABLE_DIRECTORIES[table],)
         else:
-            raise CommandError('Неизвестная таблица: используйте all, images или finished-works.')
+            raise CommandError('Неизвестный раздел: используйте all, images, finished-works или articles.')
         if options['min_age_hours'] < 1:
             raise CommandError('--min-age-hours должен быть не менее 1.')
         try:

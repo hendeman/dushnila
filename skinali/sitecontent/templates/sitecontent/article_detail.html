@@ -1,0 +1,15 @@
+{% extends 'pict/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'sitecontent/css/article-content.css' %}">
+<link rel="stylesheet" href="{% static 'sitecontent/css/articles.css' %}">
+{% endblock %}
+
+{% block content %}
+<article class="article-detail">
+  <h1>{{ article.title }}</h1>
+  <div class="article-content">{{ article_html }}</div>
+  <a class="article-detail__back" href="{% url 'article_list' %}">← Все статьи</a>
+</article>
+{% endblock %}

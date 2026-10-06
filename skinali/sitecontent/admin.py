@@ -2,14 +2,16 @@ from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Max, Q
 from django.shortcuts import redirect
-from django.urls import reverse
+from django.urls import path, reverse
+from django.http import JsonResponse, HttpResponseNotAllowed
 from django.utils.html import format_html, format_html_join
 from django.utils import timezone
 from pict.services.contact_delivery import enqueue_connection_test, retry_failed_deliveries
 from pict.services.delivery_errors import DeliveryConfigurationError
 
-from .forms import LeadConnectionForm
-from .models import LeadConnection, MenuItem, SiteMenu, SitePage
+from .forms import ArticleAdminForm, LeadConnectionForm
+from .models import Article, ArticleImage, LeadConnection, MenuItem, SiteMenu, SitePage
+from .article_media import prepare_article_image
 
 
 class SuperuserSiteContentAdminMixin:
@@ -77,6 +79,50 @@ class SiteMenuAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
             if menu:
                 return redirect(reverse('admin:sitecontent_sitemenu_change', args=[menu.pk]))
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(Article)
+class ArticleAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+    form = ArticleAdminForm
+    list_display = ('title', 'is_published', 'published_at', 'updated_at')
+    list_editable = ('is_published',)
+    list_display_links = ('title',)
+    list_filter = ('is_published',)
+    search_fields = ('title', 'summary')
+    list_per_page = 30
+    readonly_fields = ('slug',)
+    fieldsets = (
+        (None, {'fields': ('title', 'summary', 'cover', 'body')}),
+        ('Публикация', {'fields': ('is_published', 'published_at', 'slug')}),
+        ('SEO', {'fields': ('seo_title', 'seo_description')}),
+    )
+
+    class Media:
+        css = {'all': ('skinali/css/admin-seo-landing-fields.css',)}
+
+    def has_delete_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def get_urls(self):
+        return [path(
+            'upload-image/', self.admin_site.admin_view(self.upload_image),
+            name='sitecontent_article_upload_image',
+        )] + super().get_urls()
+
+    def upload_image(self, request):
+        if not self.has_add_permission(request):
+            return JsonResponse({'error': 'Недостаточно прав.'}, status=403)
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        upload = request.FILES.get('image')
+        if upload is None:
+            return JsonResponse({'error': 'Выберите изображение.'}, status=400)
+        try:
+            prepared = prepare_article_image(upload)
+        except ValidationError as error:
+            return JsonResponse({'error': ' '.join(error.messages)}, status=400)
+        image = ArticleImage.objects.create(image=prepared)
+        return JsonResponse({'url': image.image.url}, status=201)
 
 
 @admin.register(LeadConnection)

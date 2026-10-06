@@ -1000,11 +1000,16 @@ def render_error_page(template_name, *, status, page_title, meta_robots):
 
 
 def pageNotFound(request, exception):
-    return render_error_page(
+    return render(
+        request,
         'pict/404.html',
+        {
+            'title': 'Страница не найдена',
+            'page_title': 'Страница не найдена | ОДИУМ',
+            'meta_robots': 'noindex,follow',
+            'favorites_count': len(get_favorite_ids(request)),
+        },
         status=404,
-        page_title='Страница не найдена | ОДИУМ',
-        meta_robots='noindex,follow',
     )
 
 

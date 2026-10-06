@@ -1769,7 +1769,7 @@ class CategoryOrderingAdminTests(TestCase):
         self.assertEqual(Category.objects.last(), category)
 
 
-class RemovedTestRouteTests(SimpleTestCase):
+class RemovedTestRouteTests(TestCase):
     def test_legacy_numeric_category_route_is_not_available(self):
         with self.assertRaises(NoReverseMatch):
             reverse('cat', kwargs={'catid': 1})
@@ -1780,8 +1780,7 @@ class RemovedTestRouteTests(SimpleTestCase):
 @override_settings(DEBUG=False)
 class NotFoundPageTests(TestCase):
     def test_unknown_url_returns_branded_noindex_page(self):
-        with self.assertNumQueries(0):
-            response = self.client.get('/missing-public-page/')
+        response = self.client.get('/missing-public-page/')
 
         self.assertEqual(response.status_code, 404)
         self.assertContains(
@@ -1798,19 +1797,20 @@ class NotFoundPageTests(TestCase):
         )
         self.assertContains(
             response,
-            '<h1 id="not-found-title">Страница не найдена</h1>',
+            '<h1 id="not-found-title">ОШИБКА 404</h1>',
             status_code=404,
             html=True,
         )
         self.assertContains(
             response,
-            f'<a href="{reverse("home")}">Вернуться на главную</a>',
+            f'<a class="not-found-page__action" href="{reverse("home")}">Перейти на главную</a>',
             status_code=404,
             html=True,
         )
         self.assertContains(
             response,
-            f'<a href="{reverse("skinali")}">Перейти в каталог</a>',
+            '<a class="not-found-page__action not-found-page__action--secondary" '
+            f'href="{reverse("skinali")}">Вернуться в каталог</a>',
             status_code=404,
             html=True,
         )
@@ -1824,11 +1824,33 @@ class NotFoundPageTests(TestCase):
             'type="application/ld+json"',
             status_code=404,
         )
-        self.assertNotContains(
+        self.assertContains(
             response,
             'class="site-footer"',
             status_code=404,
         )
+        self.assertContains(response, 'class="site-topbar"', status_code=404)
+        self.assertContains(response, 'Каталог скинали', status_code=404, count=2)
+        self.assertContains(response, 'skinali/images/404.png', status_code=404)
+        self.assertContains(response, 'Страница не найдена', status_code=404)
+        self.assertTemplateUsed(response, 'pict/base.html')
+
+    def test_not_found_page_keeps_session_favorites(self):
+        picture = Pict.objects.create(
+            name=404,
+            alt='Изображение для избранного',
+            photo=create_test_image_file('404-favorite.jpg'),
+        )
+        session = self.client.session
+        session['favorite_pict_ids'] = [picture.pk]
+        session.save()
+        self.client.cookies[settings.SESSION_COOKIE_NAME] = session.session_key
+
+        response = self.client.get('/missing-public-page/')
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.context['favorites_count'], 1)
+        self.assertContains(response, 'data-favorites-count>1</span>', status_code=404)
 
 
 @override_settings(DEBUG=False)

@@ -26,6 +26,7 @@ class SitePageModelTests(TestCase):
                 SitePage.Code.CATALOG: ('Каталог скинали', '', ''),
                 SitePage.Code.FINISHED_WORKS: ('Наши работы', '', ''),
                 SitePage.Code.DESIGNER: ('Услуги дизайнера', '', ''),
+                SitePage.Code.ARTICLES: ('Полезно знать', '', ''),
                 SitePage.Code.ABOUT: ('Связаться с нами', '', ''),
             },
         )
@@ -57,6 +58,7 @@ class SiteMenuModelTests(TestCase):
                 ('Каталог скинали', '/skinali/', 20, True),
                 ('Наши работы', '/foto-skinali-iz-stekla/', 30, True),
                 ('Услуги дизайнера', '/designer/', 40, True),
+                ('Полезно знать', '/polezno-znat/', 45, True),
                 ('Связаться с нами', '/about/', 50, True),
             ],
         )

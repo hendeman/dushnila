@@ -9,6 +9,7 @@ from django.db import models, transaction
 from django.urls import reverse
 from django.utils import timezone
 from sitecontent.models import SeoMetadataFields
+from sitecontent.querysets import PublicationQuerySet
 
 from .page_paths import matches_public_page_path, normalize_public_page_paths
 from .search import normalize_search_value
@@ -134,13 +135,6 @@ def build_pict_page_slug(description, image_number):
         image_number,
         PICT_PAGE_SLUG_MAX_LENGTH,
     )
-
-
-class PublicationQuerySet(models.QuerySet):
-    """Единая выборка контента, разрешённого к показу на публичном сайте."""
-
-    def published(self):
-        return self.filter(is_published=True)
 
 
 class SeoPageContent(SeoMetadataFields):

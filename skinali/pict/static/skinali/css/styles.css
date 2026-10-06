@@ -456,7 +456,8 @@ ul.mainmenu li a:focus-visible {
 	color: #6d736c;
 }
 
-.search-empty a {
+.search-empty a,
+.not-found-page__action {
 	display: inline-flex;
 	align-items: center;
 	min-height: 42px;
@@ -470,7 +471,9 @@ ul.mainmenu li a:focus-visible {
 }
 
 .search-empty a:hover,
-.search-empty a:focus-visible {
+.search-empty a:focus-visible,
+.not-found-page__action:hover,
+.not-found-page__action:focus-visible {
 	color: #fff;
 	background: #60785c;
 }
@@ -886,7 +889,8 @@ ul.mainmenu li a:focus-visible {
 	gap: 18px 16px;
 }
 
-.home-benefit-card {
+.home-benefit-card,
+.content-card {
 	position: relative;
 	display: flex;
 	flex-direction: column;
@@ -901,7 +905,9 @@ ul.mainmenu li a:focus-visible {
 }
 
 /* Внешнее свечение не меняет размеры карточки и не сдвигает соседние элементы сетки. */
-.home-benefit-card:hover {
+.home-benefit-card:hover,
+.content-card:hover,
+.content-card:focus-within {
 	border-color: #c8cbc5;
 	box-shadow:
 		0 0 28px rgba(157, 163, 156, 0.22),

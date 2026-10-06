@@ -10,6 +10,7 @@
 | requests | 2.34.2 | HTTPS-запросы доставки заявок в Telegram |
 | certifi | 2026.7.22 | Дополнительные доверенные корневые сертификаты для SMTP TLS с сохранением проверки сертификата |
 | cryptography | 50.0.1 | Fernet/MultiFernet для секретов подключений; ключи находятся вне базы |
+| nh3 | 0.3.7 | Серверная очистка HTML статей по белому списку тегов, атрибутов и URL |
 | pysqlite3-binary | 0.5.4.post2 | Самодостаточная современная SQLite для Linux-хостингов со старой системной библиотекой; на других ОС не устанавливается |
 | django-extensions | 4.1 | Приложение `django_extensions`, включаемое настройкой `ENABLE_DJANGO_EXTENSIONS` |
 | django-debug-toolbar | 7.0.0 | Приложение, middleware и маршруты панели отладки при `ENABLE_DEBUG_TOOLBAR` |
@@ -39,3 +40,7 @@ python -m pip install -r requirements-production.txt
 Из каталога `skinali/` также можно выполнять `python -m pip install -r requirements.txt`: pip разрешает вложенную ссылку относительно requirements-файла.
 
 Установка очищенного списка не удаляет лишние пакеты из уже существующего общего окружения. Для окружения только с зависимостями SKINALI следует использовать новый virtualenv.
+
+## Редактор статей
+
+Quill 2.0.3 с BSD-3-Clause лицензией сохранён в `sitecontent/static/sitecontent/vendor/quill/`. Во время работы не нужен CDN, npm, Node.js или новый серверный процесс. `nh3==0.3.7` добавлен в оба корневых requirements; готовые wheels не требуют компиляции Rust на Hostland. Pillow проверяет и перекодирует загрузки. Только необязательный кодовый тест Quill использует Node.js/jsdom; production их не требует. Подробнее: [Статьи](../sitecontent/articles.md).

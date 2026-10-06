@@ -53,9 +53,11 @@ python manage.py cleanup_unused_photos --delete
 
 Перед первым удалением нужны проверка отчёта и резервная копия media/БД. Полная спецификация, ограничения и тесты: [Очистка фотографий](photo-cleanup.md).
 
-Параметр `--table images` ограничивает поиск и удаление папкой «Изображений» (`photos/`), `--table finished-works` — папкой «Готовых работ» (`finished_works/`). Если параметр не передан или указан `--table all`, обрабатываются обе папки. Проверка использования остаётся общей для всех файловых полей БД, независимо от выбранной таблицы.
+Параметр `--table images` ограничивает поиск и удаление папкой «Изображений» (`photos/`), `--table finished-works` — папкой «Готовых работ» (`finished_works/`), `--table articles` — файлами статей (`articles/`). Если параметр не передан или указан `--table all`, обрабатываются все три папки. Проверка использования остаётся общей для всех файловых полей БД, независимо от выбранной таблицы.
 
 ```console
 python manage.py cleanup_unused_photos --table images --dry-run
 python manage.py cleanup_unused_photos --table finished-works --delete
 ```
+
+Забытые загрузки редактора с записями `ArticleImage` ищет команда `sitecontent/management/commands/cleanup_article_images.py`; по умолчанию это отчёт, удаление — только с `--delete`. Команды не запускаются автоматически. Подробности: [Статьи](../sitecontent/articles.md).

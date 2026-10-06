@@ -4,8 +4,14 @@ from urllib.parse import urlsplit
 from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator, validate_email
 from django.db import models
+from django.db import router, transaction
 from django.conf import settings
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.urls import reverse
+from django.utils import timezone
+
+from .querysets import PublicationQuerySet
+from .rich_text import ArticleHTMLReferences, sanitize_article_html
 
 
 class SeoMetadataFields(models.Model):
@@ -50,6 +56,7 @@ class SitePage(SeoMetadataFields):
         CATALOG = 'skinali', 'Каталог скинали'
         FINISHED_WORKS = 'finished_works', 'Наши работы'
         DESIGNER = 'designer', 'Услуги дизайнера'
+        ARTICLES = 'article_list', 'Полезно знать'
         ABOUT = 'about', 'Связаться с нами'
 
     code = models.CharField(
@@ -190,6 +197,132 @@ class MenuItem(models.Model):
         # Валидация протокола обязательна и для служебных сохранений вне admin-формы.
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class ArticleImage(models.Model):
+    """Загруженный файл текста статьи, включая ещё не сохранённые вставки."""
+
+    image = models.ImageField('Изображение', upload_to='articles/content/', max_length=255)
+    created_at = models.DateTimeField('Загружено', auto_now_add=True, db_index=True)
+
+    def save(self, *args, **kwargs):
+        from .article_media import prepare_article_image
+
+        if self.image and not self.image._committed:
+            self.image = prepare_article_image(self.image.file)
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = 'Изображение статьи'
+        verbose_name_plural = 'Изображения статей'
+
+
+class Article(SeoMetadataFields):
+    """Статья с постоянным адресом и HTML, очищенным на сервере."""
+
+    title = models.CharField('Заголовок', max_length=200)
+    slug = models.SlugField('Адрес статьи', max_length=220, unique=True, editable=False)
+    summary = models.TextField('Краткое описание', max_length=600)
+    cover = models.ImageField('Обложка', upload_to='articles/covers/', max_length=255)
+    body = models.TextField('Текст статьи')
+    is_published = models.BooleanField('Опубликовано', default=False)
+    published_at = models.DateTimeField(
+        'Дата первой публикации', null=True, blank=True,
+        help_text='Заполнится при первой публикации. Можно изменить вручную для порядка статей.',
+    )
+    images = models.ManyToManyField(ArticleImage, related_name='articles', editable=False, blank=True)
+    objects = PublicationQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = 'Статья'
+        verbose_name_plural = 'Статьи'
+        ordering = ('-published_at', '-pk')
+        indexes = [models.Index(fields=('is_published', '-published_at', '-id'), name='article_publication_order')]
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('article_detail', kwargs={'slug': self.slug})
+
+    def _prepare_slug(self):
+        from pict.models import transliterate_filename_part
+
+        using = router.db_for_write(type(self), instance=self)
+        previous_slug = (
+            type(self).objects.using(using).filter(pk=self.pk).values_list('slug', flat=True).first()
+            if self.pk else None
+        )
+        max_length = self._meta.get_field('slug').max_length
+        self.slug = previous_slug or (
+            transliterate_filename_part(self.title or '')[:max_length].rstrip('-') or 'statya'
+        )
+
+    def full_clean(self, exclude=None, validate_unique=True, validate_constraints=True):
+        # Slug нужен до проверки полей и исключён из редактируемых полей admin-формы.
+        self._prepare_slug()
+        return super().full_clean(
+            exclude=exclude, validate_unique=validate_unique,
+            validate_constraints=validate_constraints,
+        )
+
+    def validate_unique(self, exclude=None):
+        excluded = set(exclude or ())
+        super().validate_unique(exclude=excluded | {'slug'})
+        if 'title' in excluded:
+            return
+        self._prepare_slug()
+        using = router.db_for_write(type(self), instance=self)
+        if type(self).objects.using(using).filter(slug=self.slug).exclude(pk=self.pk).exists():
+            # Ошибка относится к заголовку, потому что адрес формируется автоматически.
+            raise ValidationError({'title': ValidationError(
+                'Адрес «%(slug)s» уже используется другой статьёй. Измените заголовок.',
+                code='unique', params={'slug': self.slug},
+            )})
+
+    def clean(self):
+        super().clean()
+        self.title = self.title.strip()
+        self.summary = self.summary.strip()
+        errors = {}
+        if not self.title:
+            errors['title'] = 'Введите заголовок статьи.'
+        if not self.summary:
+            errors['summary'] = 'Введите краткое описание.'
+        if errors:
+            raise ValidationError(errors)
+        try:
+            self.body = sanitize_article_html(self.body)
+        except ValidationError as error:
+            raise ValidationError({'body': error.messages}) from error
+        if not ArticleHTMLReferences(self.body).has_content:
+            raise ValidationError({'body': 'Введите текст статьи.'})
+        if self.is_published and self.published_at is None:
+            self.published_at = timezone.now()
+
+    def save(self, *args, **kwargs):
+        from .article_media import delete_unreferenced_article_images, prepare_article_image
+
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        if self.cover and not self.cover._committed:
+            self.cover = prepare_article_image(self.cover.file)
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None:
+            kwargs['update_fields'] = set(update_fields) | {'published_at'}
+        self.full_clean()
+        with transaction.atomic(using=using):
+            super().save(*args, **kwargs)
+            if update_fields is None or 'body' in update_fields:
+                references = ArticleHTMLReferences(self.body).image_names
+                old_ids = set(self.images.values_list('pk', flat=True))
+                new_images = list(ArticleImage.objects.using(using).filter(image__in=references))
+                self.images.set(new_images)
+                removed = old_ids - {image.pk for image in new_images}
+                if removed:
+                    transaction.on_commit(
+                        lambda: delete_unreferenced_article_images(removed, using=using), using=using,
+                    )
 
 
 class LeadConnection(models.Model):

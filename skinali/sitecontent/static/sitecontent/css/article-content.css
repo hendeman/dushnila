@@ -1,0 +1,63 @@
+/* Общие значения для редактора и публичной статьи. */
+.article-content, .quill-field {
+  --article-font: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --article-color: #1f231f;
+  --article-font-size: 16px;
+  --article-line-height: 1.65;
+  --article-highlight-yellow: #fff2a8;
+  --article-highlight-green: #d7efc2;
+  --article-highlight-blue: #d2e7fb;
+  --article-highlight-pink: #f8d5e5;
+  --article-highlight-orange: #ffddb4;
+}
+.article-content, .article-content .ql-editor {
+  font-family: var(--article-font);
+  font-size: var(--article-font-size);
+  color: var(--article-color);
+  line-height: var(--article-line-height);
+  overflow-wrap: anywhere;
+}
+.article-content p { margin: 0 0 1em; }
+.article-content h2, .article-content h3, .article-content h4 {
+  font-family: var(--article-font);
+  color: var(--article-color);
+  line-height: 1.3;
+  margin: 1.5em 0 .65em;
+}
+.article-content h2 { font-size: 1.6em; }
+.article-content h3 { font-size: 1.25em; }
+.article-content h4 { font-size: 1.1em; }
+.article-content img { max-width: 100%; height: auto; }
+.article-content a { color: #496b44; text-decoration: underline; text-underline-offset: .2em; }
+.article-content ul, .article-content ol { padding-left: 1.5em; margin: 0 0 1em; }
+.article-content li { margin: .3em 0; }
+.article-content blockquote {
+  margin: 1em 0; padding: .4em 1em; border-left: 4px solid #6f8a68; background: #f5f2e9;
+}
+.article-content .ql-font-arial { font-family: Arial, sans-serif; }
+.article-content .ql-font-georgia { font-family: Georgia, "Times New Roman", serif; }
+.article-content .ql-font-monospace { font-family: Consolas, "Courier New", monospace; }
+.article-content .ql-color-ink { color: #1f231f; }
+.article-content .ql-color-muted { color: #62685f; }
+.article-content .ql-color-green { color: #496b44; }
+.article-content .ql-color-red { color: #a52d2d; }
+.article-content .ql-color-blue { color: #265b92; }
+.article-content .ql-bg-yellow { background-color: var(--article-highlight-yellow); }
+.article-content .ql-bg-green { background-color: var(--article-highlight-green); }
+.article-content .ql-bg-blue { background-color: var(--article-highlight-blue); }
+.article-content .ql-bg-pink { background-color: var(--article-highlight-pink); }
+.article-content .ql-bg-orange { background-color: var(--article-highlight-orange); }
+.article-content .ql-size-small { font-size: .85em; }
+.article-content .ql-size-large { font-size: 1.25em; }
+.article-content .ql-size-huge { font-size: 1.6em; }
+.article-content .ql-align-center { text-align: center; }
+.article-content .ql-align-right { text-align: right; }
+.article-content .ql-align-justify { text-align: justify; }
+.article-content .ql-indent-1 { padding-left: 3em; }
+.article-content .ql-indent-2 { padding-left: 6em; }
+.article-content .ql-indent-3 { padding-left: 9em; }
+.article-content .ql-indent-4 { padding-left: 12em; }
+.article-content .ql-indent-5 { padding-left: 15em; }
+.article-content .ql-indent-6 { padding-left: 18em; }
+.article-content .ql-indent-7 { padding-left: 21em; }
+.article-content .ql-indent-8 { padding-left: 24em; }

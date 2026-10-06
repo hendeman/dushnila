@@ -1,0 +1,6 @@
+<div class="quill-field" data-quill-field data-upload-url="{{ widget.upload_url }}" data-fonts="{{ widget.fonts }}" data-colors="{{ widget.colors }}" data-backgrounds="{{ widget.backgrounds }}">
+  {% include 'django/forms/widgets/textarea.html' %}
+  <div class="quill-field__editor article-content" data-quill-editor></div>
+  <input type="file" accept="image/jpeg,image/png,image/webp" data-quill-image hidden>
+  <p class="quill-field__status" data-quill-status role="status" aria-live="polite"></p>
+</div>

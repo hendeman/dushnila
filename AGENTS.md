@@ -1,6 +1,6 @@
 # AGENTS.md — навигация по проекту Skinali
 
-Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет опубликованное изображение по номеру, тегу или поисковому синониму, просматривает опубликованную часть каталога, фильтрует её по категории, цвету и тегу, ведет персональное избранное в Django-сессии, смотрит опубликованные элементы фотогалереи готовых работ и проходит встроенный модальный квиз; контент, публикация и настройки квиза редактируются через Django Admin.
+Этот файл в корне репозитория — обязательная первая точка входа для ИИ-агента. Проект представляет собой Django-сайт каталога изображений: посетитель ищет опубликованное изображение по номеру, тегу или поисковому синониму, просматривает опубликованную часть каталога, фильтрует её по категории, цвету и тегу, ведет персональное избранное в Django-сессии, смотрит опубликованные элементы фотогалереи готовых работ, читает статьи «Полезно знать» и проходит встроенный модальный квиз; контент, публикация, статьи с редактором Quill 2 и настройки квиза редактируются через Django Admin.
 
 ## Порядок работы для ИИ-агента
 
@@ -23,6 +23,7 @@
 | Развёртывание на Hostland | [project/hostland.md](docs/project/hostland.md) | [project/settings.md](docs/project/settings.md), [project/wsgi.md](docs/project/wsgi.md), [pict/management.md](docs/pict/management.md) |
 | Автоматический деплой из GitHub в production | [project/github-actions-hostland.md](docs/project/github-actions-hostland.md) | [project/hostland.md](docs/project/hostland.md), [project/settings.md](docs/project/settings.md) |
 | Корневые URL, robots.txt, sitemap, admin, debug toolbar, обработчики 404 и 500 | [project/urls.md](docs/project/urls.md) | [project/settings.md](docs/project/settings.md), [pict/urls.md](docs/pict/urls.md), [pict/views.md](docs/pict/views.md) |
+| Полноценная страница 404 с пользовательской картинкой, меню и подвалом; автономная страница 500 | [pict/views.md](docs/pict/views.md), [project/urls.md](docs/project/urls.md) | `skinali/pict/templates/pict/404.html`, `skinali/pict/static/skinali/css/not-found.css`, [pict/tests.md](docs/pict/tests.md), [architecture.md](docs/architecture.md) |
 | Модели изображений, категорий, цветов, тегов и синонимов | [pict/models.md](docs/pict/models.md) | [pict/search.md](docs/pict/search.md), [migrations/README.md](docs/migrations/README.md) |
 | Номер изображения, признак популярности, обязательное описание и формирование имени загружаемого файла | [pict/models.md](docs/pict/models.md) | [pict/forms.md](docs/pict/forms.md), [pict/admin.md](docs/pict/admin.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Готовые работы, имена файлов фото, admin-переименование, типы стекла/скинали, связь с каталогом и публичная фотогалерея | [pict/models.md](docs/pict/models.md) | [pict/forms.md](docs/pict/forms.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/tests.md](docs/pict/tests.md), [pict/urls.md](docs/pict/urls.md), [migrations/README.md](docs/migrations/README.md) |
@@ -46,6 +47,7 @@
 | Интеграции, вставки HTML/JS, выбор страниц и восстановление версий | [pict/integrations.md](docs/pict/integrations.md) | [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md) |
 | Встроенный квиз, `#popup:skinali-quiz`, кнопка запуска и её иконка, автопоказ, вопросы, ответы и заявки типа `quiz` | [quiz/overview.md](docs/quiz/overview.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/services.md](docs/pict/services.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Обработка заявок, Telegram/email-подключения, получатели, секреты и тестовые отправки | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) | [pict/services.md](docs/pict/services.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/management.md](docs/pict/management.md) |
+| Статьи «Полезно знать», Quill 2, очистка HTML/загрузок, стабильный slug и проверка его уникальности, публикация, пагинация и SEO | [sitecontent/articles.md](docs/sitecontent/articles.md) | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [architecture.md](docs/architecture.md) |
 | Управляемое меню, SEO постоянных страниц и будущие блоки сайта | [sitecontent/overview.md](docs/sitecontent/overview.md) | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [architecture.md](docs/architecture.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
@@ -87,9 +89,13 @@
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/sitecontent/apps.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
-| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
-| `skinali/sitecontent/forms.py`, `secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
-| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/forms.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/views.py`, `urls.py`, `sitemaps.py`, `widgets.py`, `rich_text.py`, `article_media.py`, `test_articles.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
+| `skinali/sitecontent/querysets.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [pict/models.md](docs/pict/models.md) |
+| `skinali/sitecontent/management/commands/cleanup_article_images.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
+| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |

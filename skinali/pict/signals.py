@@ -1,39 +1,70 @@
 from django.db.models.signals import m2m_changed, post_delete, post_save, pre_delete, pre_save
+from django.db import transaction
 from django.dispatch import receiver
 from django.utils import timezone
-from sitecontent.models import SitePage
+from sitecontent.models import Article, ArticleImage, SitePage
 
 from .models import Category, Color, FinishedWork, Pict, TagPict
 from .services.photo_cleanup import schedule_photo_cleanup
 
 
 M2M_POST_ACTIONS = {'post_add', 'post_remove', 'post_clear'}
+PHOTO_FIELDS = {Pict: 'photo', FinishedWork: 'photo', Article: 'cover', ArticleImage: 'image'}
 
 
 @receiver(pre_save, sender=Pict)
 @receiver(pre_save, sender=FinishedWork)
+@receiver(pre_save, sender=Article)
+@receiver(pre_save, sender=ArticleImage)
 def remember_previous_photo(sender, instance, raw, using, update_fields, **kwargs):
     instance.__dict__.pop('_previous_photo_name', None)
-    if raw or not instance.pk or (update_fields is not None and 'photo' not in update_fields):
+    field_name = PHOTO_FIELDS[sender]
+    if raw or not instance.pk or (update_fields is not None and field_name not in update_fields):
         return
     instance._previous_photo_name = (
         sender._base_manager.using(using).filter(pk=instance.pk)
-        .values_list('photo', flat=True).first()
+        .values_list(field_name, flat=True).first()
     )
 
 
 @receiver(post_save, sender=Pict)
 @receiver(post_save, sender=FinishedWork)
+@receiver(post_save, sender=Article)
+@receiver(post_save, sender=ArticleImage)
 def clean_replaced_photo(sender, instance, raw, using, **kwargs):
     old_name = instance.__dict__.pop('_previous_photo_name', None)
-    if not raw and old_name and old_name != instance.photo.name:
-        schedule_photo_cleanup(old_name, storage=instance.photo.storage, using=using)
+    photo = getattr(instance, PHOTO_FIELDS[sender])
+    if not raw and old_name and old_name != photo.name:
+        schedule_photo_cleanup(old_name, storage=photo.storage, using=using)
 
 
 @receiver(post_delete, sender=Pict)
 @receiver(post_delete, sender=FinishedWork)
+@receiver(post_delete, sender=Article)
+@receiver(post_delete, sender=ArticleImage)
 def clean_deleted_photo(sender, instance, using, **kwargs):
-    schedule_photo_cleanup(instance.photo.name, storage=instance.photo.storage, using=using)
+    photo = getattr(instance, PHOTO_FIELDS[sender])
+    schedule_photo_cleanup(photo.name, storage=photo.storage, using=using)
+
+
+@receiver(pre_delete, sender=Article)
+def remember_article_images(sender, instance, using, **kwargs):
+    instance._deleted_article_image_ids = set(instance.images.values_list('pk', flat=True))
+
+
+@receiver(post_delete, sender=Article)
+def clean_article_images(sender, instance, using, **kwargs):
+    from sitecontent.article_media import delete_unreferenced_article_images
+
+    image_ids = getattr(instance, '_deleted_article_image_ids', set())
+    transaction.on_commit(lambda: delete_unreferenced_article_images(image_ids, using=using), using=using)
+
+
+@receiver(post_save, sender=Article)
+@receiver(post_delete, sender=Article)
+def article_content_changed(sender, instance, using, raw=False, **kwargs):
+    if not raw:
+        touch_site_pages((SitePage.Code.ARTICLES,), changed_at=timezone.now(), using=using)
 
 
 def touch_site_pages(page_codes, *, changed_at, using):

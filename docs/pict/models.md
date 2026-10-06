@@ -254,3 +254,7 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 ## Интеграции
 
 `Integration` хранит название, описание, включение, порядок, точные пути страниц и три поля кода. `IntegrationRevision` связан с интеграцией (1:N) и автором через `AUTH_USER_MODEL`; сохраняет JSON-снимок настроек, дату и действие. Валидация и атомарное версионирование описаны в [integrations.md](integrations.md).
+
+## Общая публикация со статьями
+
+`PublicationQuerySet` определён в `sitecontent/querysets.py` и импортируется в `pict.models` под прежним именем. `published()` по-прежнему отбирает только `is_published=True`; модели каталога и готовых работ не меняют схему или поведение. Тот же класс использует `sitecontent.Article`. Существующий `transliterate_filename_part()` переиспользуется для стабильных адресов статей через импорт внутри `Article.save()`. Контракт: [Статьи](../sitecontent/articles.md).

@@ -4,8 +4,30 @@ from django import forms
 from django.core.exceptions import ValidationError
 from pict.models import ContactRequest
 
-from .models import LeadConnection
+from .models import Article, LeadConnection
+from .rich_text import MAX_ARTICLE_HTML_LENGTH, sanitize_article_html
+from .widgets import QuillWidget
 from .secrets import encrypt_secret
+
+
+class ArticleAdminForm(forms.ModelForm):
+    body = forms.CharField(label='Текст статьи', widget=QuillWidget, max_length=MAX_ARTICLE_HTML_LENGTH)
+
+    class Meta:
+        model = Article
+        fields = '__all__'
+
+    def clean_body(self):
+        return sanitize_article_html(self.cleaned_data['body'])
+
+    def clean_cover(self):
+        from .article_media import prepare_article_image
+
+        cover = self.cleaned_data.get('cover')
+        if cover and not hasattr(cover, '_committed'):
+            # Проверка здесь даёт ошибку рядом с полем, до сохранения admin-формы.
+            return prepare_article_image(cover)
+        return cover
 
 
 class LeadConnectionForm(forms.ModelForm):

@@ -1,0 +1,36 @@
+.quill-field { width: min(100%, 900px); min-width: 0; }
+.quill-field [data-quill-editor] { min-height: 350px; background: #fff; }
+.quill-field .ql-editor { min-height: 350px; padding: 20px; }
+.quill-field .ql-toolbar { background: #f5f2e9; }
+.quill-field__status { margin: 8px 0 !important; color: var(--body-fg); }
+.quill-field .ql-tooltip { z-index: 10; max-width: calc(100% - 30px); white-space: normal; }
+.quill-field .ql-tooltip::before { content: 'Ссылка:'; }
+.quill-field .ql-tooltip.ql-editing::before { content: 'Введите ссылку:'; }
+.quill-field .ql-tooltip a.ql-action::after { content: 'Изменить'; }
+.quill-field .ql-tooltip.ql-editing a.ql-action::after { content: 'Сохранить'; }
+.quill-field .ql-tooltip a.ql-remove::before { content: 'Удалить'; }
+.quill-field .ql-picker.ql-header .ql-picker-label::before,
+.quill-field .ql-picker.ql-header .ql-picker-item::before { content: 'Обычный текст'; }
+.quill-field .ql-picker.ql-header [data-value="2"]::before { content: 'Заголовок 2'; }
+.quill-field .ql-picker.ql-header [data-value="3"]::before { content: 'Заголовок 3'; }
+.quill-field .ql-picker.ql-font .ql-picker-label::before,
+.quill-field .ql-picker.ql-font .ql-picker-item::before { content: 'Шрифт сайта'; }
+.quill-field .ql-picker.ql-font [data-value="arial"]::before { content: 'Arial'; }
+.quill-field .ql-picker.ql-font [data-value="georgia"]::before { content: 'Georgia'; }
+.quill-field .ql-picker.ql-font [data-value="monospace"]::before { content: 'Моноширинный'; }
+.quill-field .ql-picker.ql-size .ql-picker-label::before,
+.quill-field .ql-picker.ql-size .ql-picker-item::before { content: 'Обычный'; }
+.quill-field .ql-picker.ql-size [data-value="small"]::before { content: 'Маленький'; }
+.quill-field .ql-picker.ql-size [data-value="large"]::before { content: 'Крупный'; }
+.quill-field .ql-picker.ql-size [data-value="huge"]::before { content: 'Очень крупный'; }
+.quill-field .ql-color .ql-picker-item[data-value="ink"] { background: #1f231f !important; }
+.quill-field .ql-color .ql-picker-item[data-value="muted"] { background: #62685f !important; }
+.quill-field .ql-color .ql-picker-item[data-value="green"] { background: #496b44 !important; }
+.quill-field .ql-color .ql-picker-item[data-value="red"] { background: #a52d2d !important; }
+.quill-field .ql-color .ql-picker-item[data-value="blue"] { background: #265b92 !important; }
+.quill-field .ql-background .ql-picker-item[data-value="yellow"] { background: var(--article-highlight-yellow) !important; }
+.quill-field .ql-background .ql-picker-item[data-value="green"] { background: var(--article-highlight-green) !important; }
+.quill-field .ql-background .ql-picker-item[data-value="blue"] { background: var(--article-highlight-blue) !important; }
+.quill-field .ql-background .ql-picker-item[data-value="pink"] { background: var(--article-highlight-pink) !important; }
+.quill-field .ql-background .ql-picker-item[data-value="orange"] { background: var(--article-highlight-orange) !important; }
+@media (max-width: 767px) { .quill-field { width: 100%; } }

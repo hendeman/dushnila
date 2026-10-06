@@ -34,6 +34,7 @@ class StaticViewSitemap(PublicOriginSitemap):
         'skinali',
         'finished_works',
         'designer',
+        'article_list',
         'about',
     )
 
