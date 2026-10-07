@@ -13,6 +13,7 @@ from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from sorl.thumbnail.shortcuts import get_thumbnail
+from sitecontent.admin_seo import SeoAdminMixin
 
 from pict.forms import FinishedWorkAdminForm, IntegrationAdminForm, PictAdminForm
 from pict.models import (
@@ -171,6 +172,7 @@ class AdminPhotoRenameMixin:
 
 
 class PictAdmin(
+    SeoAdminMixin,
     AdminImagePreviewMixin,
     AdminPhotoRenameMixin,
     admin.ModelAdmin,
@@ -316,7 +318,7 @@ class PictAdmin(
     get_list_color.short_description = 'Цвета'
 
 
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(SeoAdminMixin, admin.ModelAdmin):
     list_display = ['drag_handle', 'cat', 'slug']
     list_display_links = ['cat']
     sortable_by = []
@@ -443,7 +445,7 @@ class TagAliasInline(admin.TabularInline):
     readonly_fields = ['normalized_alias']
 
 
-class TagPictAdmin(admin.ModelAdmin):
+class TagPictAdmin(SeoAdminMixin, admin.ModelAdmin):
     list_display = ['tag', 'normalized_tag', 'slug', 'get_search_aliases']
     list_display_links = ['tag']
     search_fields = [

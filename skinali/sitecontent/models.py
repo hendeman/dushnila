@@ -222,7 +222,13 @@ class Article(SeoMetadataFields):
     """Статья с постоянным адресом и HTML, очищенным на сервере."""
 
     title = models.CharField('Заголовок', max_length=200)
-    slug = models.SlugField('Адрес статьи', max_length=220, unique=True, editable=False)
+    slug = models.SlugField(
+        'Адрес статьи', max_length=220, unique=True, blank=True,
+        help_text=(
+            'Необязательно. Русский или латинский текст преобразуется в адрес. '
+            'Если оставить пустым, используется заголовок. После первого сохранения адрес не меняется.'
+        ),
+    )
     summary = models.TextField('Краткое описание', max_length=600)
     cover = models.ImageField('Обложка', upload_to='articles/covers/', max_length=255)
     body = models.TextField('Текст статьи')
@@ -246,21 +252,23 @@ class Article(SeoMetadataFields):
     def get_absolute_url(self):
         return reverse('article_detail', kwargs={'slug': self.slug})
 
-    def _prepare_slug(self):
+    @classmethod
+    def slug_from_text(cls, value):
         from pict.models import transliterate_filename_part
 
+        max_length = cls._meta.get_field('slug').max_length
+        return transliterate_filename_part(value or '')[:max_length].rstrip('-') or 'statya'
+
+    def _prepare_slug(self):
         using = router.db_for_write(type(self), instance=self)
         previous_slug = (
             type(self).objects.using(using).filter(pk=self.pk).values_list('slug', flat=True).first()
             if self.pk else None
         )
-        max_length = self._meta.get_field('slug').max_length
-        self.slug = previous_slug or (
-            transliterate_filename_part(self.title or '')[:max_length].rstrip('-') or 'statya'
-        )
+        self.slug = previous_slug or self.slug_from_text((self.slug or '').strip() or self.title)
 
     def full_clean(self, exclude=None, validate_unique=True, validate_constraints=True):
-        # Slug нужен до проверки полей и исключён из редактируемых полей admin-формы.
+        # Адрес нормализуется до проверки SlugField, в том числе при обычном ORM-сохранении.
         self._prepare_slug()
         return super().full_clean(
             exclude=exclude, validate_unique=validate_unique,
@@ -270,14 +278,13 @@ class Article(SeoMetadataFields):
     def validate_unique(self, exclude=None):
         excluded = set(exclude or ())
         super().validate_unique(exclude=excluded | {'slug'})
-        if 'title' in excluded:
+        if 'slug' in excluded:
             return
         self._prepare_slug()
         using = router.db_for_write(type(self), instance=self)
         if type(self).objects.using(using).filter(slug=self.slug).exclude(pk=self.pk).exists():
-            # Ошибка относится к заголовку, потому что адрес формируется автоматически.
-            raise ValidationError({'title': ValidationError(
-                'Адрес «%(slug)s» уже используется другой статьёй. Измените заголовок.',
+            raise ValidationError({'slug': ValidationError(
+                'Адрес «%(slug)s» уже используется другой статьёй. Введите другой адрес.',
                 code='unique', params={'slug': self.slug},
             )})
 

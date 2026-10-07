@@ -11,7 +11,7 @@
     <article class="article-card content-card{% if forloop.first %} article-card--featured{% endif %}">
       <a class="article-card__cover" href="{{ article.get_absolute_url }}" aria-label="{{ article.title }}">
         {% thumbnail article.cover forloop.first|yesno:'1200x800,600x400' crop='center' quality=85 as cover %}
-        <img src="{{ cover.url }}" width="{{ cover.width }}" height="{{ cover.height }}" alt="" loading="{{ forloop.first|yesno:'eager,lazy' }}" decoding="async">
+        <img src="{{ cover.url }}" width="{{ cover.width }}" height="{{ cover.height }}" alt="{{ article.title }}" loading="{{ forloop.first|yesno:'eager,lazy' }}" decoding="async">
         {% endthumbnail %}
         {% if forloop.first %}<h2 class="article-card__title">{{ article.title }}</h2>{% endif %}
       </a>

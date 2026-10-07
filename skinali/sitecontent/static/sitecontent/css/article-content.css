@@ -4,6 +4,7 @@
   --article-color: #1f231f;
   --article-font-size: 16px;
   --article-line-height: 1.65;
+  --article-image-radius: 16px;
   --article-highlight-yellow: #fff2a8;
   --article-highlight-green: #d7efc2;
   --article-highlight-blue: #d2e7fb;
@@ -18,16 +19,19 @@
   overflow-wrap: anywhere;
 }
 .article-content p { margin: 0 0 1em; }
-.article-content h2, .article-content h3, .article-content h4 {
+.article-content h2, .article-content h3, .article-content h4,
+.quill-field .ql-editor :where(h2, h3, h4) {
   font-family: var(--article-font);
   color: var(--article-color);
   line-height: 1.3;
   margin: 1.5em 0 .65em;
+  background: transparent;
+  padding: 0;
 }
-.article-content h2 { font-size: 1.6em; }
-.article-content h3 { font-size: 1.25em; }
-.article-content h4 { font-size: 1.1em; }
-.article-content img { max-width: 100%; height: auto; }
+.article-content h2, .quill-field .ql-editor h2 { font-size: 1.6em; }
+.article-content h3, .quill-field .ql-editor h3 { font-size: 1.25em; }
+.article-content h4, .quill-field .ql-editor h4 { font-size: 1.1em; }
+.article-content img { max-width: 100%; height: auto; border-radius: var(--article-image-radius); }
 .article-content a { color: #496b44; text-decoration: underline; text-underline-offset: .2em; }
 .article-content ul, .article-content ol { padding-left: 1.5em; margin: 0 0 1em; }
 .article-content li { margin: .3em 0; }

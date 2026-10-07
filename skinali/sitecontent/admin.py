@@ -10,6 +10,7 @@ from pict.services.contact_delivery import enqueue_connection_test, retry_failed
 from pict.services.delivery_errors import DeliveryConfigurationError
 
 from .forms import ArticleAdminForm, LeadConnectionForm
+from .admin_seo import SeoAdminMixin
 from .models import Article, ArticleImage, LeadConnection, MenuItem, SiteMenu, SitePage
 from .article_media import prepare_article_image
 
@@ -38,7 +39,7 @@ class MenuItemInline(admin.TabularInline):
 
 
 @admin.register(SitePage)
-class SitePageAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+class SitePageAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAdmin):
     fields = ('seo_title', 'seo_description')
     list_display = ('page_name', 'seo_title', 'seo_description')
     search_fields = ('seo_title', 'seo_description')
@@ -82,7 +83,7 @@ class SiteMenuAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
 
 
 @admin.register(Article)
-class ArticleAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+class ArticleAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAdmin):
     form = ArticleAdminForm
     list_display = ('title', 'is_published', 'published_at', 'updated_at')
     list_editable = ('is_published',)
@@ -92,13 +93,16 @@ class ArticleAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
     list_per_page = 30
     readonly_fields = ('slug',)
     fieldsets = (
-        (None, {'fields': ('title', 'summary', 'cover', 'body')}),
-        ('Публикация', {'fields': ('is_published', 'published_at', 'slug')}),
+        (None, {'fields': ('title', 'slug', 'summary', 'cover', 'body')}),
+        ('Публикация', {'fields': ('is_published', 'published_at')}),
         ('SEO', {'fields': ('seo_title', 'seo_description')}),
     )
 
     class Media:
         css = {'all': ('skinali/css/admin-seo-landing-fields.css',)}
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.readonly_fields if obj else ()
 
     def has_delete_permission(self, request, obj=None):
         return self.has_module_permission(request)

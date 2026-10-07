@@ -11,11 +11,20 @@ from .secrets import encrypt_secret
 
 
 class ArticleAdminForm(forms.ModelForm):
+    slug = forms.CharField(
+        label=Article._meta.get_field('slug').verbose_name,
+        max_length=Article._meta.get_field('slug').max_length,
+        required=False, help_text=Article._meta.get_field('slug').help_text,
+    )
     body = forms.CharField(label='Текст статьи', widget=QuillWidget, max_length=MAX_ARTICLE_HTML_LENGTH)
 
     class Meta:
         model = Article
         fields = '__all__'
+
+    def clean_slug(self):
+        value = self.cleaned_data['slug']
+        return Article.slug_from_text(value) if value else ''
 
     def clean_body(self):
         return sanitize_article_html(self.cleaned_data['body'])

@@ -1,3 +1,4 @@
+import re
 import tempfile
 from datetime import timedelta
 from io import BytesIO, StringIO
@@ -143,8 +144,27 @@ class ArticleModelTests(ArticleTestCase):
             with self.subTest(title=title):
                 with self.assertRaises(ValidationError) as error:
                     self.article(title=title)
-                self.assertEqual(set(error.exception.error_dict), {'title'})
+                self.assertEqual(set(error.exception.error_dict), {'slug'})
                 self.assertIn(first.slug, str(error.exception))
+        self.assertEqual(Article.objects.count(), 1)
+
+    def test_custom_address_is_transliterated_and_independent_of_title(self):
+        first = self.article(title='Большой заголовок', slug='Типы стёкол!')
+        second = self.article(title=first.title, slug='Уход за стеклом')
+        self.assertEqual(first.slug, 'tipy-styokol')
+        self.assertEqual(second.slug, 'ukhod-za-steklom')
+        first.title = 'Обновлённый заголовок'
+        first.slug = 'Попытка поменять адрес'
+        first.save()
+        first.refresh_from_db()
+        self.assertEqual(first.slug, 'tipy-styokol')
+
+    def test_custom_address_collision_is_rejected_even_with_different_titles(self):
+        first = self.article(title='Первая статья', slug='Типы стекол')
+        with self.assertRaises(ValidationError) as error:
+            self.article(title='Другая статья', slug='TIPY STEKOL!')
+        self.assertEqual(set(error.exception.error_dict), {'slug'})
+        self.assertIn(first.slug, str(error.exception))
         self.assertEqual(Article.objects.count(), 1)
 
     def test_slug_length_and_fallback_collisions_are_checked(self):
@@ -288,8 +308,16 @@ class ArticlePublicTests(ArticleTestCase):
         self.assertNotContains(first, 'Описание статьи 0')
         self.assertContains(first, 'Описание статьи 1')
         self.assertNotContains(first, 'Читать статью')
+        cover_links = re.findall(
+            r'<a\b[^>]*class="article-card__cover"[^>]*>(.*?)</a>', first.content.decode(), re.S,
+        )
+        self.assertEqual(len(cover_links), 7)
+        self.assertIn('<h2', cover_links[0])
+        for content in cover_links[1:]:
+            self.assertNotIn('<h2', content)
         for article in first.context['articles']:
             self.assertContains(first, f'href="{article.get_absolute_url()}"', count=1)
+            self.assertContains(first, f'alt="{article.title}"', count=1)
         second = self.client.get(reverse('article_list'), {'page': 2})
         self.assertEqual(
             [article.title for article in second.context['articles']],
@@ -439,7 +467,7 @@ class ArticleAdminTests(ArticleTestCase):
         self.assertTrue(article.cover.name.startswith('articles/covers/'))
         self.assertEqual(article.slug, 'novaya-statya')
 
-    def test_admin_rejects_duplicate_slug_at_title_and_preserves_submitted_text(self):
+    def test_admin_rejects_duplicate_slug_at_address_and_preserves_submitted_text(self):
         article = self.article(title='Типы стёкол')
         response = self.client.post(reverse('admin:sitecontent_article_add'), {
             'title': 'ТИПЫ СТЁКОЛ!', 'summary': 'Новое описание', 'cover': uploaded_image(),
@@ -449,10 +477,32 @@ class ArticleAdminTests(ArticleTestCase):
         })
         self.assertEqual(response.status_code, 200)
         form = response.context['adminform'].form
-        self.assertEqual(set(form.errors), {'title'})
-        self.assertIn(article.slug, form.errors['title'][0])
+        self.assertEqual(set(form.errors), {'slug'})
+        self.assertIn(article.slug, form.errors['slug'][0])
         self.assertContains(response, 'Текст новой статьи')
         self.assertEqual(Article.objects.count(), 1)
+
+    def test_admin_accepts_separate_address_and_locks_it_after_creation(self):
+        add_url = reverse('admin:sitecontent_article_add')
+        self.assertContains(self.client.get(add_url), 'name="slug"')
+        data = {
+            'title': 'Длинный заголовок для посетителей', 'slug': 'Типы стекол',
+            'summary': 'Описание', 'body': '<p>Текст статьи</p>',
+            'published_at_0': '', 'published_at_1': '', 'seo_title': '', 'seo_description': '',
+            '_save': 'Сохранить',
+        }
+        response = self.client.post(add_url, {**data, 'cover': uploaded_image()})
+        self.assertEqual(response.status_code, 302)
+        article = Article.objects.get()
+        self.assertEqual(article.slug, 'tipy-stekol')
+        self.assertEqual(article.title, data['title'])
+        change_url = reverse('admin:sitecontent_article_change', args=[article.pk])
+        self.assertNotContains(self.client.get(change_url), 'name="slug"')
+        response = self.client.post(change_url, {**data, 'title': 'Новый заголовок', 'slug': 'drugoy-adres'})
+        self.assertEqual(response.status_code, 302)
+        article.refresh_from_db()
+        self.assertEqual(article.title, 'Новый заголовок')
+        self.assertEqual(article.slug, 'tipy-stekol')
 
     def test_invalid_cover_is_a_form_error(self):
         form = ArticleAdminForm(data={

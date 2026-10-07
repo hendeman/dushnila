@@ -42,12 +42,13 @@
 | Очередь и отправка контактных заявок в Telegram/email | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Цена на странице дизайнера | [pict/views.md](docs/pict/views.md) | [pict/tests.md](docs/pict/tests.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
+| Единая ширина SEO-полей admin, рекомендации длины и живые счётчики символов | [sitecontent/admin-seo.md](docs/sitecontent/admin-seo.md) | [pict/admin.md](docs/pict/admin.md), [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md) |
 | Счётчик новых заявок в меню admin и массовая отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Порядок категорий и перетягивание в admin | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Интеграции, вставки HTML/JS, выбор страниц и восстановление версий | [pict/integrations.md](docs/pict/integrations.md) | [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md) |
 | Встроенный квиз, `#popup:skinali-quiz`, кнопка запуска и её иконка, автопоказ, вопросы, ответы и заявки типа `quiz` | [quiz/overview.md](docs/quiz/overview.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/services.md](docs/pict/services.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Обработка заявок, Telegram/email-подключения, получатели, секреты и тестовые отправки | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) | [pict/services.md](docs/pict/services.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/management.md](docs/pict/management.md) |
-| Статьи «Полезно знать», Quill 2, очистка HTML/загрузок, стабильный slug и проверка его уникальности, публикация, пагинация и SEO | [sitecontent/articles.md](docs/sitecontent/articles.md) | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [architecture.md](docs/architecture.md) |
+| Статьи «Полезно знать», Quill 2, очистка HTML/загрузок, отдельное поле адреса, стабильный slug и проверка его уникальности, публикация, пагинация и SEO | [sitecontent/articles.md](docs/sitecontent/articles.md) | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [architecture.md](docs/architecture.md) |
 | Управляемое меню, SEO постоянных страниц и будущие блоки сайта | [sitecontent/overview.md](docs/sitecontent/overview.md) | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [architecture.md](docs/architecture.md) |
 | Регистрация приложения | [pict/apps.md](docs/pict/apps.md) | [project/settings.md](docs/project/settings.md) |
 | Тесты | [pict/tests.md](docs/pict/tests.md) | Документ изменяемого модуля |
@@ -96,6 +97,7 @@
 | `skinali/sitecontent/querysets.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [pict/models.md](docs/pict/models.md) |
 | `skinali/sitecontent/management/commands/cleanup_article_images.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
 | `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/admin_seo.py`, `test_admin_seo.py` | [sitecontent/admin-seo.md](docs/sitecontent/admin-seo.md) |
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
