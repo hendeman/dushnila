@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.admin.sites import AdminSite
 from django.core import signing
 from django.core.exceptions import ValidationError
+from django.forms import modelform_factory
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
@@ -69,13 +70,58 @@ class QuizModelTests(TestCase):
         self.assertTrue(self.quiz.matches_path('/designer/'))
         self.assertFalse(self.quiz.matches_path('/about'))
 
-    def test_page_paths_reject_domains_parameters_fragments_and_masks(self):
+    def test_page_masks_include_section_and_descendants_without_expanding_exact_paths(self):
+        self.quiz.page_paths = ' /polezno-znat/*\n/polezno-znat/*\n/skinali/ '
+        self.quiz.full_clean()
+
+        self.assertEqual(self.quiz.page_paths, '/polezno-znat/*\n/skinali/')
+        for path, expected in (
+            ('/polezno-znat/', True),
+            ('/polezno-znat/kukhnya-v-klassicheskom-stile/', True),
+            ('/polezno-znat/style/loft/', True),
+            ('/polezno-znat', False),
+            ('/polezno-znat-arhiv/', False),
+            ('/skinali/', True),
+            ('/skinali/category/', False),
+            ('/skinali/image/example/', False),
+            ('/', False),
+        ):
+            with self.subTest(path=path):
+                self.assertEqual(self.quiz.matches_path(path), expected)
+
+    def test_root_exact_path_root_mask_and_empty_scope(self):
+        for scope, nested_expected in (('/', False), ('/*', True), ('', True)):
+            with self.subTest(scope=scope):
+                self.quiz.page_paths = scope
+                self.quiz.full_clean()
+                self.assertTrue(self.quiz.matches_path('/'))
+                self.assertEqual(self.quiz.matches_path('/about/'), nested_expected)
+
+    def test_admin_model_form_accepts_section_mask(self):
+        quiz_form_class = modelform_factory(Quiz, fields=['page_paths'])
+        form = quiz_form_class(
+            data={'page_paths': ' /polezno-znat/*\n/skinali/ '},
+            instance=self.quiz,
+        )
+
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.instance.page_paths, '/polezno-znat/*\n/skinali/')
+
+    def test_page_paths_reject_domains_parameters_fragments_and_invalid_masks(self):
         for path in (
             'https://example.com/',
             '//example.com/',
             '/about/?q=1',
             '/about/#contacts',
-            '/skinali/*',
+            '*',
+            '**',
+            '/skinali*',
+            '/skinali/**',
+            '/skinali/*/image/',
+            '/skinali/*/*',
+            '/skinali/?q=*',
+            '/skinali/*#contacts',
+            '/bad\\path/*',
             '/bad path',
         ):
             with self.subTest(path=path):
@@ -230,6 +276,23 @@ class QuizRenderingTests(TestCase):
 
         self.assertEqual(context['quiz'], self.quiz)
         self.assertEqual(len(context['form'].question_fields), 6)
+
+    def test_context_loader_applies_masks_to_nested_pages_and_ignores_query_parameters(self):
+        self.quiz.page_paths = '/polezno-znat/*\n/skinali/'
+        self.quiz.full_clean()
+        self.quiz.save(update_fields=['page_paths'])
+
+        for path, expected in (
+            ('/polezno-znat/', True),
+            ('/polezno-znat/new-article/?source=test', True),
+            ('/polezno-znat/style/loft/', True),
+            ('/polezno-znat-arhiv/new-article/', False),
+            ('/skinali/?page=2', True),
+            ('/skinali/category/', False),
+        ):
+            with self.subTest(path=path):
+                context = _load_public_quiz(RequestFactory().get(path))
+                self.assertEqual(context is not None, expected)
 
 
 class QuizSubmissionTests(TestCase):

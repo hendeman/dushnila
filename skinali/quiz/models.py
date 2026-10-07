@@ -70,8 +70,10 @@ class Quiz(models.Model):
         'Страницы',
         blank=True,
         help_text=(
-            'Пусто — все публичные страницы. Или точные локальные пути, '
-            'по одному на строку, например /about/ и /skinali/.'
+            'Пусто — все публичные страницы. Локальные пути по одному на строку: '
+            '/ — только главная, /skinali/ — только эта страница, '
+            '/polezno-znat/* — раздел и все вложенные страницы. '
+            'Без домена и параметров. Маска /* разрешена только в конце пути.'
         ),
     )
     show_launcher = models.BooleanField('Показывать кнопку запуска', default=True)
@@ -138,12 +140,12 @@ class Quiz(models.Model):
     def clean(self):
         super().clean()
         try:
-            self.page_paths = normalize_public_page_paths(self.page_paths)
+            self.page_paths = normalize_public_page_paths(self.page_paths, allow_subpaths=True)
         except ValidationError as error:
             raise ValidationError({'page_paths': error.messages}) from error
 
     def matches_path(self, path):
-        return matches_public_page_path(self.page_paths, path)
+        return matches_public_page_path(self.page_paths, path, allow_subpaths=True)
 
     @property
     def trigger_hash(self):
