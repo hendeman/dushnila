@@ -46,6 +46,15 @@ FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY = '400'
 
 
 class AdminImagePreviewMixin:
+    def get_object(self, request, object_id, from_field=None):
+        obj = super().get_object(request, object_id, from_field)
+        if obj is not None:
+            # Валидация формы заменяет obj.photo даже при ошибках других полей.
+            photo = getattr(obj, 'photo', None)
+            if photo is not None:
+                obj._admin_saved_photo = photo
+        return obj
+
     @staticmethod
     def get_cached_preview_url(image_field, geometry):
         """Возвращает URL превью, сохраняя оригинал как резервный вариант."""
@@ -60,6 +69,14 @@ class AdminImagePreviewMixin:
         """Формирует одинаковую кликабельную миниатюру для всех admin-таблиц."""
         if not image_field:
             return '—'
+        if not image_field._committed:
+            image_field = getattr(image_field.instance, '_admin_saved_photo', None)
+            if not image_field or not image_field._committed:
+                return format_html(
+                    '<span class="admin-image-preview-error">{}</span>',
+                    'Изображение ещё не сохранено. '
+                    'Выберите файл повторно после исправления ошибок.',
+                )
         preview_url = (
             cls.get_cached_preview_url(image_field, geometry)
             if geometry else image_field.url

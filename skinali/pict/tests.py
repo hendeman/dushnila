@@ -2464,6 +2464,248 @@ class CatalogThumbnailTests(TestCase):
                 self.assertNotContains(response, f'src="{picture.photo.url}"')
 
 
+class AdminImagePreviewValidationTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_superuser(
+            username='admin-preview-validation',
+            email='admin-preview-validation@example.com',
+            password='test-password',
+        )
+
+    def setUp(self):
+        self.client.force_login(self.user)
+        self.category = Category.objects.create(cat='Проверка миниатюр', slug='preview-validation')
+        self.color = Color.objects.create(color='Белый', slug_color='preview-white')
+        self.picture = Pict.objects.create(
+            name=8101,
+            alt='Прежнее изображение',
+            photo=create_test_image_file('preview-old-picture.jpg'),
+        )
+        self.work = FinishedWork.objects.create(
+            name='Прежняя готовая работа',
+            photo=create_test_image_file('preview-old-work.jpg'),
+        )
+
+    def preview_cases(self):
+        site = AdminSite()
+        yield (
+            self.picture, PictAdmin(Pict, site), 'admin:pict_pict',
+            {
+                'name': 8102, 'alt': '', 'is_published': True,
+                'cat': [self.category.pk], 'color': [self.color.pk],
+            },
+            'alt', '760',
+        )
+        yield (
+            self.work, FinishedWorkAdmin(FinishedWork, site), 'admin:pict_finishedwork',
+            {
+                'name': 'Новая готовая работа',
+                'glass_type': FinishedWork.GlassType.STANDARD,
+                'skinali_type': FinishedWork.SkinaliType.PAINT,
+                'paint_color': '',
+                'is_published': True,
+            },
+            'paint_color', '400',
+        )
+
+    @staticmethod
+    def valid_data(data, error_field):
+        return {
+            **data,
+            error_field: 'Новое изображение' if error_field == 'alt' else 'RAL 9000',
+        }
+
+    @staticmethod
+    def media_files():
+        return {path for path in Path(settings.MEDIA_ROOT).rglob('*') if path.is_file()}
+
+    def test_empty_add_forms_do_not_try_to_build_preview(self):
+        for _, _, url_prefix, _, _, _ in self.preview_cases():
+            with self.subTest(admin=url_prefix), patch('pict.admin.get_thumbnail') as thumbnail:
+                response = self.client.get(reverse(f'{url_prefix}_add'))
+                self.assertEqual(response.status_code, 200)
+                self.assertNotContains(response, 'data-image-preview')
+                self.assertNotContains(response, 'Изображение ещё не сохранено')
+                thumbnail.assert_not_called()
+
+    def test_unsaved_upload_never_uses_storage_url_or_thumbnail(self):
+        for obj, model_admin, _, _, _, geometry in self.preview_cases():
+            for preview_geometry in (None, geometry):
+                with self.subTest(model=type(obj).__name__, geometry=preview_geometry):
+                    unsaved = type(obj)(photo=create_test_image_file('preview-unsaved.jpg'))
+                    self.assertFalse(unsaved.photo._committed)
+                    with (
+                        self.assertNumQueries(0),
+                        patch('pict.admin.get_thumbnail') as thumbnail,
+                        patch.object(unsaved.photo.storage, 'url') as storage_url,
+                    ):
+                        preview = model_admin.render_image_preview(
+                            unsaved.photo, alt_text='Новое фото', width=200,
+                            geometry=preview_geometry,
+                        )
+                    self.assertIn('Изображение ещё не сохранено', preview)
+                    self.assertNotIn('<img', preview)
+                    self.assertNotIn('<a', preview)
+                    thumbnail.assert_not_called()
+                    storage_url.assert_not_called()
+
+    def test_pending_message_uses_admin_error_color(self):
+        styles = Path(
+            settings.BASE_DIR, 'pict/static/skinali/css/admin-image-preview.css',
+        ).read_text(encoding='utf-8')
+        error_styles = styles.split('.admin-image-preview-error {', 1)[1].split('}', 1)[0]
+        self.assertIn('color: var(--error-fg);', error_styles)
+
+    def test_saved_photo_snapshot_is_local_to_object_without_extra_queries(self):
+        request = RequestFactory().post('/admin/')
+        request.user = self.user
+        for obj, model_admin, _, _, _, _ in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                with CaptureQueriesContext(connection) as baseline_queries:
+                    baseline = admin.ModelAdmin.get_object(model_admin, request, str(obj.pk), 'id')
+                with self.assertNumQueries(len(baseline_queries)):
+                    loaded = model_admin.get_object(request, str(obj.pk), 'id')
+                self.assertIs(loaded._admin_saved_photo, loaded.photo)
+                self.assertFalse(hasattr(baseline, '_admin_saved_photo'))
+                self.assertFalse(hasattr(model_admin, '_admin_saved_photo'))
+                loaded.photo = create_test_image_file('preview-pending-replacement.jpg')
+                with (
+                    self.assertNumQueries(0),
+                    patch('pict.admin.get_thumbnail', return_value=Mock(url='/media/saved-preview.jpg')),
+                ):
+                    preview = str(model_admin.get_html_photo_fields(loaded))
+                self.assertIn(f'href="{obj.photo.url}"', preview)
+                self.assertNotIn('preview-pending-replacement.jpg', preview)
+                self.assertEqual(loaded.photo.name, 'preview-pending-replacement.jpg')
+
+    def test_invalid_add_with_upload_does_not_create_preview_or_save_file(self):
+        for obj, _, url_prefix, data, error_field, _ in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                files_before = self.media_files()
+                count_before = type(obj).objects.count()
+                with (
+                    patch('pict.admin.get_thumbnail') as thumbnail,
+                    patch('pict.admin.logger.exception') as logged_error,
+                ):
+                    response = self.client.post(reverse(f'{url_prefix}_add'), {
+                        **data, 'photo': create_test_image_file('preview-invalid-add.jpg'),
+                    })
+                form = response.context['adminform'].form
+                self.assertIn(error_field, form.errors)
+                self.assertFalse(form.instance.photo._committed)
+                self.assertContains(response, 'Изображение ещё не сохранено')
+                self.assertContains(response, 'Выберите файл повторно после исправления ошибок')
+                self.assertContains(
+                    response,
+                    '<span class="admin-image-preview-error">'
+                    'Изображение ещё не сохранено. '
+                    'Выберите файл повторно после исправления ошибок.</span>',
+                    html=True,
+                )
+                self.assertContains(response, 'skinali/css/admin-image-preview.css')
+                self.assertNotContains(response, 'data-image-preview')
+                self.assertEqual(type(obj).objects.count(), count_before)
+                self.assertEqual(self.media_files(), files_before)
+                thumbnail.assert_not_called()
+                logged_error.assert_not_called()
+
+    def test_valid_bound_form_without_save_still_has_no_preview(self):
+        request = RequestFactory().post('/admin/')
+        request.user = self.user
+        for obj, model_admin, _, data, error_field, _ in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                form = model_admin.get_form(request)(
+                    self.valid_data(data, error_field),
+                    {'photo': create_test_image_file('preview-valid-unsaved.jpg')},
+                )
+                self.assertTrue(form.is_valid(), form.errors)
+                with patch('pict.admin.get_thumbnail') as thumbnail:
+                    preview = model_admin.get_html_photo_fields(form.instance)
+                self.assertIn('Изображение ещё не сохранено', preview)
+                thumbnail.assert_not_called()
+
+    def test_invalid_replacement_shows_previous_saved_photo_and_keeps_upload_unsaved(self):
+        for obj, _, url_prefix, data, error_field, geometry in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                old_name, old_url = obj.photo.name, obj.photo.url
+                old_preview = get_thumbnail(obj.photo, geometry).url
+                files_before = self.media_files()
+                response = self.client.post(reverse(f'{url_prefix}_change', args=[obj.pk]), {
+                    **data, 'photo': create_test_image_file('preview-invalid-replacement.jpg'),
+                })
+                form = response.context['adminform'].form
+                self.assertIn(error_field, form.errors)
+                self.assertFalse(form.instance.photo._committed)
+                self.assertEqual(form.instance.photo.name, 'preview-invalid-replacement.jpg')
+                self.assertEqual(form.instance._admin_saved_photo.name, old_name)
+                self.assertContains(response, f'href="{old_url}"')
+                self.assertContains(response, f'src="{old_preview}"')
+                self.assertNotContains(response, '/media/preview-invalid-replacement.jpg')
+                obj.refresh_from_db()
+                self.assertEqual(obj.photo.name, old_name)
+                self.assertTrue(obj.photo.storage.exists(old_name))
+                self.assertEqual(self.media_files(), files_before)
+
+    def test_invalid_edit_without_new_file_keeps_saved_preview(self):
+        for obj, _, url_prefix, data, error_field, geometry in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                preview_url = get_thumbnail(obj.photo, geometry).url
+                response = self.client.post(reverse(f'{url_prefix}_change', args=[obj.pk]), data)
+                self.assertIn(error_field, response.context['adminform'].form.errors)
+                self.assertContains(response, f'href="{obj.photo.url}"')
+                self.assertContains(response, f'src="{preview_url}"')
+
+    def test_invalid_replacement_without_previous_photo_shows_pending_message(self):
+        for obj, _, url_prefix, data, error_field, _ in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                type(obj).objects.filter(pk=obj.pk).update(photo='')
+                with patch('pict.admin.get_thumbnail') as thumbnail:
+                    response = self.client.post(reverse(f'{url_prefix}_change', args=[obj.pk]), {
+                        **data, 'photo': create_test_image_file('preview-no-previous.jpg'),
+                    })
+                self.assertIn(error_field, response.context['adminform'].form.errors)
+                self.assertContains(response, 'Изображение ещё не сохранено')
+                self.assertNotContains(response, 'data-image-preview')
+                thumbnail.assert_not_called()
+
+    def test_successful_add_uses_saved_photo_for_preview(self):
+        for obj, model_admin, url_prefix, data, error_field, _ in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                response = self.client.post(reverse(f'{url_prefix}_add'), {
+                    **self.valid_data(data, error_field),
+                    'photo': create_test_image_file('preview-successful-add.jpg'),
+                })
+                self.assertEqual(response.status_code, 302)
+                created = type(obj).objects.exclude(pk=obj.pk).get()
+                self.assertTrue(created.photo._committed)
+                self.assertTrue(created.photo.storage.exists(created.photo.name))
+                preview = str(model_admin.get_html_photo_fields(created))
+                self.assertIn(f'href="{created.photo.url}"', preview)
+                self.assertIn('data-image-preview', preview)
+                self.assertNotIn('Изображение ещё не сохранено', preview)
+
+    def test_successful_replacement_shows_new_photo_and_preserves_cleanup(self):
+        for obj, _, url_prefix, data, error_field, geometry in self.preview_cases():
+            with self.subTest(model=type(obj).__name__):
+                old_name = obj.photo.name
+                old_preview = get_thumbnail(obj.photo, geometry)
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(reverse(f'{url_prefix}_change', args=[obj.pk]), {
+                        **self.valid_data(data, error_field),
+                        'photo': create_test_image_file('preview-successful-replacement.jpg'),
+                    })
+                self.assertEqual(response.status_code, 302)
+                obj.refresh_from_db()
+                self.assertNotEqual(obj.photo.name, old_name)
+                self.assertTrue(obj.photo.storage.exists(obj.photo.name))
+                self.assertFalse(obj.photo.storage.exists(old_name))
+                self.assertFalse(old_preview.storage.exists(old_preview.name))
+                response = self.client.get(reverse(f'{url_prefix}_change', args=[obj.pk]))
+                self.assertContains(response, f'href="{obj.photo.url}"')
+                self.assertContains(response, f'src="{get_thumbnail(obj.photo, geometry).url}"')
+
+
 class PictUploadNamingTests(TestCase):
     def test_admin_field_configuration(self):
         name_field = Pict._meta.get_field('name')

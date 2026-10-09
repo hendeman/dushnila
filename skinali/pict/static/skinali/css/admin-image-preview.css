@@ -3,6 +3,10 @@
 	cursor: zoom-in;
 }
 
+.admin-image-preview-error {
+	color: var(--error-fg);
+}
+
 #id_alt.vTextField {
 	box-sizing: border-box;
 	width: 26em;
