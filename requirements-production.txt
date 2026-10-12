@@ -6,4 +6,6 @@ requests==2.34.2
 certifi==2026.7.22
 cryptography==50.0.1
 nh3==0.3.7
+pymorphy3==2.0.6
+pymorphy3-dicts-ru==2.4.417150.4580142
 pysqlite3-binary==0.5.4.post2; platform_system == "Linux"

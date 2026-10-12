@@ -1,0 +1,8 @@
+{% extends "admin/change_list.html" %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  {% if catalog_search_settings_url %}
+    <li><a href="{{ catalog_search_settings_url }}">Настройки сайта</a></li>
+  {% endif %}
+{% endblock %}

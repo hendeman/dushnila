@@ -14,6 +14,7 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from sorl.thumbnail.shortcuts import get_thumbnail
 from sitecontent.admin_seo import SeoAdminMixin
+from sitecontent.models import CatalogSearchSettings
 
 from pict.forms import FinishedWorkAdminForm, IntegrationAdminForm, PictAdminForm
 from pict.models import (
@@ -463,6 +464,7 @@ class TagAliasInline(admin.TabularInline):
 
 
 class TagPictAdmin(SeoAdminMixin, admin.ModelAdmin):
+    change_list_template = 'admin/pict/tagpict/change_list.html'
     list_display = ['tag', 'normalized_tag', 'slug', 'get_search_aliases']
     list_display_links = ['tag']
     search_fields = [
@@ -485,6 +487,15 @@ class TagPictAdmin(SeoAdminMixin, admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).prefetch_related('search_aliases')
+
+    def changelist_view(self, request, extra_context=None):
+        context = dict(extra_context or {})
+        settings_admin = self.admin_site._registry.get(CatalogSearchSettings)
+        if settings_admin and settings_admin.has_view_permission(request):
+            context['catalog_search_settings_url'] = reverse(
+                f'{self.admin_site.name}:sitecontent_catalogsearchsettings_changelist',
+            )
+        return super().changelist_view(request, extra_context=context)
 
     @admin.display(description='Синонимы')
     def get_search_aliases(self, obj):

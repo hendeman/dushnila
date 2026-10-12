@@ -75,6 +75,37 @@ class SitePage(SeoMetadataFields):
         return self.get_code_display()
 
 
+class CatalogSearchSettings(models.Model):
+    """Единая системная карточка настроек сайта с типизированными полями."""
+
+    CODE = 'catalog'
+    code = models.CharField(max_length=20, primary_key=True, default=CODE, editable=False)
+    use_lemmatization = models.BooleanField(
+        'Учитывать словоформы при поиске', default=True,
+        help_text=(
+            'Включено — точные совпадения и начальные формы слов, без поиска по фрагментам. '
+            'Выключено — поиск по фрагментам слов в тегах и синонимах.'
+        ),
+    )
+
+    @classmethod
+    def is_lemmatization_enabled(cls):
+        value = cls.objects.filter(pk=cls.CODE).values_list('use_lemmatization', flat=True).first()
+        return True if value is None else value
+
+    def __str__(self):
+        return str(self._meta.verbose_name)
+
+    class Meta:
+        verbose_name = 'Настройки сайта'
+        verbose_name_plural = 'Настройки сайта'
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(code='catalog'), name='catalog_search_settings_singleton',
+            ),
+        ]
+
+
 class SiteMenu(models.Model):
     """Единственное общее меню, используемое в шапке и подвале сайта."""
 

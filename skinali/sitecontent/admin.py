@@ -11,7 +11,9 @@ from pict.services.delivery_errors import DeliveryConfigurationError
 
 from .forms import ArticleAdminForm, LeadConnectionForm
 from .admin_seo import SeoAdminMixin
-from .models import Article, ArticleImage, LeadConnection, MenuItem, SiteMenu, SitePage
+from .models import (
+    Article, ArticleImage, CatalogSearchSettings, LeadConnection, MenuItem, SiteMenu, SitePage,
+)
 from .article_media import prepare_article_image
 
 
@@ -29,6 +31,35 @@ class SuperuserSiteContentAdminMixin:
 
     def has_change_permission(self, request, obj=None):
         return self.has_module_permission(request)
+
+
+class SingletonSiteContentAdminMixin(SuperuserSiteContentAdminMixin):
+    """Общий переход в единственную системную карточку и запрет её удаления."""
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def changelist_view(self, request, extra_context=None):
+        if self.has_view_permission(request):
+            instance = self.model.objects.only('pk').first()
+            if instance:
+                opts = self.model._meta
+                return redirect(reverse(
+                    f'{self.admin_site.name}:{opts.app_label}_{opts.model_name}_change',
+                    args=[instance.pk],
+                ))
+        return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(CatalogSearchSettings)
+class CatalogSearchSettingsAdmin(SingletonSiteContentAdminMixin, admin.ModelAdmin):
+    fieldsets = (
+        ('Поиск по каталогу', {'fields': ('use_lemmatization',)}),
+    )
+    actions = None
+
+    def has_add_permission(self, request):
+        return False
 
 
 class MenuItemInline(admin.TabularInline):
@@ -60,7 +91,7 @@ class SitePageAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAd
 
 
 @admin.register(SiteMenu)
-class SiteMenuAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+class SiteMenuAdmin(SingletonSiteContentAdminMixin, admin.ModelAdmin):
     fields = ('name',)
     readonly_fields = ('name',)
     inlines = (MenuItemInline,)
@@ -68,18 +99,6 @@ class SiteMenuAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return super().has_add_permission(request) and not SiteMenu.objects.exists()
-
-    def has_delete_permission(self, request, obj=None):
-        # Удаляются отдельные строки; системная карточка основного меню сохраняется.
-        return False
-
-    def changelist_view(self, request, extra_context=None):
-        # Ссылка «Меню» сразу открывает единственную карточку со всеми строками.
-        if self.has_view_permission(request):
-            menu = SiteMenu.objects.only('pk').first()
-            if menu:
-                return redirect(reverse('admin:sitecontent_sitemenu_change', args=[menu.pk]))
-        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(Article)

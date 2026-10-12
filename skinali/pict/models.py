@@ -5,14 +5,14 @@ from pathlib import Path
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import models, router, transaction
 from django.urls import reverse
 from django.utils import timezone
 from sitecontent.models import SeoMetadataFields
 from sitecontent.querysets import PublicationQuerySet
 
 from .page_paths import matches_public_page_path, normalize_public_page_paths
-from .search import normalize_search_value
+from .search import get_search_lemmas, normalize_search_value
 
 
 PICT_FILENAME_STEM_MAX_LENGTH = 200
@@ -212,7 +212,16 @@ class TagPict(SeoLandingContent):
         update_fields = kwargs.get('update_fields')
         if update_fields is not None and 'tag' in update_fields:
             kwargs['update_fields'] = set(update_fields) | {'normalized_tag'}
-        super().save(*args, **kwargs)
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            super().save(*args, **kwargs)
+            if update_fields is None or {'tag', 'normalized_tag'}.intersection(update_fields):
+                self.rebuild_search_lemmas(using=using)
+
+    def rebuild_search_lemmas(self, *, using=None):
+        return TagSearchLemma.replace_for(
+            self, 'tag', 'normalized_tag', using=using,
+        )
 
     def __str__(self):
         return self.tag
@@ -270,7 +279,16 @@ class TagAlias(models.Model):
         update_fields = kwargs.get('update_fields')
         if update_fields is not None and 'alias' in update_fields:
             kwargs['update_fields'] = set(update_fields) | {'normalized_alias'}
-        super().save(*args, **kwargs)
+        using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        with transaction.atomic(using=using):
+            super().save(*args, **kwargs)
+            if update_fields is None or {'alias', 'normalized_alias'}.intersection(update_fields):
+                self.rebuild_search_lemmas(using=using)
+
+    def rebuild_search_lemmas(self, *, using=None):
+        return TagSearchLemma.replace_for(
+            self, 'alias', 'normalized_alias', using=using,
+        )
 
     def __str__(self):
         return self.alias
@@ -279,6 +297,57 @@ class TagAlias(models.Model):
         verbose_name = 'Поисковый синоним'
         verbose_name_plural = 'Поисковые синонимы'
         ordering = ['alias']
+
+
+class TagSearchLemma(models.Model):
+    """Индекс лемм с единственным владельцем: основным тегом или синонимом."""
+
+    lemma = models.CharField(max_length=200, db_index=True, editable=False)
+    tag = models.ForeignKey(
+        TagPict, null=True, blank=True, on_delete=models.CASCADE,
+        related_name='search_lemmas', editable=False,
+    )
+    alias = models.ForeignKey(
+        TagAlias, null=True, blank=True, on_delete=models.CASCADE,
+        related_name='search_lemmas', editable=False,
+    )
+
+    @classmethod
+    def replace_for(cls, owner, owner_field, value_field, *, using=None):
+        """Синхронизирует индекс с сохранённым значением под блокировкой владельца."""
+        using = using or owner._state.db or router.db_for_write(cls, instance=owner)
+        with transaction.atomic(using=using):
+            value = (
+                type(owner)._default_manager.using(using).select_for_update()
+                .values_list(value_field, flat=True).get(pk=owner.pk)
+            )
+            lemmas = set(get_search_lemmas(value))
+            owner_filter = {f'{owner_field}_id': owner.pk}
+            entries = cls.objects.using(using).filter(**owner_filter)
+            existing_lemmas = set(entries.values_list('lemma', flat=True))
+            entries.exclude(lemma__in=lemmas).delete()
+            cls.objects.using(using).bulk_create([
+                cls(lemma=lemma, **owner_filter)
+                for lemma in sorted(lemmas - existing_lemmas)
+            ])
+        return len(lemmas)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(tag__isnull=False, alias__isnull=True)
+                    | models.Q(tag__isnull=True, alias__isnull=False)
+                ),
+                name='search_lemma_has_one_owner',
+            ),
+            models.UniqueConstraint(
+                fields=['tag', 'lemma'], name='unique_tag_search_lemma',
+            ),
+            models.UniqueConstraint(
+                fields=['alias', 'lemma'], name='unique_alias_search_lemma',
+            ),
+        ]
 
 
 class Category(SeoLandingContent):

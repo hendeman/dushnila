@@ -10,7 +10,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_POST, require_safe
 from django.views.generic import DetailView, ListView, TemplateView
-from sitecontent.models import SitePage
+from sitecontent.models import CatalogSearchSettings, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .forms import (
@@ -364,7 +364,14 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
         if route_category:
             # Поиск из категории не выходит за пределы выбранного раздела.
             queryset = queryset.filter(cat=route_category)
-        return apply_catalog_search(queryset, search_form.parsed_query)
+        parsed_query = search_form.parsed_query
+        use_lemmatization = (
+            CatalogSearchSettings.is_lemmatization_enabled()
+            if parsed_query.image_number is None else True
+        )
+        return apply_catalog_search(
+            queryset, parsed_query, use_lemmatization=use_lemmatization,
+        )
 
     def get_popular_tags(self):
         publication_filter = Q(tags__is_published=True)

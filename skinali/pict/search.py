@@ -1,10 +1,11 @@
 import re
 import unicodedata
 from dataclasses import dataclass
-from functools import reduce
+from functools import lru_cache, reduce
 from operator import add
+from threading import Lock
 
-from django.db.models import Case, Exists, IntegerField, OuterRef, Q, Value, When
+from django.db.models import Case, Exists, IntegerField, OuterRef, Value, When
 
 
 SEARCH_QUERY_PARAMETER = 'q'
@@ -13,6 +14,10 @@ SEARCH_TERMS_LIMIT = 5
 SEARCH_TERM_MIN_LENGTH = 3
 SEARCH_IMAGE_NUMBER_MAX = 2_147_483_647
 SEARCH_SEPARATOR_RE = re.compile(r'[\s,#:;–—-]+')
+SEARCH_RUSSIAN_WORD_RE = re.compile(r'[а-я]+')
+SEARCH_LEMMA_CACHE_SIZE = 2048
+_morph_analyzer = None
+_morph_analyzer_lock = Lock()
 
 
 @dataclass(frozen=True)
@@ -29,6 +34,35 @@ def normalize_search_value(value):
     return SEARCH_SEPARATOR_RE.sub(' ', normalized).strip()
 
 
+def _get_morph_analyzer():
+    """Лениво загружает один русский словарь на процесс, включая первый параллельный вызов."""
+    global _morph_analyzer
+    if _morph_analyzer is None:
+        with _morph_analyzer_lock:
+            if _morph_analyzer is None:
+                from pymorphy3 import MorphAnalyzer
+
+                _morph_analyzer = MorphAnalyzer(lang='ru')
+    return _morph_analyzer
+
+
+@lru_cache(maxsize=SEARCH_LEMMA_CACHE_SIZE)
+def lemmatize_search_term(term):
+    """Выбирает наиболее вероятную лемму нормализованного русского слова."""
+    if not SEARCH_RUSSIAN_WORD_RE.fullmatch(term):
+        return term
+    parsed_words = _get_morph_analyzer().parse(term)
+    if not parsed_words:
+        return term
+    return normalize_search_value(parsed_words[0].normal_form)
+
+
+def get_search_lemmas(value):
+    """Возвращает уникальные леммы слов тега, синонима или поискового запроса."""
+    terms = dict.fromkeys(normalize_search_value(value).split())
+    return tuple(dict.fromkeys(lemmatize_search_term(term) for term in terms))
+
+
 def parse_search_query(value):
     terms = tuple(dict.fromkeys(normalize_search_value(value).split()))
     image_number = (
@@ -43,7 +77,7 @@ def parse_search_query(value):
     )
 
 
-def apply_catalog_search(queryset, parsed_query):
+def apply_catalog_search(queryset, parsed_query, *, use_lemmatization=True):
     """Строит один AND-запрос по номеру либо по всем словам тега/синонима."""
     if not parsed_query.terms:
         return queryset.none()
@@ -59,16 +93,28 @@ def apply_catalog_search(queryset, parsed_query):
         alias_exact = picture_tags.filter(
             tagpict__search_aliases__normalized_alias=term,
         )
-        any_match = picture_tags.filter(
-            Q(tagpict__normalized_tag__contains=term)
-            | Q(tagpict__search_aliases__normalized_alias=term)
-        )
+        if use_lemmatization:
+            lemma = lemmatize_search_term(term)
+            primary_lemma = picture_tags.filter(tagpict__search_lemmas__lemma=lemma)
+            alias_lemma = picture_tags.filter(
+                tagpict__search_aliases__search_lemmas__lemma=lemma,
+            )
+            match = (
+                Exists(primary_exact) | Exists(alias_exact)
+                | Exists(primary_lemma) | Exists(alias_lemma)
+            )
+        else:
+            primary_partial = picture_tags.filter(tagpict__normalized_tag__contains=term)
+            alias_partial = picture_tags.filter(
+                tagpict__search_aliases__normalized_alias__contains=term,
+            )
+            match = Exists(primary_partial) | Exists(alias_partial)
 
-        queryset = queryset.filter(Exists(any_match))
+        queryset = queryset.filter(match)
         score_expressions.append(Case(
-            When(Exists(primary_exact), then=Value(3)),
-            When(Exists(alias_exact), then=Value(2)),
-            default=Value(1),
+            When(Exists(primary_exact), then=Value(4 if use_lemmatization else 3)),
+            When(Exists(alias_exact), then=Value(3 if use_lemmatization else 2)),
+            default=Value(2 if use_lemmatization else 1),
             output_field=IntegerField(),
         ))
 

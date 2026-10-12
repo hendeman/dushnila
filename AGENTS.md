@@ -30,6 +30,8 @@
 | Флаги публикации изображений и готовых работ | [pict/models.md](docs/pict/models.md) | [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/forms.md](docs/pict/forms.md), [pict/tests.md](docs/pict/tests.md) |
 | Очистка старых фотографий при замене/удалении, миниатюр и накопившихся файлов без ссылок | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) | [pict/signals.md](docs/pict/signals.md), [pict/admin.md](docs/pict/admin.md), [pict/management.md](docs/pict/management.md), [pict/tests.md](docs/pict/tests.md) |
 | Нормализация, разделители, многословный поиск и релевантность | [pict/search.md](docs/pict/search.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md) |
+| Лемматизация `pymorphy3`, наиболее вероятный разбор, индекс лемм тегов/синонимов и его перестроение | [pict/search.md](docs/pict/search.md), [pict/models.md](docs/pict/models.md) | [pict/management.md](docs/pict/management.md), [pict/tests.md](docs/pict/tests.md), [project/dependencies.md](docs/project/dependencies.md), [migrations/README.md](docs/migrations/README.md) |
+| Единая карточка «Настройки сайта», тематические группы параметров, глобальный переключатель поиска и ссылка из «Ключевых слов» | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/search.md](docs/pict/search.md) | [pict/admin.md](docs/pict/admin.md), [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Каталог, фильтры, пагинация и контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/search.md](docs/pict/search.md), [pict/urls.md](docs/pict/urls.md) |
 | SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
 | Индивидуальная страница изображения, стабильный slug и похожие изображения | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) | [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
@@ -74,6 +76,7 @@
 | `skinali/pict/models.py` | [pict/models.md](docs/pict/models.md) |
 | `skinali/pict/forms.py` | [pict/forms.md](docs/pict/forms.md) |
 | `skinali/pict/search.py` | [pict/search.md](docs/pict/search.md) |
+| `skinali/pict/test_search_lemmas.py` | [pict/search.md](docs/pict/search.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/page_paths.py` | [pict/integrations.md](docs/pict/integrations.md), [quiz/overview.md](docs/quiz/overview.md) |
 | `skinali/pict/sitemaps.py` | [pict/sitemaps.md](docs/pict/sitemaps.md) |
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
@@ -82,6 +85,7 @@
 | `skinali/pict/services/photo_cleanup.py`, `test_photo_cleanup.py` | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/services/telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
+| `skinali/pict/management/commands/rebuild_search_lemmas.py` | [pict/management.md](docs/pict/management.md), [pict/search.md](docs/pict/search.md) |
 | `skinali/pict/management/commands/cleanup_unused_photos.py` | [pict/management.md](docs/pict/management.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
 | `skinali/pict/templatetags/integrations.py` | [pict/integrations.md](docs/pict/integrations.md) |
@@ -100,6 +104,7 @@
 | `skinali/sitecontent/admin_seo.py`, `test_admin_seo.py` | [sitecontent/admin-seo.md](docs/sitecontent/admin-seo.md) |
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
+| `skinali/sitecontent/test_catalog_search_settings.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/search.md](docs/pict/search.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/quiz/apps.py` | [quiz/overview.md](docs/quiz/overview.md) |
 | `skinali/quiz/models.py` | [quiz/overview.md](docs/quiz/overview.md) |

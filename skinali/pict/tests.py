@@ -2235,12 +2235,12 @@ class CatalogSearchTests(TestCase):
         )
         self.assertEqual(missing_category_response.status_code, 404)
 
-    def test_exact_alias_precedes_partial_tag_match(self):
+    def test_exact_alias_does_not_match_a_fragment_of_another_tag(self):
         response = self.client.get(reverse('skinali'), {'q': 'океан'})
 
         self.assertEqual(
             list(response.context['object_list']),
-            [self.sea_picture, self.both_picture, self.partial_picture],
+            [self.sea_picture, self.both_picture],
         )
 
     def test_number_search_is_exact_and_unpublished_picture_is_hidden(self):
@@ -2304,9 +2304,9 @@ class CatalogSearchTests(TestCase):
 
         first_page = self.client.get(reverse('skinali'), {'q': 'океан'})
         second_page = self.client.get(reverse('skinali'), {'q': 'океан', 'page': 2})
-        self.assertEqual(first_page.context['paginator'].count, 32)
+        self.assertEqual(first_page.context['paginator'].count, 31)
         self.assertEqual(len(first_page.context['object_list']), 30)
-        self.assertEqual(len(second_page.context['object_list']), 2)
+        self.assertEqual(len(second_page.context['object_list']), 1)
         self.assertIn('q=%D0%BE%D0%BA%D0%B5%D0%B0%D0%BD', first_page.context['col_tag'])
 
         request = RequestFactory().get(reverse('skinali'), {'q': 'океан'})
@@ -2332,7 +2332,7 @@ class CatalogSearchTests(TestCase):
                 with CaptureQueriesContext(connection) as query_context:
                     view.get_queryset().count()
 
-                self.assertEqual(len(query_context), 1)
+                self.assertEqual(len(query_context), 2)
 
 
 class CatalogThumbnailTests(TestCase):
