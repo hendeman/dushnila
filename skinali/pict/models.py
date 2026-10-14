@@ -213,6 +213,7 @@ class TagPict(SeoLandingContent):
         if update_fields is not None and 'tag' in update_fields:
             kwargs['update_fields'] = set(update_fields) | {'normalized_tag'}
         using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        kwargs['using'] = using
         with transaction.atomic(using=using):
             super().save(*args, **kwargs)
             if update_fields is None or {'tag', 'normalized_tag'}.intersection(update_fields):
@@ -280,6 +281,7 @@ class TagAlias(models.Model):
         if update_fields is not None and 'alias' in update_fields:
             kwargs['update_fields'] = set(update_fields) | {'normalized_alias'}
         using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        kwargs['using'] = using
         with transaction.atomic(using=using):
             super().save(*args, **kwargs)
             if update_fields is None or {'alias', 'normalized_alias'}.intersection(update_fields):

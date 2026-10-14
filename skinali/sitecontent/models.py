@@ -343,6 +343,7 @@ class Article(SeoMetadataFields):
         from .article_media import delete_unreferenced_article_images, prepare_article_image
 
         using = kwargs.get('using') or router.db_for_write(type(self), instance=self)
+        kwargs['using'] = using
         if self.cover and not self.cover._committed:
             self.cover = prepare_article_image(self.cover.file)
         update_fields = kwargs.get('update_fields')
