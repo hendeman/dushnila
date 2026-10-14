@@ -198,7 +198,7 @@ class QuizRenderingTests(TestCase):
         self.assertIn('animation-name: site-quiz-launcher-shimmer-vertical;', css)
         self.assertIn('writing-mode: vertical-rl;', css)
         self.assertIn('justify-content: flex-start;', css)
-        self.assertIn('padding-block: 12px;', css)
+        self.assertIn('padding-block: 14px;', css)
         self.assertIn('padding-inline: 7px;', css)
         self.assertIn('font-size: 17px;', css)
         self.assertIn('.site-quiz-launcher__text {', css)

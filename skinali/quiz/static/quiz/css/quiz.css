@@ -107,7 +107,7 @@
 	justify-content: flex-start;
 	width: 48px;
 	max-height: calc(100vh - 32px);
-	padding-block: 12px;
+	padding-block: 14px;
 	padding-inline: 7px;
 	border-radius: 5px;
 	font-size: 17px;
