@@ -1920,11 +1920,16 @@ ul.mainmenu li a:focus-visible {
 	vertical-align: top;
 }
 
+.item-photo,
+.favorite-card__image {
+	aspect-ratio: 380 / 57;
+	object-fit: cover;
+	object-position: center center;
+}
+
 .item-photo {
 	width: 380px;
 	height: 57px;
-	object-fit: cover;
-	object-position: center center;
 }
 
 .catalog-thumbnail,
@@ -4658,9 +4663,15 @@ background-color: coral;
 		background: transparent !important;
 	}
 
+	.favorites-list {
+		padding-right: 0;
+		padding-left: 0;
+	}
+
 	.favorite-card {
-		grid-template-columns: 1fr;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 18px;
+		padding: 20px 12px;
 	}
 
 	.favorite-card__content {

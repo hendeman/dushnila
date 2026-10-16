@@ -4371,8 +4371,11 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, '#Тег избранного')
         self.assertContains(response, 'Категория избранного')
         self.assertNotContains(response, 'class="catalog-favorite-toggle')
-        self.assertEqual(styles.count('.favorite-card__image {'), 1)
-        favorite_image_styles = styles.split(
+        thumbnail_image_styles = styles.split(
+            '.item-photo,\n.favorite-card__image {',
+            maxsplit=1,
+        )[1].split('}', maxsplit=1)[0]
+        favorite_image_styles = styles.rsplit(
             '.favorite-card__image {',
             maxsplit=1,
         )[1].split('}', maxsplit=1)[0]
@@ -4380,8 +4383,10 @@ class SessionFavoritesTests(TestCase):
             '.catalog-thumbnail:hover::after,',
             maxsplit=1,
         )[1].split('}', maxsplit=1)[0]
+        self.assertIn('aspect-ratio: 380 / 57;', thumbnail_image_styles)
+        self.assertIn('object-fit: cover;', thumbnail_image_styles)
+        self.assertIn('object-position: center center;', thumbnail_image_styles)
         self.assertIn('height: auto;', favorite_image_styles)
-        self.assertNotIn('object-fit:', favorite_image_styles)
         self.assertNotIn('background:', favorite_image_styles)
         self.assertIn(
             '.catalog-thumbnail:focus-visible::after,',

@@ -10,7 +10,7 @@ from ..models import Pict
 FAVORITES_SESSION_KEY = 'favorite_pict_ids'
 FAVORITES_PENDING_IMPORT_SESSION_KEY = 'pending_favorites_share_token'
 FAVORITES_PENDING_ADDED_SESSION_KEY = 'pending_favorites_added_ids'
-MAX_FAVORITES = 5
+MAX_FAVORITES = 50
 FAVORITES_LIMIT_MESSAGE = 'Избранное переполнено. Удалите лишнее'
 FAVORITES_IMPORT_LIMIT_MESSAGE = 'Избранное переполнено'
 FAVORITES_SHARE_SALT = 'pict.shared_favorites.v1'
