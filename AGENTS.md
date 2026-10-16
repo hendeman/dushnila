@@ -36,7 +36,7 @@
 | SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
 | Индивидуальная страница изображения, стабильный slug и похожие изображения | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) | [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Крупное превью для модального окна каталога и страницы изображения | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [project/settings.md](docs/project/settings.md) | [pict/tests.md](docs/pict/tests.md), [architecture.md](docs/architecture.md) |
-| Избранное, Django-сессия, кнопка в модальной галерее | [pict/views.md](docs/pict/views.md) | [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
+| Избранное, лимит 5, подписанные ссылки без БД, частичный импорт, счётчики прогресса, повтор, полная очистка и Toast | [pict/favorites.md](docs/pict/favorites.md) | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict`, включая `/designer/`, добавление и удаление маршрутов | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
 | Контактные формы, заявки, валидация и антиспам | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/context_processors.md](docs/pict/context_processors.md), [pict/urls.md](docs/pict/urls.md) |
@@ -82,6 +82,7 @@
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
 | `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
+| `skinali/pict/services/favorites.py`, `test_favorites.py` | [pict/favorites.md](docs/pict/favorites.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/services/photo_cleanup.py`, `test_photo_cleanup.py` | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/services/telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |

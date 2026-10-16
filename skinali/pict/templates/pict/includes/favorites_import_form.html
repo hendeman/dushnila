@@ -1,0 +1,5 @@
+<form method="post" action="{% url 'favorites_shared' %}" class="favorites-import"{% if automatic %} data-favorites-import-form hidden{% else %} data-favorites-import-retry data-favorites-import-pending{% endif %}>
+  {% csrf_token %}
+  <input type="hidden" name="data" value="{{ token }}">
+  <button type="submit" class="favorites-import__submit">Добавить всё в моё избранное</button>
+</form>

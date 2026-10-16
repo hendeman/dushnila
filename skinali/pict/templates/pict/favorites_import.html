@@ -1,0 +1,15 @@
+{% extends 'pict/base.html' %}
+{% load static %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+{% if favorites_import_error %}
+  <p role="alert">Ссылка на избранное недействительна. Попросите отправителя поделиться подборкой ещё раз.</p>
+  <p><a href="{% url 'favorites' %}">Перейти в избранное</a></p>
+{% else %}
+  <p data-favorites-import-status role="status">Сохраняем подборку в ваше избранное…</p>
+  {% include 'pict/includes/favorites_import_form.html' with token=favorites_share_token automatic=True %}
+  <noscript><p>Для автоматического сохранения подборки включите JavaScript в браузере.</p></noscript>
+  <script src="{% static 'skinali/js/favorites-import.js' %}" defer></script>
+{% endif %}
+{% endblock %}

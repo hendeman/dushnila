@@ -2,6 +2,32 @@
 
 {% block content %}
 <h1>{{ title }}</h1>
+<p class="favorites-notice">В избранное можно добавить не более {{ max_favorites }} изображений. Всего добавлено изображений: <span data-favorites-current-count>{{ favorites_count }}</span></p>
+
+{% for message in messages %}
+  <span hidden data-site-toast-message data-site-toast-kind="{{ message.level_tag }}">{{ message }}</span>
+{% endfor %}
+
+{% if pending_favorites_token %}
+  <div data-favorites-import-pending>
+    <p class="favorites-notice favorites-notice--warning">Подборка не добавлена. Удалите лишние изображения и повторите добавление.<br>
+      Добавлено новых изображений: <span data-favorites-imported-count>{{ pending_favorites_added_count }}</span><br>
+      Осталось добавить изображений: <span data-favorites-pending-count>{{ pending_favorites_count }}</span>
+    </p>
+  </div>
+{% endif %}
+
+{% if pending_favorites_token or favorites_count %}
+  <div class="favorites-actions" data-favorites-actions>
+    {% if pending_favorites_token %}
+      {% include 'pict/includes/favorites_import_form.html' with token=pending_favorites_token automatic=False %}
+    {% endif %}
+    <form method="post" action="{% url 'favorites_clear' %}">
+      {% csrf_token %}
+      <button type="submit" class="favorites-clear__submit is-active" data-favorites-clear{% if not favorites_count %} disabled{% endif %}>Удалить все из избранного</button>
+    </form>
+  </div>
+{% endif %}
 
 <div class="favorites-list" data-favorites-list>
   {% for p in favorite_pictures %}
@@ -36,6 +62,8 @@
   <div class="favorites-share"
        data-share
        data-share-kind="favorites"
+       data-share-url="{{ favorites_share_url }}"
+       data-share-unavailable-message="{{ favorites_share_unavailable_message }}"
        data-favorites-share
        {% if not favorite_pictures %}hidden{% endif %}>
     <button type="button"

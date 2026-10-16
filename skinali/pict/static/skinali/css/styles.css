@@ -1193,6 +1193,7 @@ ul.mainmenu li a:focus-visible {
 	overflow: hidden !important;
 }
 
+.favorites-import__submit,
 .contact-form__submit {
 	display: inline-flex;
 	align-items: center;
@@ -1213,11 +1214,14 @@ ul.mainmenu li a:focus-visible {
 	transition: background .16s, opacity .16s;
 }
 
+.favorites-import__submit:hover,
+.favorites-import__submit:focus-visible,
 .contact-form__submit:hover,
 .contact-form__submit:focus-visible {
 	background: #5d7757;
 }
 
+.favorites-import__submit:disabled,
 .contact-form__submit:disabled {
 	cursor: wait;
 	opacity: .62;
@@ -3102,7 +3106,8 @@ background-color: coral;
 }
 
 .gallery-modal__favorite,
-.favorite-card__remove {
+.favorite-card__remove,
+.favorites-clear__submit {
 	box-sizing: border-box;
 	min-height: 38px;
 	padding: 8px 18px;
@@ -3115,20 +3120,24 @@ background-color: coral;
 }
 
 .gallery-modal__favorite:hover,
-.favorite-card__remove:hover {
+.favorite-card__remove:hover,
+.favorites-clear__submit:hover {
 	color: #fff;
 	background: #d47b11;
 }
 
 .gallery-modal__favorite.is-active,
-.favorite-card__remove.is-active {
+.favorite-card__remove.is-active,
+.favorites-clear__submit.is-active {
 	border-color: #888;
 	color: #555;
 	background: #f2f2f2;
 }
 
 .favorite-card__remove.is-active:hover,
-.favorite-card__remove.is-active:focus-visible {
+.favorite-card__remove.is-active:focus-visible,
+.favorites-clear__submit.is-active:hover,
+.favorites-clear__submit.is-active:focus-visible {
 	border-color: transparent;
 	background:
 		linear-gradient(#e6e6e6, #e6e6e6) padding-box,
@@ -3136,7 +3145,8 @@ background-color: coral;
 }
 
 .gallery-modal__favorite:disabled,
-.favorite-card__remove:disabled {
+.favorite-card__remove:disabled,
+.favorites-clear__submit:disabled {
 	opacity: 0.65;
 	cursor: wait;
 }
@@ -3319,6 +3329,60 @@ background-color: coral;
 
 .favorite-card__empty-description {
 	font-style: italic;
+}
+
+.favorites-notice {
+	margin: 0 0 20px;
+	padding: 14px 18px;
+	border-left: 4px solid #6f8a68;
+	border-radius: 6px;
+	color: #343a35;
+	background: #eef2e8;
+	line-height: 1.6;
+}
+
+.favorites-notice--warning {
+	border-left-color: #d47b11;
+	background: #fff7ed;
+}
+
+.favorites-notice [data-favorites-current-count],
+.favorites-notice [data-favorites-imported-count] {
+	color: #536b51;
+	font-weight: 700;
+}
+
+.favorites-notice [data-favorites-pending-count] {
+	color: #8a4b00;
+	font-weight: 700;
+}
+
+.favorites-import {
+	margin-bottom: 24px;
+	text-align: center;
+}
+
+.favorites-actions {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	flex-wrap: wrap;
+	margin-bottom: 24px;
+}
+
+.favorites-actions[hidden] {
+	display: none;
+}
+
+.favorites-actions .favorites-import {
+	margin-bottom: 0;
+}
+
+.favorites-clear__submit {
+	min-height: 48px;
+	font: inherit;
+	font-size: 15px;
 }
 
 .favorites-share {

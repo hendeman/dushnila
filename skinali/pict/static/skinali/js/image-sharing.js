@@ -24,25 +24,26 @@
     };
   }
 
-  function getFavoritesShareData() {
-    const imageNumbers = Array.from(document.querySelectorAll('[data-favorite-row]'))
-      .map((row) => row.dataset.imageNumber)
-      .filter(Boolean);
-    if (!imageNumbers.length) {
+  function getFavoritesShareData(shareBlock) {
+    const sharedUrl = shareBlock.dataset.shareUrl;
+    if (!sharedUrl) {
+      document.dispatchEvent(new CustomEvent('site:toast', {
+        detail: { message: shareBlock.dataset.shareUnavailableMessage, kind: 'warning' }
+      }));
       return null;
     }
 
-    const title = `Избранные изображения: ${imageNumbers.map((number) => `№${number}`).join(', ')}`;
+    const title = 'Избранные изображения для скинали';
     return {
-      sharedUrl: '',
+      sharedUrl,
       title,
-      message: title
+      message: `${title}\n${sharedUrl}`
     };
   }
 
   function prepareShareLinks(shareBlock) {
     const shareData = shareBlock.dataset.shareKind === 'favorites'
-      ? getFavoritesShareData()
+      ? getFavoritesShareData(shareBlock)
       : getImageShareData(shareBlock);
     if (!shareData) {
       return false;
@@ -77,5 +78,14 @@
 
     toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
     services.hidden = !willOpen;
+  });
+
+  document.addEventListener('favorites:updated', (event) => {
+    document.querySelectorAll('[data-favorites-share]').forEach((shareBlock) => {
+      shareBlock.dataset.shareUrl = event.detail.shareUrl;
+      if (shareBlock.querySelector('[data-share-toggle]')?.getAttribute('aria-expanded') === 'true') {
+        prepareShareLinks(shareBlock);
+      }
+    });
   });
 })();

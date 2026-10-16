@@ -4258,10 +4258,17 @@ class SessionFavoritesTests(TestCase):
         added_response = self.client.post(url)
 
         self.assertEqual(added_response.status_code, 200)
-        self.assertEqual(added_response.json(), {
+        added_result = added_response.json()
+        self.assertTrue(added_result.pop('favorites_share_url').startswith(
+            f'{settings.PUBLIC_SITE_ORIGIN}{reverse("favorites_shared")}?data=',
+        ))
+        self.assertEqual(added_result, {
             'pict_id': self.first_picture.pk,
             'is_favorite': True,
             'favorites_count': 1,
+            'pending_favorites_count': 0,
+            'pending_favorites_added_count': 0,
+            'has_pending_favorites': False,
         })
         self.assertEqual(
             self.client.session['favorite_pict_ids'],
@@ -4455,7 +4462,7 @@ class SessionFavoritesTests(TestCase):
             count=2,
         )
         self.assertContains(response, "document.getElementById(templateId)")
-        self.assertContains(response, 'updateFavoritesMenu(result.favorites_count)')
+        self.assertContains(response, 'updateFavoritesCounts(result)')
         self.assertContains(response, "document.querySelectorAll('[data-favorites-menu]')")
         self.assertContains(response, 'slide.captionEl || fancybox.caption')
         self.assertContains(response, 'if (!slide)')

@@ -2,13 +2,15 @@ import logging
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.contrib import messages
 from django.db import transaction
 from django.db.models import Count, F, IntegerField, Q, Value
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
-from django.views.decorators.http import require_POST, require_safe
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_http_methods, require_POST, require_safe
 from django.views.generic import DetailView, ListView, TemplateView
 from sitecontent.models import CatalogSearchSettings, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
@@ -22,12 +24,27 @@ from .forms import (
 )
 from .models import *
 from .services.contact_delivery import enqueue_contact_request
+from .services.favorites import (
+    FAVORITES_IMPORT_LIMIT_MESSAGE,
+    FAVORITES_LIMIT_MESSAGE,
+    FAVORITES_PENDING_ADDED_SESSION_KEY,
+    FAVORITES_PENDING_IMPORT_SESSION_KEY,
+    FAVORITES_SESSION_KEY,
+    MAX_FAVORITES,
+    build_favorites_share_url,
+    clear_pending_favorites_import,
+    get_favorite_ids,
+    get_new_favorite_ids,
+    get_pending_added_favorite_ids,
+    get_pending_favorites_import,
+    get_published_favorite_ids,
+    read_favorites_share_token,
+)
 from .search import (
     SEARCH_QUERY_PARAMETER,
     apply_catalog_search,
     format_image_count,
 )
-FAVORITES_SESSION_KEY = 'favorite_pict_ids'
 CONTACT_SUCCESS_MESSAGE = (
     'Спасибо! Заявка отправлена.\n'
     'Скоро мы с Вами свяжемся😊'
@@ -114,35 +131,6 @@ def resolve_site_page_metadata(
             default_meta_description,
         ),
     )
-
-
-def get_favorite_ids(request):
-    raw_ids = request.session.get(FAVORITES_SESSION_KEY, [])
-    if not isinstance(raw_ids, (list, tuple)):
-        raw_ids = []
-
-    favorite_ids = []
-    for raw_id in raw_ids:
-        try:
-            pict_id = int(raw_id)
-        except (TypeError, ValueError):
-            continue
-
-        if pict_id > 0 and pict_id not in favorite_ids:
-            favorite_ids.append(pict_id)
-
-    # Снятые с публикации изображения не должны оставаться доступными через сессию.
-    published_ids = set(
-        Pict.objects.published()
-        .filter(pk__in=favorite_ids)
-        .values_list('pk', flat=True)
-    ) if favorite_ids else set()
-    favorite_ids = [pict_id for pict_id in favorite_ids if pict_id in published_ids]
-
-    if favorite_ids != raw_ids:
-        request.session[FAVORITES_SESSION_KEY] = favorite_ids
-
-    return favorite_ids
 
 
 def get_finished_work_gallery_queryset():
@@ -814,11 +802,18 @@ def favorites(request):
         request.session[FAVORITES_SESSION_KEY] = valid_ids
 
     favorite_pictures = [pictures_by_id[pict_id] for pict_id in reversed(valid_ids)]
+    pending_token, pending_count, added_count = get_pending_favorites_import(request, valid_ids)
     context = {
         'title': 'Избранное',
         'favorite_pictures': favorite_pictures,
         'favorite_ids': valid_ids,
         'favorites_count': len(valid_ids),
+        'max_favorites': MAX_FAVORITES,
+        'favorites_share_url': build_favorites_share_url(valid_ids),
+        'favorites_share_unavailable_message': FAVORITES_IMPORT_LIMIT_MESSAGE,
+        'pending_favorites_token': pending_token,
+        'pending_favorites_count': pending_count,
+        'pending_favorites_added_count': added_count,
     }
     set_page_metadata(
         context,
@@ -835,24 +830,103 @@ def favorites(request):
     return render(request, 'pict/favorites.html', context)
 
 
+@never_cache
+@require_http_methods(['GET', 'POST'])
+def favorites_shared(request):
+    token = (request.POST if request.method == 'POST' else request.GET).get('data', '')
+    try:
+        shared_ids = read_favorites_share_token(token)
+    except ValueError:
+        shared_ids = None
+
+    if request.method == 'POST':
+        if shared_ids is None:
+            messages.error(request, 'Ссылка на избранное недействительна')
+        else:
+            favorite_ids = get_favorite_ids(request)
+            available_ids = get_published_favorite_ids(shared_ids)
+            new_ids = get_new_favorite_ids(favorite_ids, available_ids)
+            previously_added_ids = get_pending_added_favorite_ids(request, token)
+            clear_pending_favorites_import(request)
+            if not available_ids:
+                messages.warning(request, 'В подборке нет доступных изображений')
+            else:
+                free_slots = max(0, MAX_FAVORITES - len(favorite_ids))
+                added_ids = new_ids[:free_slots]
+                if added_ids:
+                    request.session[FAVORITES_SESSION_KEY] = favorite_ids + added_ids
+                if len(added_ids) < len(new_ids):
+                    request.session[FAVORITES_PENDING_IMPORT_SESSION_KEY] = token
+                    request.session[FAVORITES_PENDING_ADDED_SESSION_KEY] = get_new_favorite_ids(
+                        [], previously_added_ids + added_ids,
+                    )
+                    messages.warning(request, FAVORITES_IMPORT_LIMIT_MESSAGE)
+                else:
+                    messages.success(request, 'Подборка сохранена в избранном')
+        if is_ajax_request(request):
+            return JsonResponse({'redirect_url': reverse('favorites')})
+        return redirect('favorites')
+
+    context = {
+        'title': 'Подборка избранных изображений',
+        'favorites_share_token': token if shared_ids is not None else '',
+        'favorites_import_error': shared_ids is None,
+        'favorites_count': len(get_favorite_ids(request)),
+    }
+    set_page_metadata(
+        context,
+        request,
+        page_title='Подборка избранных изображений | ОДИУМ',
+        meta_description='Сохранение подборки изображений в избранное.',
+        canonical_path=reverse('favorites'),
+        noindex=True,
+    )
+    response = render(
+        request, 'pict/favorites_import.html', context,
+        status=400 if shared_ids is None else 200,
+    )
+    response['Referrer-Policy'] = 'no-referrer'
+    return response
+
+
+@require_POST
+def clear_favorites(request):
+    request.session[FAVORITES_SESSION_KEY] = []
+    messages.success(request, 'Избранное очищено')
+    return redirect('favorites')
+
+
 @require_POST
 def toggle_favorite(request, pict_id):
     get_object_or_404(Pict.objects.published(), pk=pict_id)
     favorite_ids = get_favorite_ids(request)
+    is_full = False
 
     if pict_id in favorite_ids:
         favorite_ids.remove(pict_id)
         is_favorite = False
+    elif len(favorite_ids) >= MAX_FAVORITES:
+        is_favorite = False
+        is_full = True
     else:
         favorite_ids.append(pict_id)
         is_favorite = True
 
-    request.session[FAVORITES_SESSION_KEY] = favorite_ids
-    return JsonResponse({
+    if not is_full:
+        request.session[FAVORITES_SESSION_KEY] = favorite_ids
+    pending_token, pending_count, added_count = get_pending_favorites_import(request, favorite_ids)
+    result = {
         'pict_id': pict_id,
         'is_favorite': is_favorite,
         'favorites_count': len(favorite_ids),
-    })
+        'favorites_share_url': build_favorites_share_url(favorite_ids),
+        'pending_favorites_count': pending_count,
+        'pending_favorites_added_count': added_count,
+        'has_pending_favorites': bool(pending_token),
+    }
+    if is_full:
+        result.update(code='favorites_full', message=FAVORITES_LIMIT_MESSAGE)
+    return JsonResponse(result, status=409 if is_full else 200)
 
 
 def is_ajax_request(request):

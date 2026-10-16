@@ -80,6 +80,18 @@
     return form.querySelector(`[data-form-errors="${fieldName}"]`);
   }
 
+  // Один Toast обслуживает формы, избранное и сообщения после переходов.
+  document.addEventListener('site:toast', (event) => {
+    const { message, kind = 'success' } = event.detail || {};
+    if (['success', 'warning', 'error'].includes(kind)) {
+      showContactToast(message, kind);
+    }
+  });
+
+  document.querySelectorAll('[data-site-toast-message]').forEach((element) => {
+    showContactToast(element.textContent, element.dataset.siteToastKind);
+  });
+
   function clearFieldErrors(form, fieldName) {
     const errorBox = getErrorBox(form, fieldName);
     if (errorBox) {
