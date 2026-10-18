@@ -22,27 +22,36 @@
   </header>
 
   <div class="image-detail__layout">
-    <figure class="image-detail__media">
-      <a href="{{ picture.photo.url }}"
-         target="_blank"
-         rel="noopener"
-         aria-label="Открыть полноразмерное изображение №{{ picture.name }}">
-        {% thumbnail picture.photo large_thumbnail_geometry quality=large_thumbnail_quality as picture_thumbnail %}
-          <img src="{{ picture_thumbnail.url }}"
-               width="{{ picture_thumbnail.width }}"
-               height="{{ picture_thumbnail.height }}"
-               alt="{{ picture.alt|default:'Изображение из каталога' }}"
-               decoding="async"
-               fetchpriority="high">
-        {% empty %}
-          <img src="{{ picture.photo.url }}"
-               alt="{{ picture.alt|default:'Изображение из каталога' }}"
-               decoding="async"
-               fetchpriority="high">
-        {% endthumbnail %}
-      </a>
-      <figcaption>Нажмите на изображение, чтобы открыть оригинал.</figcaption>
-    </figure>
+    <div class="image-detail__visual">
+      <figure class="image-detail__media">
+        <a href="{{ picture.photo.url }}"
+           target="_blank"
+           rel="noopener"
+           aria-label="Открыть полноразмерное изображение №{{ picture.name }}">
+          {% thumbnail picture.photo large_thumbnail_geometry quality=large_thumbnail_quality as picture_thumbnail %}
+            <img src="{{ picture_thumbnail.url }}"
+                 width="{{ picture_thumbnail.width }}"
+                 height="{{ picture_thumbnail.height }}"
+                 alt="{{ picture.alt|default:'Изображение из каталога' }}"
+                 decoding="async"
+                 fetchpriority="high">
+          {% empty %}
+            <img src="{{ picture.photo.url }}"
+                 alt="{{ picture.alt|default:'Изображение из каталога' }}"
+                 decoding="async"
+                 fetchpriority="high">
+          {% endthumbnail %}
+        </a>
+        <figcaption>Нажмите на изображение, чтобы открыть оригинал.</figcaption>
+      </figure>
+
+      {% if picture.published_finished_works %}
+        <section class="image-detail__works" aria-labelledby="image-finished-works-title">
+          <h2 id="image-finished-works-title">В реальных кухнях</h2>
+          {% include 'pict/includes/image_finished_works.html' with picture=picture show_thumbnails=True %}
+        </section>
+      {% endif %}
+    </div>
 
     <div class="image-detail__content">
       <p class="image-detail__description">{{ page_description|linebreaksbr }}</p>

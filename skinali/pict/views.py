@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib import messages
 from django.db import transaction
-from django.db.models import Count, F, IntegerField, Q, Value
+from django.db.models import Count, F, IntegerField, Prefetch, Q, Value
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -134,12 +134,21 @@ def resolve_site_page_metadata(
 
 
 def get_finished_work_gallery_queryset():
-    # Главная и полная галерея используют одну сортировку и один JOIN для номера изображения.
+    # Все галереи используют одну сортировку и один JOIN для номера изображения.
     return (
         FinishedWork.objects.published()
         .select_related('catalog_image')
         .order_by('-created_at', '-id')
     )
+
+
+def with_published_finished_works(queryset):
+    """Загружает работы всей страницы одним запросом, без запросов из карточек."""
+    return queryset.prefetch_related(Prefetch(
+        'finished_works',
+        queryset=get_finished_work_gallery_queryset(),
+        to_attr='published_finished_works',
+    ))
 
 
 def get_similar_picture_queryset(picture, *, limit=8):
@@ -157,7 +166,7 @@ def get_similar_picture_queryset(picture, *, limit=8):
             distinct=True,
         )
 
-    return (
+    return with_published_finished_works(
         Pict.objects.published()
         .exclude(pk=picture.pk)
         .annotate(
@@ -307,7 +316,7 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
     def get_catalog_queryset():
         # Популярные изображения идут первыми, а внутри обеих групп сохраняется
         # прежний порядок от новых записей к старым.
-        return (
+        return with_published_finished_works(
             Pict.objects.published()
             .order_by('-is_popular', '-id')
             .prefetch_related('tags', 'cat')
@@ -543,7 +552,9 @@ class PictDetail(FavoritesContextMixin, DetailView):
     slug_url_kwarg = 'slug'
 
     def get_queryset(self):
-        return Pict.objects.published().prefetch_related('cat', 'tags', 'color')
+        return with_published_finished_works(
+            Pict.objects.published().prefetch_related('cat', 'tags', 'color'),
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -640,11 +651,9 @@ class PictTag(ColorFilterMixin, FavoritesContextMixin, ListView):
         )
 
     def get_queryset(self):
-        queryset = Pict.objects.published().filter(
-            tags=self.get_tag(),
-        ).prefetch_related(
-            'tags',
-            'cat',
+        queryset = with_published_finished_works(
+            Pict.objects.published().filter(tags=self.get_tag())
+            .prefetch_related('tags', 'cat'),
         )
         return self.filter_queryset_by_selected_colors(queryset)
 
@@ -791,11 +800,10 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
 def favorites(request):
     favorite_ids = get_favorite_ids(request)
     # Общая с каталогом модальная карточка использует теги и категории.
-    pictures_by_id = (
+    pictures_by_id = with_published_finished_works(
         Pict.objects.published()
         .prefetch_related('tags', 'cat')
-        .in_bulk(favorite_ids)
-    )
+    ).in_bulk(favorite_ids)
     valid_ids = [pict_id for pict_id in favorite_ids if pict_id in pictures_by_id]
 
     if valid_ids != favorite_ids:

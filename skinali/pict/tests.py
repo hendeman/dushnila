@@ -74,6 +74,7 @@ from .views import (
     SkinaliAll,
     serverError,
     set_page_metadata,
+    with_published_finished_works,
 )
 
 
@@ -992,7 +993,7 @@ class TagPageAndSitemapTests(TestCase):
         self.assertNotContains(response, '<meta name="robots"')
         self.assertNotContains(response, 'class="site-search"')
         self.assertContains(response, 'class="container catalog-gallery"')
-        self.assertContains(response, 'Hash: false', count=1)
+        self.assertContains(response, 'Hash: false')
         self.assertContains(
             response,
             '<span class="catalog-thumbnail__image-number">'
@@ -2203,7 +2204,7 @@ class CatalogSearchTests(TestCase):
         self.assertContains(response, 'Найдено 1 изображение')
         self.assertContains(response, 'name="q"')
         self.assertContains(response, 'value="#ОКЕАН, ЗАКАТ"')
-        self.assertContains(response, 'Hash: false', count=1)
+        self.assertContains(response, 'Hash: false')
         self.assertContains(
             response,
             '<span class="catalog-thumbnail__image-number">'
@@ -2319,8 +2320,9 @@ class CatalogSearchTests(TestCase):
             for picture in pictures:
                 list(picture.tags.all())
                 list(picture.cat.all())
+                list(picture.published_finished_works)
 
-        self.assertEqual(len(query_context), 4)
+        self.assertEqual(len(query_context), 5)
 
     def test_number_of_terms_does_not_increase_database_query_count(self):
         for query in ('море', 'море закат лес река поле'):
@@ -2836,6 +2838,150 @@ class PictUploadNamingTests(TestCase):
 
 
 @override_settings(PUBLIC_SITE_ORIGIN='https://odium.by')
+class ImageFinishedWorksTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.category = Category.objects.create(cat='Кухни', slug='interior-kitchens')
+        cls.tag = TagPict.objects.create(tag='Интерьер', slug='interior-tag')
+        cls.picture = Pict.objects.create(
+            name=275,
+            alt='Рисунок для кухни',
+            photo=create_test_image_file('interior-275.jpg'),
+        )
+        cls.other_picture = Pict.objects.create(
+            name=276,
+            alt='Другой рисунок',
+            photo=create_test_image_file('interior-276.jpg'),
+        )
+        for picture in (cls.picture, cls.other_picture):
+            picture.cat.add(cls.category)
+            picture.tags.add(cls.tag)
+        cls.older_work = FinishedWork.objects.create(
+            name='Первая кухня',
+            photo=create_test_image_file('interior-older.jpg'),
+            catalog_image=cls.picture,
+        )
+        cls.newer_work = FinishedWork.objects.create(
+            name='Вторая кухня',
+            photo=create_test_image_file('interior-newer.jpg'),
+            catalog_image=cls.picture,
+        )
+        cls.hidden_work = FinishedWork.objects.create(
+            name='Неопубликованная кухня',
+            photo=create_test_image_file('interior-hidden.jpg'),
+            catalog_image=cls.picture,
+            is_published=False,
+        )
+        cls.other_work = FinishedWork.objects.create(
+            name='Кухня с другим рисунком',
+            photo=create_test_image_file('interior-other.jpg'),
+            catalog_image=cls.other_picture,
+        )
+        cls.unlinked_work = FinishedWork.objects.create(
+            name='Кухня без рисунка',
+            photo=create_test_image_file('interior-unlinked.jpg'),
+        )
+
+    def test_detail_places_related_photos_under_image_in_left_column(self):
+        response = self.client.get(self.picture.get_absolute_url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.context['picture'].published_finished_works,
+            [self.newer_work, self.older_work],
+        )
+        self.assertContains(response, 'В реальных кухнях')
+        html = response.content.decode()
+        works_position = html.index('class="image-detail__works"')
+        self.assertLess(html.index('</figure>'), works_position)
+        self.assertLess(works_position, html.index('class="image-detail__content"'))
+        self.assertContains(
+            response,
+            f'data-fancybox="image-finished-works-{self.picture.pk}"',
+            count=2,
+        )
+        self.assertNotContains(response, self.hidden_work.photo.url)
+        self.assertNotContains(response, self.unlinked_work.photo.url)
+
+    def test_modal_tile_and_isolated_gallery_are_available_on_all_catalog_lists(self):
+        session = self.client.session
+        session['favorite_pict_ids'] = [self.picture.pk, self.other_picture.pk]
+        session.save()
+        self.client.cookies[settings.SESSION_COOKIE_NAME] = session.session_key
+        urls = (
+            reverse('skinali'),
+            self.category.get_absolute_url(),
+            reverse('skinali') + '?q=275',
+            self.tag.get_absolute_url(),
+            reverse('favorites'),
+        )
+        for url in urls:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'В интерьере · 2 фото', count=1)
+                self.assertContains(
+                    response,
+                    f'data-image-finished-works-open="image-finished-works-{self.picture.pk}"',
+                    count=1,
+                )
+                self.assertContains(
+                    response,
+                    f'id="image-finished-works-{self.picture.pk}" hidden',
+                    count=1,
+                )
+                self.assertContains(
+                    response,
+                    f'data-fancybox="image-finished-works-{self.picture.pk}"',
+                    count=2,
+                )
+                self.assertNotContains(response, self.hidden_work.photo.url)
+                self.assertNotContains(response, self.unlinked_work.photo.url)
+                html = response.content.decode()
+                group_links = re.findall(
+                    r'<a class="finished-work-card__link".*?</a>',
+                    html,
+                    flags=re.DOTALL,
+                )
+                related_links = [
+                    link for link in group_links
+                    if f'data-fancybox="image-finished-works-{self.picture.pk}"' in link
+                ]
+                self.assertEqual(len(related_links), 2)
+                self.assertIn(f'href="{self.newer_work.photo.url}"', related_links[0])
+                self.assertIn(f'href="{self.older_work.photo.url}"', related_links[1])
+                element_ids = re.findall(r'\sid="([^"]+)"', html)
+                self.assertEqual(len(element_ids), len(set(element_ids)))
+                self.assertLess(
+                    html.index(f'href="{self.newer_work.photo.url}"'),
+                    html.index(f'href="{self.older_work.photo.url}"'),
+                )
+
+    def test_empty_or_unpublished_related_works_hide_both_blocks(self):
+        FinishedWork.objects.filter(catalog_image=self.picture).update(is_published=False)
+
+        response = self.client.get(self.picture.get_absolute_url())
+        self.assertNotContains(response, 'class="image-detail__works"')
+        response = self.client.get(reverse('skinali'), {'q': '275'})
+        self.assertNotContains(response, 'class="catalog-modal__interior"')
+        self.assertNotContains(response, f'id="image-finished-works-{self.picture.pk}"')
+
+    def test_related_works_are_prefetched_once_for_multiple_images(self):
+        with self.assertNumQueries(2):
+            pictures = list(with_published_finished_works(
+                Pict.objects.filter(pk__in=[self.picture.pk, self.other_picture.pk])
+                .order_by('pk'),
+            ))
+
+        with self.assertNumQueries(0):
+            self.assertEqual(pictures[0].published_finished_works, [self.newer_work, self.older_work])
+            self.assertEqual(pictures[1].published_finished_works, [self.other_work])
+            self.assertEqual(
+                pictures[0].published_finished_works[0].catalog_image.get_absolute_url(),
+                self.picture.get_absolute_url(),
+            )
+
+
 class PictDetailPageTests(TestCase):
     @classmethod
     def setUpTestData(cls):

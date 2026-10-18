@@ -85,6 +85,23 @@
         </div>
       </dl>
 
+      {% if p.published_finished_works %}
+        <a class="catalog-modal__interior"
+           href="{{ p.get_absolute_url }}#image-finished-works-{{ p.pk }}"
+           data-image-finished-works-open="image-finished-works-{{ p.pk }}"
+           data-clickable
+           aria-haspopup="dialog">
+          {% include 'pict/includes/finished_work_thumbnail.html' with work=p.published_finished_works.0 image_class='catalog-modal__interior-image' decorative=True %}
+          <span class="catalog-modal__interior-text">
+            <span class="catalog-modal__interior-title">В интерьере · {{ p.published_finished_works|length }} фото</span>
+            <span class="catalog-modal__interior-description">Готовые кухни с этим изображением</span>
+          </span>
+          <svg class="catalog-modal__interior-arrow" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m9 18 6-6-6-6"></path>
+          </svg>
+        </a>
+      {% endif %}
+
       <div class="catalog-modal__actions">
         <a class="catalog-modal__detail"
            href="{{ p.get_absolute_url }}"
@@ -138,6 +155,7 @@
     </div>
   </template>
 
+  {% include 'pict/includes/image_finished_works.html' with picture=p show_thumbnails=False %}
 {% endif %}
 
 {% if show_catalog_favorite %}

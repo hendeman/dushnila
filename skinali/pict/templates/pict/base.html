@@ -268,35 +268,43 @@
         }
       });
 
-      Fancybox.bind('[data-fancybox="finished-works"]', {
-        mainClass: 'catalog-gallery-modal finished-works-modal',
-        idle: false,
-        showClass: false,
-        closeButton: true,
-        Toolbar: false,
-        Thumbs: false,
-        wheel: false,
-        contentClick: false,
-        Images: {
-          zoom: false
-        },
-        caption: (fancybox, slide) => {
-          const templateId = slide.triggerEl?.dataset.captionTemplate;
-          const template = templateId ? document.getElementById(templateId) : null;
-          return template ? template.innerHTML : '';
-        },
-        Carousel: {
-          infinite: true,
-          transition: 'fade',
-          Navigation: false
-        },
-        on: createGalleryEvents(),
-        l10n: {
-          CLOSE: 'Закрыть',
-          NEXT: 'Следующая работа',
-          PREV: 'Предыдущая работа'
-        }
-      });
+      Fancybox.bind(
+        '[data-fancybox="finished-works"], [data-fancybox^="image-finished-works-"]',
+        getFinishedWorkGalleryOptions()
+      );
+
+      function getFinishedWorkGalleryOptions() {
+        return {
+          mainClass: 'catalog-gallery-modal finished-works-modal',
+          idle: false,
+          showClass: false,
+          closeButton: true,
+          Toolbar: false,
+          Thumbs: false,
+          wheel: false,
+          Hash: false,
+          contentClick: false,
+          Images: {
+            zoom: false
+          },
+          caption: (fancybox, slide) => {
+            const templateId = slide.triggerEl?.dataset.captionTemplate;
+            const template = templateId ? document.getElementById(templateId) : null;
+            return template ? template.innerHTML : '';
+          },
+          Carousel: {
+            infinite: true,
+            transition: 'fade',
+            Navigation: false
+          },
+          on: createGalleryEvents(),
+          l10n: {
+            CLOSE: 'Закрыть',
+            NEXT: 'Следующая работа',
+            PREV: 'Предыдущая работа'
+          }
+        };
+      }
 
       function createGalleryEvents() {
         return {
@@ -330,6 +338,7 @@
 
         if (fancybox.container?.classList.contains('catalog-gallery-modal')) {
           enableCatalogCaptionSelection(caption);
+          enableImageFinishedWorks(slide.contentEl);
           revealPreparedCatalogSlide(slide.contentEl);
         }
 
@@ -379,6 +388,39 @@
           }
         });
         button.dataset.callbackEnabled = 'true';
+      }
+
+      function enableImageFinishedWorks(content) {
+        const link = content.querySelector('[data-image-finished-works-open]');
+        if (!link || link.dataset.interiorEnabled === 'true') {
+          return;
+        }
+
+        link.addEventListener('click', (event) => {
+          const gallery = document.getElementById(link.dataset.imageFinishedWorksOpen);
+          const photos = gallery ? Array.from(gallery.querySelectorAll('a[data-fancybox]')) : [];
+          if (!photos.length) {
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+          const options = getFinishedWorkGalleryOptions();
+          // Каталожная карточка остаётся открытой под работами; закрытие возвращает фокус в неё.
+          Fancybox.fromNodes(photos, {
+            ...options,
+            placeFocusBack: false,
+            on: {
+              ...options.on,
+              destroy: () => window.queueMicrotask(() => {
+                if (link.isConnected) {
+                  link.focus({ preventScroll: true });
+                }
+              })
+            }
+          });
+        });
+        link.dataset.interiorEnabled = 'true';
       }
 
       function positionFinishedWorkNavigation(content) {

@@ -2035,6 +2035,27 @@ ul.mainmenu li a:focus-visible {
 	margin: 0;
 }
 
+.image-detail__visual {
+	min-width: 0;
+}
+
+.image-detail__works {
+	margin-top: 28px;
+}
+
+.image-detail__works h2 {
+	margin: 0 0 16px;
+	font-size: clamp(20px, 2vw, 26px);
+	font-weight: 600;
+}
+
+.image-detail__works-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 14px;
+	scroll-margin-top: 180px;
+}
+
 .image-detail__media a {
 	display: block;
 	border-radius: 16px;
@@ -2833,6 +2854,97 @@ background-color: coral;
 	gap: 12px;
 	flex-wrap: wrap;
 	pointer-events: auto;
+}
+
+.catalog-modal__interior {
+	display: flex;
+	align-items: center;
+	gap: 18px;
+	min-width: 0;
+	margin-top: 18px;
+	padding: 9px 14px;
+	border: 1px solid #c2cdbd;
+	border-radius: 12px;
+	color: #1f231f;
+	background: #f1f3ed;
+	text-decoration: none;
+	transition: background .16s, border-color .16s;
+}
+
+.catalog-modal__interior:hover,
+.catalog-modal__interior:focus-visible {
+	border-color: #6f8a68;
+	background: #e8ede3;
+}
+
+.catalog-modal__interior-image {
+	display: block;
+	flex: 0 0 88px;
+	width: 88px;
+	height: 56px;
+	border-radius: 8px;
+	object-fit: cover;
+}
+
+.catalog-modal__interior-text {
+	display: grid;
+	min-width: 0;
+	gap: 4px;
+	line-height: 1.35;
+}
+
+.catalog-modal__interior-title {
+	font-size: 17px;
+	font-weight: 650;
+}
+
+.catalog-modal__interior-description {
+	color: #737a74;
+	font-size: 13px;
+}
+
+.catalog-modal__interior-arrow {
+	flex: 0 0 22px;
+	width: 22px;
+	height: 22px;
+	margin-left: auto;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+@media (max-width: 700px) {
+	.catalog-modal__interior {
+		gap: 12px;
+		padding: 9px 10px;
+	}
+
+	.catalog-modal__interior-image {
+		flex-basis: 64px;
+		width: 64px;
+		height: 52px;
+	}
+
+	.catalog-modal__interior-title {
+		font-size: 15px;
+	}
+
+	.catalog-modal__interior-description {
+		font-size: 12px;
+	}
+
+	.catalog-modal__interior-arrow {
+		flex-basis: 18px;
+		width: 18px;
+		height: 18px;
+	}
+
+	.image-detail__works-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+	}
 }
 
 .catalog-modal__detail,

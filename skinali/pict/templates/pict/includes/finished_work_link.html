@@ -1,32 +1,18 @@
 {% load static thumbnail %}
 <a class="{{ link_class }}"
-   data-fancybox="finished-works"
+   data-fancybox="{% if gallery_image_id %}image-finished-works-{{ gallery_image_id }}{% else %}finished-works{% endif %}"
    {% if work.catalog_image %}
    data-favorite-item
    data-pict-id="{{ work.catalog_image.pk }}"
    data-is-favorite="{% if work.catalog_image.pk in favorite_ids %}true{% else %}false{% endif %}"
    {% endif %}
    href="{{ work.photo.url }}"
-   data-caption-template="finished-work-caption-{{ work.pk }}"
+   data-caption-template="finished-work-caption-{% if gallery_image_id %}image-{{ gallery_image_id }}-{% endif %}{{ work.pk }}"
    data-caption="{{ work.name }}">
-  {% thumbnail work.photo "760x760" crop="center" as work_thumbnail %}
-    <img class="{{ image_class }}"
-         src="{{ work_thumbnail.url }}"
-         width="{{ work_thumbnail.width }}"
-         height="{{ work_thumbnail.height }}"
-         alt="{{ work.name }}"
-         loading="lazy"
-         decoding="async">
-  {% empty %}
-    <img class="{{ image_class }}"
-         src="{{ work.photo.url }}"
-         alt="{{ work.name }}"
-         loading="lazy"
-         decoding="async">
-  {% endthumbnail %}
+  {% include 'pict/includes/finished_work_thumbnail.html' %}
 </a>
 
-<template id="finished-work-caption-{{ work.pk }}">
+<template id="finished-work-caption-{% if gallery_image_id %}image-{{ gallery_image_id }}-{% endif %}{{ work.pk }}">
   <div class="catalog-modal__caption finished-work-modal__caption">
     <button type="button"
             class="catalog-modal__nav catalog-modal__nav--prev"
