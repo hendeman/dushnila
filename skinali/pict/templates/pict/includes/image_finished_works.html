@@ -1,0 +1,9 @@
+{% if picture.published_finished_works %}
+  <div id="image-finished-works-{{ picture.pk }}"{% if show_thumbnails %} class="image-detail__works-grid"{% else %} hidden{% endif %}>
+    {% for work in picture.published_finished_works %}
+      <article class="finished-work-card">
+        {% include 'pict/includes/finished_work_link.html' with work=work gallery_image_id=picture.pk link_class='finished-work-card__link' image_class='finished-work-card__image' %}
+      </article>
+    {% endfor %}
+  </div>
+{% endif %}

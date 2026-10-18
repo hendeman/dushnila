@@ -1,0 +1,16 @@
+{% load thumbnail %}
+{% thumbnail work.photo "760x760" crop="center" as work_thumbnail %}
+  <img class="{{ image_class }}"
+       src="{{ work_thumbnail.url }}"
+       width="{{ work_thumbnail.width }}"
+       height="{{ work_thumbnail.height }}"
+       alt="{% if not decorative %}{{ work.name }}{% endif %}"
+       loading="lazy"
+       decoding="async">
+{% empty %}
+  <img class="{{ image_class }}"
+       src="{{ work.photo.url }}"
+       alt="{% if not decorative %}{{ work.name }}{% endif %}"
+       loading="lazy"
+       decoding="async">
+{% endthumbnail %}
