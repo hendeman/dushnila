@@ -33,6 +33,7 @@
 | Лемматизация `pymorphy3`, наиболее вероятный разбор, индекс лемм тегов/синонимов и его перестроение | [pict/search.md](docs/pict/search.md), [pict/models.md](docs/pict/models.md) | [pict/management.md](docs/pict/management.md), [pict/tests.md](docs/pict/tests.md), [project/dependencies.md](docs/project/dependencies.md), [migrations/README.md](docs/migrations/README.md) |
 | Единая карточка «Настройки сайта», тематические группы параметров, глобальный переключатель поиска и ссылка из «Ключевых слов» | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/search.md](docs/pict/search.md) | [pict/admin.md](docs/pict/admin.md), [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Каталог, фильтры, пагинация и контекст шаблонов | [pict/views.md](docs/pict/views.md) | [pict/search.md](docs/pict/search.md), [pict/urls.md](docs/pict/urls.md) |
+| Общая пагинация каталога, тегов, готовых работ и статей, компактный ряд и кликабельные `...` | [pict/pagination.md](docs/pict/pagination.md) | [pict/views.md](docs/pict/views.md), [pict/tests.md](docs/pict/tests.md) |
 | SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
 | Индивидуальная страница изображения, стабильный slug, похожие изображения и связанные готовые кухни; «В интерьере» в модальном окне каталога | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) | [pict/favorites.md](docs/pict/favorites.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Крупное превью для модального окна каталога и страницы изображения | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [project/settings.md](docs/project/settings.md) | [pict/tests.md](docs/pict/tests.md), [architecture.md](docs/architecture.md) |
@@ -90,6 +91,7 @@
 | `skinali/pict/management/commands/cleanup_unused_photos.py` | [pict/management.md](docs/pict/management.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
 | `skinali/pict/templatetags/integrations.py` | [pict/integrations.md](docs/pict/integrations.md) |
+| `skinali/pict/templatetags/pagination.py` | [pict/pagination.md](docs/pict/pagination.md) |
 | `skinali/pict/urls.py` | [pict/urls.md](docs/pict/urls.md) |
 | `skinali/pict/views.py` | [pict/views.md](docs/pict/views.md) |
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |

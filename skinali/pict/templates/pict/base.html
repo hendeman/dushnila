@@ -336,6 +336,11 @@
           slide.contentEl.appendChild(caption);
         }
 
+        const hasMultipleSlides = fancybox.carousel?.slides.length > 1;
+        for (const button of caption.querySelectorAll('[data-fancybox-prev], [data-fancybox-next]')) {
+          button.hidden = !hasMultipleSlides;
+        }
+
         if (fancybox.container?.classList.contains('catalog-gallery-modal')) {
           enableCatalogCaptionSelection(caption);
           enableImageFinishedWorks(slide.contentEl);

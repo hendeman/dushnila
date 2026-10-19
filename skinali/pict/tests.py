@@ -1975,38 +1975,111 @@ class SitePageSeoTests(TestCase):
 
 class PaginatorTemplateTests(SimpleTestCase):
     @staticmethod
-    def render_paginator(page_number, num_pages):
+    def render_paginator(page_number, num_pages, col_tag=''):
         page_obj = Paginator(range(num_pages), 1).page(page_number)
         return render_to_string(
             'pict/includes/paginator.html',
-            {'page_obj': page_obj, 'col_tag': ''},
+            {'page_obj': page_obj, 'col_tag': col_tag},
         )
 
-    def test_five_page_jump_controls_use_exact_targets(self):
-        html = self.render_paginator(page_number=6, num_pages=11)
+    @staticmethod
+    def visible_labels(html):
+        return [
+            re.sub(r'<[^>]+>', '', item).strip()
+            for item in re.findall(r'<li\b[^>]*>(.*?)</li>', html, re.S)
+        ]
 
-        self.assertInHTML(
-            '<a href="?page=1" aria-label="Назад на 5 страниц" '
-            'title="Назад на 5 страниц">&laquo;</a>',
-            html,
-        )
-        self.assertInHTML(
-            '<a href="?page=11" aria-label="Вперёд на 5 страниц" '
-            'title="Вперёд на 5 страниц">&raquo;</a>',
-            html,
-        )
-
-    def test_five_page_jump_controls_require_a_full_jump(self):
+    def test_first_and_last_pages_match_compact_layout(self):
         cases = (
-            (5, 10, 'Назад на 5 страниц', 'Вперёд на 5 страниц'),
-            (6, 10, 'Вперёд на 5 страниц', 'Назад на 5 страниц'),
+            (1, ['1', '2', '3', '...', '181', '&rarr;']),
+            (2, ['&larr;', '1', '2', '3', '...', '181', '&rarr;']),
+            (3, ['&larr;', '1', '2', '3', '...', '181', '&rarr;']),
+            (179, ['&larr;', '1', '...', '179', '180', '181', '&rarr;']),
+            (180, ['&larr;', '1', '...', '179', '180', '181', '&rarr;']),
+            (181, ['&larr;', '1', '...', '179', '180', '181']),
         )
+        for page_number, labels in cases:
+            with self.subTest(page_number=page_number):
+                html = self.render_paginator(page_number, 181)
+                self.assertEqual(self.visible_labels(html), labels)
+                self.assertInHTML(
+                    '<li class="page-num page-num-selected" '
+                    f'aria-current="page">{page_number}</li>',
+                    html,
+                )
 
-        for page_number, num_pages, hidden_label, visible_label in cases:
+    def test_middle_page_matches_reference_and_gaps_round_down(self):
+        html = self.render_paginator(page_number=5, num_pages=181)
+
+        self.assertEqual(
+            self.visible_labels(html),
+            ['&larr;', '1', '...', '4', '5', '...', '181', '&rarr;'],
+        )
+        for target in (2, 93):
+            self.assertInHTML(
+                f'<a href="?page={target}" aria-label="Перейти на страницу {target}" '
+                f'title="Перейти на страницу {target}">...</a>',
+                html,
+            )
+        self.assertNotIn('5 страниц', html)
+        self.assertNotIn('Первая страница', html)
+        self.assertNotIn('Последняя страница', html)
+
+    def test_single_missing_page_is_shown_as_a_number(self):
+        cases = (
+            (4, 181, ['&larr;', '1', '2', '3', '4', '...', '181', '&rarr;']),
+            (1, 5, ['1', '2', '3', '4', '5', '&rarr;']),
+        )
+        for page_number, num_pages, labels in cases:
+            with self.subTest(page_number=page_number, num_pages=num_pages):
+                self.assertEqual(
+                    self.visible_labels(self.render_paginator(page_number, num_pages)),
+                    labels,
+                )
+
+    def test_short_lists_have_no_gaps_or_duplicate_numbers(self):
+        for num_pages in range(2, 6):
+            for page_number in range(1, num_pages + 1):
+                with self.subTest(page_number=page_number, num_pages=num_pages):
+                    labels = self.visible_labels(self.render_paginator(page_number, num_pages))
+                    self.assertEqual(
+                        [label for label in labels if label.isdecimal()],
+                        [str(number) for number in range(1, num_pages + 1)],
+                    )
+                    self.assertNotIn('...', labels)
+
+    def test_adjacent_arrows_use_exact_targets_and_hide_at_boundaries(self):
+        for page_number, num_pages in ((1, 181), (5, 181), (181, 181)):
             with self.subTest(page_number=page_number, num_pages=num_pages):
                 html = self.render_paginator(page_number, num_pages)
-                self.assertNotIn(f'aria-label="{hidden_label}"', html)
-                self.assertIn(f'aria-label="{visible_label}"', html)
+                for available, target, label, arrow in (
+                    (page_number > 1, page_number - 1, 'Назад', '&larr;'),
+                    (page_number < num_pages, page_number + 1, 'Вперёд', '&rarr;'),
+                ):
+                    if available:
+                        self.assertInHTML(
+                            f'<a href="?page={target}" aria-label="{label} на одну страницу" '
+                            f'title="{label} на одну страницу">{arrow}</a>',
+                            html,
+                        )
+                    else:
+                        self.assertNotIn(f'aria-label="{label} на одну страницу"', html)
+
+    def test_every_link_preserves_active_query_parameters(self):
+        query = '&q=%D0%BC%D0%BE%D1%80%D0%B5&color=red&color=blue&skinali_type=print&category=nature'
+        html = self.render_paginator(5, 181, col_tag=query)
+        hrefs = re.findall(r'href="([^"]+)"', html)
+
+        self.assertEqual(len(hrefs), 7)
+        for href in hrefs:
+            with self.subTest(href=href):
+                self.assertTrue(href.endswith(escape(query)))
+                self.assertIn('&amp;', href)
+
+    def test_single_or_empty_page_has_no_navigation(self):
+        for num_pages in (0, 1):
+            with self.subTest(num_pages=num_pages):
+                self.assertEqual(self.render_paginator(1, num_pages).strip(), '')
 
 
 class CatalogSearchTests(TestCase):

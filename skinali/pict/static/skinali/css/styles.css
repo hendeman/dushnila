@@ -2,6 +2,13 @@ html {
 	scrollbar-gutter: stable;
 }
 
+@supports (scrollbar-gutter: stable) {
+	/* Место под скроллбар уже зарезервировано на html, повторный отступ не нужен. */
+	html:root.with-fancybox body.hide-scrollbar {
+		margin-right: var(--fancybox-body-margin, 0px);
+	}
+}
+
 body {
 	min-width: 320px;
 	margin: 0;
@@ -2365,9 +2372,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 .catalog-categories ul .page-num:not(.page-num-selected):hover,
-.catalog-categories ul .page-num:not(.page-num-selected):focus-within,
-.catalog-pagination ul .page-num:not(.page-num-selected):hover,
-.catalog-pagination ul .page-num:not(.page-num-selected):focus-within {
+.catalog-categories ul .page-num:not(.page-num-selected):focus-within {
 	border-color: #979e91;
 }
 
@@ -2387,6 +2392,32 @@ ul.mainmenu li a:focus-visible {
 
 .catalog-pagination {
 	margin: 32px 0 20px;
+}
+
+.catalog-pagination ul {
+	gap: 4px;
+}
+
+.catalog-pagination ul .page-num:not(.page-num-selected) {
+	border-color: transparent;
+	background: transparent;
+}
+
+.catalog-pagination .page-num > a {
+	justify-content: center;
+	box-sizing: border-box;
+	min-width: 42px;
+	padding: 0 10px;
+}
+
+.catalog-pagination ul .page-num:not(.page-num-selected):hover,
+.catalog-pagination ul .page-num:not(.page-num-selected):focus-within {
+	background: #e8e7dc;
+}
+
+.catalog-pagination ul .page-num-arrow {
+	color: #596056;
+	font-size: 20px;
 }
 
 .color{
@@ -2743,6 +2774,10 @@ background-color: coral;
 	cursor: pointer;
 	pointer-events: auto;
 	transition: background .16s;
+}
+
+.catalog-modal__nav[hidden] {
+	display: none;
 }
 
 .catalog-modal__nav:hover,
@@ -4138,6 +4173,25 @@ background-color: coral;
 	.catalog-categories,
 	.list-pages-color {
 		display: none;
+	}
+
+	.catalog-pagination ul {
+		flex-wrap: nowrap;
+		gap: 1px;
+	}
+
+	.catalog-pagination ul .page-num {
+		flex: 0 1 40px;
+		min-width: 0;
+		padding: 0;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.catalog-pagination .page-num > a {
+		width: 100%;
+		min-width: 0;
+		padding: 0;
 	}
 
 	.catalog-categories.finished-work-types {
