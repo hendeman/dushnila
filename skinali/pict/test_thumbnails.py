@@ -1,5 +1,6 @@
 """Проверки нумерованных превью, перехода со старого кеша и его очистки."""
 
+from io import StringIO
 from pathlib import PurePosixPath
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -7,10 +8,12 @@ from unittest.mock import patch
 from PIL import Image
 from django.core.cache import cache
 from django.core.files.storage import default_storage
+from django.core.management import call_command
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from sorl.thumbnail import default
 from sorl.thumbnail.base import ThumbnailBackend
+from sorl.thumbnail.images import ImageFile
 from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .models import FinishedWork, Pict
@@ -157,3 +160,65 @@ class NumberedThumbnailTests(TestCase):
             ))
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], thumbnail.url)
+
+    def test_external_cache_clear_recovers_files_and_persistent_metadata(self):
+        thumbnail = get_thumbnail(self.picture.photo, '760')
+        # У отдельного процесса команды свой LocMemCache; память web-процесса остаётся.
+        command_caches = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                'LOCATION': self._testMethodName,
+            },
+        }
+        with override_settings(CACHES=command_caches):
+            call_command('thumbnail', 'clear_delete_all', stdout=StringIO())
+
+        self.assertFalse(thumbnail.exists())
+        self.assertIsNotNone(default.kvstore.get(thumbnail))
+        response = self.client.get(reverse('skinali'))
+        self.assertContains(response, f'src="{thumbnail.url}"')
+        self.assertTrue(thumbnail.exists())
+
+        # Новый worker должен найти также восстановленный источник и связь с превью.
+        cache.clear()
+        source = ImageFile(self.picture.photo)
+        self.assertIsNotNone(default.kvstore.get(source))
+        self.assertIsNotNone(default.kvstore.get(thumbnail))
+        self.assertEqual(default.kvstore.get(source).size, [3000, 500])
+        self.assertEqual(default.kvstore.get(thumbnail).size, [760, 127])
+        with self.captureOnCommitCallbacks(execute=True):
+            self.picture.delete()
+        self.assertFalse(thumbnail.exists())
+
+    def test_missing_cached_file_is_rebuilt_without_deleting_other_sizes(self):
+        work = FinishedWork.objects.create(
+            name='Кухня для восстановления кеша',
+            photo=create_test_image_file('cache-recovery-work.jpg'),
+        )
+        for photo in (self.picture.photo, work.photo):
+            with self.subTest(photo=photo.name):
+                thumbnail = get_thumbnail(photo, '760')
+                other_size = get_thumbnail(photo, '1920')
+                other_mtime = other_size.storage.get_modified_time(other_size.name)
+                thumbnail.storage.delete(thumbnail.name)
+
+                with patch.object(
+                    default.engine, 'get_image', wraps=default.engine.get_image,
+                ) as decode:
+                    restored = get_thumbnail(photo, '760')
+                self.assertEqual(decode.call_count, 1)
+                self.assertEqual(restored.url, thumbnail.url)
+                self.assertTrue(restored.exists())
+                self.assertTrue(other_size.exists())
+                self.assertEqual(
+                    other_size.storage.get_modified_time(other_size.name), other_mtime,
+                )
+
+    def test_source_read_error_does_not_repeat_generation(self):
+        with self.assertLogs('sorl.thumbnail.base', level='ERROR'):
+            with patch.object(
+                default.engine, 'get_image', side_effect=OSError('unreadable source'),
+            ) as decode:
+                thumbnail = get_thumbnail(self.picture.photo, '760')
+        decode.assert_called_once()
+        self.assertFalse(thumbnail.exists())
