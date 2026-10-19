@@ -520,7 +520,7 @@ class SkinaliAll(SkinaliMix):
 @require_safe
 def pict_large_preview(request, slug):
     """Создаёт крупное превью только при обращении к опубликованному изображению."""
-    picture = get_object_or_404(Pict.objects.published().only('photo'), slug=slug)
+    picture = get_object_or_404(Pict.objects.published().only('photo', 'name'), slug=slug)
     if not picture.photo:
         raise Http404('Изображение не найдено.')
     original_url = picture.photo.url

@@ -3474,6 +3474,215 @@ class PublicationTests(TestCase):
         self.assertNotContains(catalog_response, self.hidden_picture.photo.url)
 
 
+class AdminNeedsAttentionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_superuser(
+            username='attention-editor',
+            password='test-password',
+        )
+        category = Category.objects.create(cat='Внимание', slug='attention')
+        tags = [
+            TagPict.objects.create(tag='Море', slug='attention-sea'),
+            TagPict.objects.create(tag='Горы', slug='attention-mountains'),
+        ]
+        colors = [
+            Color.objects.create(color='Синий', slug_color='attention-blue'),
+            Color.objects.create(color='Белый', slug_color='attention-white'),
+        ]
+
+        def picture(number, **kwargs):
+            kwargs.setdefault('alt', 'Заполненное изображение')
+            kwargs.setdefault('seo_h1', 'Заголовок изображения')
+            kwargs.setdefault('seo_title', 'Заголовок для поисковиков')
+            kwargs.setdefault('seo_description', 'Метаописание изображения')
+            kwargs.setdefault('page_description', 'Описание страницы изображения')
+            item = Pict.objects.create(name=number, **kwargs)
+            item.cat.add(category)
+            item.tags.set(tags)
+            item.color.set(colors)
+            return item
+
+        cls.complete = picture(9101)
+        cls.no_tags = picture(9102, alt='Нужна метка')
+        cls.no_tags.tags.clear()
+        cls.no_colors = picture(9103)
+        cls.no_colors.color.clear()
+        cls.empty_description = picture(9104, alt='')
+        cls.whitespace_description = picture(9105, alt=' \t\n\u00a0 ')
+        cls.missing_everything = picture(9106, alt='', is_published=False)
+        cls.missing_everything.tags.clear()
+        cls.missing_everything.color.clear()
+        cls.hidden_complete = picture(9107, is_published=False)
+
+        def work(name, **kwargs):
+            kwargs.setdefault('description', 'Заполненное описание')
+            return FinishedWork.objects.create(name=name, **kwargs)
+
+        cls.complete_work = work('Со связью', catalog_image=cls.complete)
+        cls.unlinked_print = work(
+            'Печать без связи',
+            glass_type=FinishedWork.GlassType.DIAMANT,
+        )
+        cls.empty_work_description = work(
+            'Без описания', description='', catalog_image=cls.complete,
+        )
+        cls.whitespace_work_description = work(
+            'Покраска без описания',
+            description=' \t\n\u00a0 ',
+            skinali_type=FinishedWork.SkinaliType.PAINT,
+            paint_color='RAL 9000',
+        )
+        cls.hidden_unlinked_print = work(
+            'Скрытая печать без связи и описания',
+            description='',
+            is_published=False,
+        )
+        cls.linked_hidden_image = work(
+            'Связь со скрытым изображением', catalog_image=cls.hidden_complete,
+        )
+        cls.painted_work = work(
+            'Покраска',
+            skinali_type=FinishedWork.SkinaliType.PAINT,
+            paint_color='RAL 9000',
+        )
+        cls.transparent_work = work(
+            'Прозрачное', skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
+        )
+        cls.empty_transparent_work = work(
+            'Прозрачное без описания',
+            description='',
+            skinali_type=FinishedWork.SkinaliType.TRANSPARENT,
+        )
+
+    def get_changelist(self, model, params):
+        request = RequestFactory().get(
+            reverse(f'admin:pict_{model._meta.model_name}_changelist'), params,
+        )
+        request.user = self.user
+        return admin.site._registry[model].get_changelist_instance(request)
+
+    def assert_results(self, model, params, expected):
+        changelist = self.get_changelist(model, params)
+        with self.assertNumQueries(1):
+            actual_ids = list(changelist.queryset.values_list('pk', flat=True))
+        self.assertCountEqual(actual_ids, [item.pk for item in expected])
+        self.assertEqual(changelist.result_count, len(expected))
+
+    def test_picture_reasons_include_empty_and_whitespace_descriptions(self):
+        cases = {
+            'no_tags': [self.no_tags, self.missing_everything],
+            'no_colors': [self.no_colors, self.missing_everything],
+            'no_description': [
+                self.empty_description, self.whitespace_description,
+                self.missing_everything,
+            ],
+        }
+        for reason, expected in cases.items():
+            with self.subTest(reason=reason):
+                self.assert_results(Pict, {'attention': reason}, expected)
+
+    def test_any_picture_reason_has_no_duplicates(self):
+        self.assert_results(Pict, {'attention': 'any'}, [
+            self.no_tags, self.no_colors, self.empty_description,
+            self.whitespace_description, self.missing_everything,
+        ])
+
+    def test_no_seo_finds_any_empty_field_but_keeps_any_reason_unchanged(self):
+        for field in ('seo_h1', 'seo_title', 'seo_description', 'page_description'):
+            for value in ('', ' \t\n\u00a0 '):
+                with self.subTest(field=field, value=value):
+                    Pict.objects.filter(pk=self.hidden_complete.pk).update(**{
+                        field: value,
+                    })
+                    self.assert_results(Pict, {
+                        'attention': 'no_seo',
+                    }, [self.hidden_complete])
+                    self.assert_results(Pict, {'attention': 'any'}, [
+                        self.no_tags, self.no_colors, self.empty_description,
+                        self.whitespace_description, self.missing_everything,
+                    ])
+                    Pict.objects.filter(pk=self.hidden_complete.pk).update(**{
+                        field: getattr(self.hidden_complete, field),
+                    })
+
+    def test_work_reasons_respect_type_and_accept_link_to_hidden_image(self):
+        cases = {
+            'no_description': [
+                self.empty_work_description, self.whitespace_work_description,
+                self.hidden_unlinked_print, self.empty_transparent_work,
+            ],
+            'print_without_catalog': [
+                self.unlinked_print, self.hidden_unlinked_print,
+            ],
+        }
+        for reason, expected in cases.items():
+            with self.subTest(reason=reason):
+                self.assert_results(FinishedWork, {'attention': reason}, expected)
+
+    def test_any_work_reason_combines_reasons_without_duplicates(self):
+        self.assert_results(FinishedWork, {'attention': 'any'}, [
+            self.unlinked_print, self.empty_work_description,
+            self.whitespace_work_description, self.hidden_unlinked_print,
+            self.empty_transparent_work,
+        ])
+
+    def test_attention_combines_with_publication_filter(self):
+        for model, expected in (
+            (Pict, self.missing_everything),
+            (FinishedWork, self.hidden_unlinked_print),
+        ):
+            with self.subTest(model=model):
+                self.assert_results(model, {
+                    'attention': 'any', 'is_published__exact': '0',
+                }, [expected])
+
+    def test_attention_combines_with_search_color_and_work_type(self):
+        self.assert_results(Pict, {'attention': 'any', 'q': 'Нужна метка'}, [
+            self.no_tags,
+        ])
+        self.assert_results(Pict, {
+            'attention': 'no_tags', 'color__color': 'Синий',
+        }, [self.no_tags])
+        self.assert_results(Pict, {
+            'attention': 'no_colors', 'color__color': 'Синий',
+        }, [])
+        self.assert_results(FinishedWork, {
+            'attention': 'any', 'skinali_type__exact': 'paint',
+        }, [self.whitespace_work_description])
+
+    def test_missing_or_unknown_reason_keeps_all_records(self):
+        for model in (Pict, FinishedWork):
+            for params in ({}, {'attention': 'unknown'}):
+                with self.subTest(model=model, params=params):
+                    self.assert_results(model, params, list(model.objects.all()))
+
+    def test_admin_pages_show_only_model_specific_attention_choices(self):
+        self.client.force_login(self.user)
+        for model, labels, absent_labels in (
+            (
+                Pict, ['Без тегов', 'Без цветов', 'Без SEO'],
+                ['Печать без связи с каталогом'],
+            ),
+            (
+                FinishedWork, ['Печать без связи с каталогом'],
+                ['Без тегов', 'Без цветов', 'Без SEO'],
+            ),
+        ):
+            with self.subTest(model=model):
+                response = self.client.get(
+                    reverse(f'admin:pict_{model._meta.model_name}_changelist'),
+                    {'attention': 'any'},
+                )
+                self.assertContains(response, 'Требуют внимания')
+                self.assertContains(response, 'Любая причина')
+                self.assertContains(response, 'Без описания')
+                for label in labels:
+                    self.assertContains(response, label)
+                for label in absent_labels:
+                    self.assertNotContains(response, label)
+
+
 class ContactPageTests(TestCase):
     def test_contact_page_shows_order_channels_and_service_area(self):
         response = self.client.get(reverse('about'))

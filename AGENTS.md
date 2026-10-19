@@ -37,6 +37,7 @@
 | SEO публичных страниц, управляемые SEO-поля, robots.txt и XML-карта | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md) | [pict/signals.md](docs/pict/signals.md), [project/urls.md](docs/project/urls.md), [project/settings.md](docs/project/settings.md) |
 | Индивидуальная страница изображения, стабильный slug, похожие изображения и связанные готовые кухни; «В интерьере» в модальном окне каталога | [pict/views.md](docs/pict/views.md), [pict/models.md](docs/pict/models.md), [pict/urls.md](docs/pict/urls.md) | [pict/favorites.md](docs/pict/favorites.md), [pict/admin.md](docs/pict/admin.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Крупное превью для модального окна каталога и страницы изображения | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [project/settings.md](docs/project/settings.md) | [pict/tests.md](docs/pict/tests.md), [architecture.md](docs/architecture.md) |
+| Номер изображения в имени кешированных превью, общий backend и переход со старого кеша | [pict/thumbnails.md](docs/pict/thumbnails.md) | [project/settings.md](docs/project/settings.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/views.md](docs/pict/views.md) |
 | Избранное, лимит 50, подписанные ссылки без БД, частичный импорт, счётчики прогресса, повтор, полная очистка и Toast | [pict/favorites.md](docs/pict/favorites.md) | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict`, включая `/designer/`, добавление и удаление маршрутов | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
@@ -94,6 +95,7 @@
 | `skinali/pict/templatetags/pagination.py` | [pict/pagination.md](docs/pict/pagination.md) |
 | `skinali/pict/urls.py` | [pict/urls.md](docs/pict/urls.md) |
 | `skinali/pict/views.py` | [pict/views.md](docs/pict/views.md) |
+| `skinali/pict/thumbnails.py`, `test_thumbnails.py` | [pict/thumbnails.md](docs/pict/thumbnails.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/sitecontent/apps.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |

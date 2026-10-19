@@ -454,6 +454,7 @@ MEDIA_ROOT = get_environment_path('DJANGO_MEDIA_ROOT', BASE_DIR / 'media')
 MEDIA_URL = '/media/'
 
 # Превью каталога создаются один раз и повторно используются из media/cache/thumbnails/.
+THUMBNAIL_BACKEND = 'pict.thumbnails.CatalogThumbnailBackend'
 THUMBNAIL_PREFIX = 'cache/thumbnails/'
 THUMBNAIL_QUALITY = 82
 THUMBNAIL_PROGRESSIVE = True

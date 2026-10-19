@@ -6,6 +6,7 @@ from pathlib import Path
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.db.models import Exists, OuterRef, Q
 from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
@@ -46,6 +47,77 @@ CATALOG_ADMIN_THUMBNAIL_GEOMETRY = '760'
 FINISHED_WORK_ADMIN_THUMBNAIL_GEOMETRY = '400'
 
 
+class NeedsAttentionFilter(admin.SimpleListFilter):
+    """Объединяет редакторские подсказки без изменения правил сохранения."""
+
+    title = 'Требуют внимания'
+    parameter_name = 'attention'
+    checks = ()
+    # Дополнительные подсказки выбираются отдельно от «Любой причины».
+    extra_checks = ()
+
+    def lookups(self, request, model_admin):
+        return [('any', 'Любая причина')] + [
+            (value, label)
+            for value, label, condition in self.checks + self.extra_checks
+        ]
+
+    def queryset(self, request, queryset):
+        conditions = {
+            value: condition
+            for value, label, condition in self.checks + self.extra_checks
+        }
+        if self.value() == 'any':
+            condition = Q()
+            for value, label, check in self.checks:
+                condition |= check
+        else:
+            condition = conditions.get(self.value())
+            if condition is None:
+                return queryset
+        return queryset.filter(condition)
+
+
+class PictNeedsAttentionFilter(NeedsAttentionFilter):
+    checks = (
+        (
+            'no_tags',
+            'Без тегов',
+            Q(~Exists(Pict.tags.through.objects.filter(pict_id=OuterRef('pk')))),
+        ),
+        (
+            'no_colors',
+            'Без цветов',
+            Q(~Exists(Pict.color.through.objects.filter(pict_id=OuterRef('pk')))),
+        ),
+        ('no_description', 'Без описания', Q(alt__regex=r'^\s*$')),
+    )
+    extra_checks = (
+        (
+            'no_seo',
+            'Без SEO',
+            Q(seo_h1__regex=r'^\s*$')
+            | Q(seo_title__regex=r'^\s*$')
+            | Q(seo_description__regex=r'^\s*$')
+            | Q(page_description__regex=r'^\s*$'),
+        ),
+    )
+
+
+class FinishedWorkNeedsAttentionFilter(NeedsAttentionFilter):
+    checks = (
+        ('no_description', 'Без описания', Q(description__regex=r'^\s*$')),
+        (
+            'print_without_catalog',
+            'Печать без связи с каталогом',
+            Q(
+                skinali_type=FinishedWork.SkinaliType.PRINT,
+                catalog_image__isnull=True,
+            ),
+        ),
+    )
+
+
 class AdminImagePreviewMixin:
     def get_object(self, request, object_id, from_field=None):
         obj = super().get_object(request, object_id, from_field)
@@ -54,13 +126,19 @@ class AdminImagePreviewMixin:
             photo = getattr(obj, 'photo', None)
             if photo is not None:
                 obj._admin_saved_photo = photo
+            if isinstance(obj, Pict):
+                obj._admin_saved_image_number = obj.name
         return obj
 
     @staticmethod
     def get_cached_preview_url(image_field, geometry):
         """Возвращает URL превью, сохраняя оригинал как резервный вариант."""
         try:
-            return get_thumbnail(image_field, geometry).url
+            options = {}
+            image_number = getattr(image_field.instance, '_admin_saved_image_number', None)
+            if image_number is not None:
+                options['catalog_image_number'] = image_number
+            return get_thumbnail(image_field, geometry, **options).url
         except Exception:
             logger.exception('Не удалось создать admin-превью для %s.', image_field.name)
             return image_field.url
@@ -200,7 +278,13 @@ class PictAdmin(
     list_editable = ['is_published']
     list_display_links = ['name']
     search_fields = ['=name', 'alt', 'slug', 'tags__tag']
-    list_filter = ['is_published', 'created_at', 'cat__cat', 'color__color']
+    list_filter = [
+        PictNeedsAttentionFilter,
+        'is_published',
+        'created_at',
+        'cat__cat',
+        'color__color',
+    ]
     fieldsets = (
         (
             None,
@@ -527,7 +611,13 @@ class FinishedWorkAdmin(
     ]
     list_editable = ['is_published']
     list_display_links = ['name']
-    list_filter = ['is_published', 'glass_type', 'skinali_type', 'created_at']
+    list_filter = [
+        FinishedWorkNeedsAttentionFilter,
+        'is_published',
+        'glass_type',
+        'skinali_type',
+        'created_at',
+    ]
     search_fields = ['name', 'description', '=catalog_image__name']
     autocomplete_fields = ['catalog_image']
     readonly_fields = ['get_html_photo_fields', 'created_at', 'updated_at']
