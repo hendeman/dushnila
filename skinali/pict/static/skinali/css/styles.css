@@ -3137,6 +3137,22 @@ background-color: coral;
 	background: #25d366;
 }
 
+.share-service--copy {
+	padding: 0;
+	border: 0;
+	background: #4b514e;
+	cursor: pointer;
+}
+
+.share-service--copy .share-service__check,
+.share-service--copy.is-copied .share-service__chain {
+	display: none;
+}
+
+.share-service--copy.is-copied .share-service__check {
+	display: inline;
+}
+
 .share-service .share-service__outline {
 	fill: none;
 	stroke: currentColor;

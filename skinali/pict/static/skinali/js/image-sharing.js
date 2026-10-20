@@ -1,4 +1,6 @@
 (() => {
+  const COPY_FEEDBACK_DURATION_MS = 2000;
+  const copyFeedbackTimers = new WeakMap();
   const shareSelectors = {
     telegram: ({ sharedUrl, title }) => (
       `https://t.me/share/url?url=${encodeURIComponent(sharedUrl)}&text=${encodeURIComponent(title)}`
@@ -41,10 +43,79 @@
     };
   }
 
-  function prepareShareLinks(shareBlock) {
-    const shareData = shareBlock.dataset.shareKind === 'favorites'
+  function getShareData(shareBlock) {
+    return shareBlock.dataset.shareKind === 'favorites'
       ? getFavoritesShareData(shareBlock)
       : getImageShareData(shareBlock);
+  }
+
+  async function copyText(text, shareBlock) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return;
+      } catch (error) {
+        // При недоступности Clipboard API пробуем копирование через выделение.
+      }
+    }
+
+    const focusedElement = document.activeElement;
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.readOnly = true;
+    field.tabIndex = -1;
+    field.style.cssText = 'position: fixed; top: 0; left: -9999px; font-size: 16px;';
+    shareBlock.append(field);
+    try {
+      field.focus({ preventScroll: true });
+      field.select();
+      if (!document.execCommand('copy')) {
+        throw new Error('Не удалось скопировать ссылку');
+      }
+    } finally {
+      field.remove();
+      focusedElement?.focus({ preventScroll: true });
+    }
+  }
+
+  function setCopyFeedback(button, copied) {
+    const label = copied ? 'Ссылка скопирована' : 'Копировать ссылку';
+    button.classList.toggle('is-copied', copied);
+    button.setAttribute('aria-label', label);
+    button.title = label;
+  }
+
+  async function copyShareLink(button, shareBlock) {
+    const shareData = getShareData(shareBlock);
+    if (!shareData) {
+      return;
+    }
+
+    window.clearTimeout(copyFeedbackTimers.get(button));
+    copyFeedbackTimers.delete(button);
+    setCopyFeedback(button, false);
+    button.setAttribute('aria-busy', 'true');
+    try {
+      await copyText(shareData.sharedUrl, shareBlock);
+      setCopyFeedback(button, true);
+      copyFeedbackTimers.set(button, window.setTimeout(() => {
+        setCopyFeedback(button, false);
+        copyFeedbackTimers.delete(button);
+      }, COPY_FEEDBACK_DURATION_MS));
+      document.dispatchEvent(new CustomEvent('site:toast', {
+        detail: { message: 'Ссылка скопирована', kind: 'success' }
+      }));
+    } catch (error) {
+      document.dispatchEvent(new CustomEvent('site:toast', {
+        detail: { message: 'Не удалось скопировать ссылку. Попробуйте ещё раз.', kind: 'error' }
+      }));
+    } finally {
+      button.removeAttribute('aria-busy');
+    }
+  }
+
+  function prepareShareLinks(shareBlock) {
+    const shareData = getShareData(shareBlock);
     if (!shareData) {
       return false;
     }
@@ -58,7 +129,17 @@
     return true;
   }
 
-  document.addEventListener('click', (event) => {
+  document.addEventListener('click', async (event) => {
+    const copyButton = event.target.closest('[data-share-copy]');
+    if (copyButton) {
+      event.preventDefault();
+      const shareBlock = copyButton.closest('[data-share]');
+      if (shareBlock && copyButton.getAttribute('aria-busy') !== 'true') {
+        await copyShareLink(copyButton, shareBlock);
+      }
+      return;
+    }
+
     const toggle = event.target.closest('[data-share-toggle]');
     if (!toggle) {
       return;
