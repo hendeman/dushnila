@@ -3,7 +3,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'sitecontent/css/price-tables.css' %}">
-<link rel="stylesheet" href="{% static 'calculator/css/price.css' %}?rev=5">
+<link rel="stylesheet" href="{% static 'calculator/css/price.css' %}?rev=7">
 {% endblock %}
 
 {% block content %}
@@ -154,7 +154,7 @@
         <div class="contact-dialog__panel">
             <button class="contact-dialog__close" type="button" data-contact-dialog-close aria-label="Закрыть форму">&times;</button>
             <h2 id="calculator-order-title">Заказать скинали</h2>
-            {% include 'pict/includes/contact_form.html' with form=calculator_order_form form_kind='calculator_order' submit_label='Отправить заявку' %}
+            {% include 'pict/includes/contact_form.html' with form=calculator_order_form form_kind='calculator_order' submit_label='Отправить заявку' submit_disabled=True before_submit_template='calculator/includes/order_status.html' %}
         </div>
     </dialog>
     <template id="price-panel-template">
@@ -173,7 +173,7 @@
         </div>
     </template>
     <script src="{% static 'calculator/js/price-engine.js' %}" defer></script>
-    <script src="{% static 'calculator/js/price.js' %}?rev=3" defer></script>
+    <script src="{% static 'calculator/js/price.js' %}?rev=4" defer></script>
     {% else %}
     <div class="price-card"><p>Сейчас стоимость можно уточнить у нас. Поможем подобрать стекло, оформление и необходимые услуги.</p><a class="price-button price-button--primary" href="{% url 'about' %}">Узнать стоимость</a></div>
     {% endif %}

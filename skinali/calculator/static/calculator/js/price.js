@@ -12,7 +12,13 @@
     const orderButton = document.getElementById('price-order');
     const orderDialog = document.getElementById('calculator-order-dialog');
     const orderUrl = orderDialog?.querySelector('[data-calculation-url]');
-    let preparingOrder = false;
+    const orderForm = orderDialog?.querySelector('[data-contact-form]');
+    const orderSubmit = orderForm?.querySelector('[type="submit"]');
+    const orderStatus = orderDialog?.querySelector('[data-order-status]');
+    const orderRetry = orderDialog?.querySelector('[data-order-retry]');
+    const SHARE_TIMEOUT_MS = 10000;
+    let shareRequest = null;
+    let orderPreparation = 0;
     let currentInput = null;
     let shareRevision = 0;
     const output = (id) => document.getElementById(`price-${id}`);
@@ -52,9 +58,12 @@
     }
 
     function update() {
+        orderPreparation += 1;
+        cancelShareRequest();
         currentInput = null;
         if (orderButton) orderButton.disabled = true;
         if (orderUrl) orderUrl.value = '';
+        setOrderState('idle');
         shareRevision += 1;
         if (shareBlock) {
             shareBlock.dataset.shareUrl = '';
@@ -90,7 +99,7 @@
             };
             const result = globalThis.SkinaliPrice.calculate(config, data);
             currentInput = data;
-            if (orderButton) orderButton.disabled = preparingOrder;
+            if (orderButton) orderButton.disabled = false;
             if (shareToggle) {
                 shareToggle.disabled = false;
                 shareToggle.title = 'Поделиться расчётом по действующим тарифам';
@@ -109,6 +118,7 @@
             output('area').textContent = '';
             output('comparison').hidden = true;
         }
+        if (orderDialog?.open) setOrderState('error', 'Параметры расчёта изменились. Повторите действие.');
         fitAmount();
     }
 
@@ -140,56 +150,112 @@
         return row;
     }
 
-    async function prepareCalculationShare() {
-        if (shareBlock.dataset.shareUrl) return shareBlock.dataset.shareUrl;
-        if (!currentInput) throw new Error('Сначала заполните параметры расчёта.');
+    function cancelShareRequest() {
+        const request = shareRequest;
+        shareRequest = null;
+        request?.cancel(new Error('Параметры расчёта изменились. Повторите действие.'));
+    }
+
+    function prepareCalculationShare() {
+        if (shareBlock.dataset.shareUrl) return Promise.resolve(shareBlock.dataset.shareUrl);
+        if (!currentInput) return Promise.reject(new Error('Сначала заполните параметры расчёта.'));
+        if (shareRequest) return shareRequest.promise;
         const revision = shareRevision;
-        let response;
-        let result;
-        try {
-            response = await fetch(shareBlock.dataset.shareEndpoint, {
-                method: 'POST', credentials: 'same-origin', mode: 'same-origin', redirect: 'error',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
-                },
-                body: JSON.stringify(currentInput),
-            });
-            result = await response.json();
-        } catch (error) {
-            throw new Error('Не удалось подготовить ссылку. Проверьте соединение и попробуйте ещё раз.');
-        }
-        if (revision !== shareRevision) throw new Error('Параметры расчёта изменились. Повторите действие.');
-        if (!response.ok || typeof result.url !== 'string') {
-            throw new Error(result.message || 'Не удалось подготовить ссылку. Попробуйте ещё раз.');
-        }
-        shareBlock.dataset.shareUrl = result.url;
-        return result.url;
+        const body = JSON.stringify(currentInput);
+        const controller = new AbortController();
+        const request = {};
+        const stopped = new Promise((_, reject) => {
+            request.cancel = (error) => { reject(error); controller.abort(); };
+        });
+        const timeout = setTimeout(() => {
+            request.cancel(new Error('Ответ не получен вовремя. Попробуйте ещё раз.'));
+        }, SHARE_TIMEOUT_MS);
+        const response = (async () => {
+            let received, result;
+            try {
+                received = await fetch(shareBlock.dataset.shareEndpoint, {
+                    method: 'POST', credentials: 'same-origin', mode: 'same-origin', redirect: 'error',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                    },
+                    body, signal: controller.signal,
+                });
+                result = await received.json();
+            } catch (error) {
+                throw new Error('Проверьте соединение и попробуйте ещё раз.');
+            }
+            if (!received.ok || typeof result?.url !== 'string' || !result.url) {
+                throw new Error(result?.message || 'Не удалось подготовить расчёт. Попробуйте ещё раз.');
+            }
+            return result.url;
+        })();
+        shareRequest = request;
+        request.promise = Promise.race([response, stopped]).then((url) => {
+            if (controller.signal.aborted || revision !== shareRevision || shareRequest !== request) {
+                throw new Error('Параметры расчёта изменились. Повторите действие.');
+            }
+            shareBlock.dataset.shareUrl = url;
+            return url;
+        }).finally(() => {
+            clearTimeout(timeout);
+            if (shareRequest === request) shareRequest = null;
+        });
+        return request.promise;
     }
 
     shareBlock?.addEventListener('share:prepare', (event) => {
         event.detail.promises.push(prepareCalculationShare());
     });
 
-    orderButton?.addEventListener('click', async () => {
-        if (!currentInput || preparingOrder || !orderDialog || !orderUrl) return;
-        preparingOrder = true;
-        orderButton.disabled = true;
-        orderButton.setAttribute('aria-busy', 'true');
+    function setOrderState(state, message = '') {
+        if (!orderStatus || !orderForm || !orderSubmit) return;
+        const labels = {
+            loading: ['Подготавливаем расчёт…', 'Вы можете заполнить имя и телефон.'],
+            ready: ['Расчёт готов', 'Отправим заявку вместе с вашим расчётом.'],
+            error: ['Не удалось подготовить расчёт', message],
+        };
+        orderStatus.hidden = state === 'idle';
+        orderStatus.dataset.state = state;
+        orderStatus.setAttribute('role', state === 'error' ? 'alert' : 'status');
+        orderStatus.setAttribute('aria-live', state === 'error' ? 'assertive' : 'polite');
+        orderStatus.querySelector('[data-order-status-title]').textContent = labels[state]?.[0] || '';
+        orderStatus.querySelector('[data-order-status-detail]').textContent = labels[state]?.[1] || '';
+        orderStatus.querySelectorAll('[data-order-state-icon]').forEach((icon) => {
+            icon.toggleAttribute('hidden', icon.dataset.orderStateIcon !== state);
+        });
+        orderRetry.hidden = state !== 'error';
+        orderRetry.disabled = !currentInput;
+        orderForm.dataset.submitBlocked = String(state !== 'ready');
+        orderSubmit.disabled = state !== 'ready' || orderForm.getAttribute('aria-busy') === 'true';
+    }
+
+    async function prepareOrder() {
+        if (!currentInput || !orderDialog?.open || !orderUrl || orderStatus?.dataset.state === 'loading') return;
+        const attempt = ++orderPreparation;
+        setOrderState('loading');
         try {
-            orderUrl.value = await prepareCalculationShare();
+            const url = await prepareCalculationShare();
+            if (attempt !== orderPreparation || !orderDialog.open) return;
+            orderUrl.value = url;
             orderUrl.dispatchEvent(new Event('input', {bubbles: true}));
-            if (!orderDialog.open) orderDialog.showModal();
-            orderDialog.querySelector('[data-field-name="name"]').focus();
+            setOrderState('ready');
         } catch (error) {
-            document.dispatchEvent(new CustomEvent('site:toast', {
-                detail: {message: error.message, kind: 'error'},
-            }));
-        } finally {
-            preparingOrder = false;
-            orderButton.disabled = !currentInput;
-            orderButton.removeAttribute('aria-busy');
+            if (attempt === orderPreparation && orderDialog.open) setOrderState('error', error.message);
         }
+    }
+
+    orderButton?.addEventListener('click', () => {
+        if (!currentInput || !orderDialog || !orderUrl || orderDialog.open) return;
+        orderDialog.showModal();
+        orderDialog.querySelector('[data-field-name="name"]').focus();
+        return prepareOrder();
+    });
+    orderRetry?.addEventListener('click', () => prepareOrder());
+    orderDialog?.addEventListener('close', () => {
+        orderPreparation += 1;
+        if (orderUrl) orderUrl.value = '';
+        setOrderState('idle');
     });
 
     function restoreCalculation(input) {

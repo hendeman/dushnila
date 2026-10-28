@@ -202,6 +202,9 @@
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (form.dataset.submitBlocked === 'true' || form.getAttribute('aria-busy') === 'true') {
+        return;
+      }
       clearAllErrors(form);
 
       const submitButton = form.querySelector('[type="submit"]');
@@ -240,7 +243,7 @@
         showFieldErrors(form, '__all__', [CONTACT_TOAST_MESSAGES.error]);
         showContactToast(CONTACT_TOAST_MESSAGES.error, 'error', form);
       } finally {
-        submitButton.disabled = false;
+        submitButton.disabled = form.dataset.submitBlocked === 'true';
         form.removeAttribute('aria-busy');
       }
     });

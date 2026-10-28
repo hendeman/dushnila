@@ -76,6 +76,11 @@ class CalculatorOrderTests(CalculationFixture, TestCase):
         self.assertContains(response, '<h2 id="calculator-order-title">Заказать скинали</h2>')
         self.assertContains(response, 'name="calculator_order-calculation_url"')
         self.assertContains(response, 'data-calculation-url')
+        self.assertContains(response, 'data-order-status ', count=1)
+        self.assertContains(response, 'data-order-retry ', count=1)
+        self.assertContains(response, 'data-submit-blocked="true"', count=1)
+        self.assertContains(response, 'Подготавливаем расчёт…')
+        self.assertContains(response, 'Вы можете заполнить имя и телефон.')
         CalculatorSettings.objects.update(is_enabled=False)
         self.assertNotContains(self.client.get(reverse('price')), 'id="calculator-order-dialog"')
 

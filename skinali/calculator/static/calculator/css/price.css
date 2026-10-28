@@ -87,8 +87,29 @@
 .price-share .share-toggle:hover, .price-share .share-toggle:focus-visible, .price-share .share-toggle[aria-expanded="true"] { color: #1f231f; border-color: #d7ef50; background: #f4f8dc; }
 .price-share .share-toggle:disabled { opacity: .55; cursor: not-allowed; }
 .price-share .share-toggle[aria-busy="true"] { cursor: progress; }
+.price-share .share-toggle[aria-busy="true"]::before { background: none; }
 .price-share .share-services { position: absolute; z-index: 20; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); justify-content: center; box-sizing: border-box; width: max-content; max-width: 100%; margin: 0; }
 .price-summary__note { max-width: 980px; margin: 12px auto 0; text-align: center; font-size: 12px; }
+#calculator-order-dialog .contact-form { gap: 22px; }
+#calculator-order-dialog .contact-form__submit { min-height: 50px; padding: 12px 26px; border: 1px solid #d7ef50; border-radius: 999px; background: #d7ef50; color: #252b19; font-size: 16px; font-weight: 650; }
+#calculator-order-dialog .contact-form__submit:hover:not(:disabled) { background: #c5dc49; border-color: #c5dc49; }
+#calculator-order-dialog [data-submit-blocked="true"] .contact-form__submit { border-color: #e4e7de; background: #e4e7de; color: #777e70; opacity: 1; cursor: not-allowed; }
+.calculator-order-status { grid-column: 1 / -1; display: flex; align-items: flex-start; gap: 11px; box-sizing: border-box; padding: 15px; border-radius: 11px; background: #edf2e7; color: #526b4c; }
+.calculator-order-status__icon { display: flex; flex: 0 0 20px; padding-top: 2px; }
+.calculator-order-status__icon > svg { width: 20px; height: 20px; }
+.calculator-order-status__body { min-width: 0; flex: 1; }
+.calculator-order-status__title { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.4; }
+.calculator-order-status__detail { margin: 5px 0 0; color: #626a60; font-size: 14px; line-height: 1.45; }
+.calculator-order-status[data-state="error"] { background: #fbf1e1; color: #78522a; }
+.calculator-order-status[data-state="error"] .calculator-order-status__detail { color: inherit; }
+.calculator-order-status__spinner, .price-share .share-toggle[aria-busy="true"]::before { box-sizing: border-box; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: calculator-spin 1s linear infinite; }
+.calculator-order-status__spinner { width: 20px; height: 20px; }
+.calculator-order-status__retry { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 36px; margin: 12px 0 0; padding: 6px 11px; border: 1px solid currentColor; border-radius: 8px; background: transparent; color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.calculator-order-status__retry > svg { width: 15px; height: 15px; }
+@keyframes calculator-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .calculator-order-status__spinner, .price-share .share-toggle[aria-busy="true"]::before { animation: none; } }
+@media (pointer: coarse) { .calculator-order-status__retry { min-height: 44px; } }
+@media (max-width: 420px) { #calculator-order-dialog .contact-form__submit { width: 100%; padding-inline: 12px; } }
 @media (max-width: 1100px) {
     .price-page h1, .price-page__intro { text-align: left; }
     .price-page__intro { margin-left: 0; }

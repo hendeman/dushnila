@@ -3837,7 +3837,7 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('.contact-toast__close {', styles)
         self.assertContains(
             home_response,
-            'src="/static/skinali/js/contact-forms.js"',
+            'src="/static/skinali/js/contact-forms.js?rev=2"',
         )
         self.assertLess(
             home_response.content.find(b'mainmenu__favorites'),

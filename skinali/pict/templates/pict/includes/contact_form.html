@@ -1,7 +1,7 @@
 <form class="contact-form"
       method="post"
       action="{% url 'contact_submit' %}"
-      data-contact-form>
+      data-contact-form{% if submit_disabled %} data-submit-blocked="true"{% endif %}>
   {% csrf_token %}
   {% for hidden_field in form.hidden_fields %}
     {{ hidden_field }}
@@ -39,7 +39,8 @@
     {{ form.website }}
   </div>
 
-  <button class="contact-form__submit" type="submit">
+  {% if before_submit_template %}{% include before_submit_template %}{% endif %}
+  <button class="contact-form__submit" type="submit"{% if submit_disabled %} disabled{% endif %}>
     <span data-contact-submit-label>{{ submit_label|default:'Отправить' }}</span>
   </button>
 </form>
