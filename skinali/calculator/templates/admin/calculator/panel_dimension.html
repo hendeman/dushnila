@@ -1,0 +1,5 @@
+<div class="calculation-panel-dimension{% if field.errors %} errors{% endif %}">
+  <label class="visually-hidden" for="{{ field.id_for_label }}">{{ field.label }}</label>
+  {{ field }}
+  {{ field.errors }}
+</div>

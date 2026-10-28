@@ -1,0 +1,6 @@
+{% if text %}
+<details class="price-hint" name="price-field-help">
+    <summary aria-label="Подсказка: {{ label }}">?</summary>
+    <p class="price-hint__text">{{ text|linebreaksbr }}</p>
+</details>
+{% endif %}

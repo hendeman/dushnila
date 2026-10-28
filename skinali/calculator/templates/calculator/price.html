@@ -1,0 +1,182 @@
+{% extends 'pict/base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'sitecontent/css/price-tables.css' %}">
+<link rel="stylesheet" href="{% static 'calculator/css/price.css' %}?rev=5">
+{% endblock %}
+
+{% block content %}
+<article class="price-page">
+    <h1>{{ title }}</h1>
+    <p class="price-page__intro">Укажите размеры и выберите нужные услуги. Стоимость обновляется сразу, с учётом действующих акций.</p>
+    {% if calculation_share_error %}<p class="site-notice site-notice--warning" role="alert">{{ calculation_share_error }}</p>{% endif %}
+    {% if calculation_initial_input %}<p class="site-notice" role="status">Открыт расчёт по ссылке. Стоимость пересчитана по действующим тарифам и акциям. Вы можете изменить параметры и поделиться новым расчётом.</p>{% endif %}
+    {% if calculator_config %}
+    {{ calculator_config|json_script:'price-calculator-config' }}
+    {% if calculation_initial_input %}{{ calculation_initial_input|json_script:'price-initial-input' }}{% endif %}
+    <noscript><p>Для расчёта включите JavaScript в браузере или <a href="{% url 'about' %}">свяжитесь с нами</a>.</p></noscript>
+    <form class="price-calculator" id="price-calculator" hidden novalidate>
+        <div class="price-calculator__fields">
+            <section class="price-card price-section price-section--panels" aria-labelledby="price-panels-title">
+                <div class="price-section__heading">
+                    <span class="price-section__number" aria-hidden="true"></span>
+                    <h2 id="price-panels-title">Размеры панелей <span>(мм)</span></h2>
+                    {% include 'calculator/includes/field_help.html' with label='Размеры панелей' text=calculator_config.panels_hint only %}
+                </div>
+                <p class="price-sr-only" id="panel-help">Введите ширину и высоту каждой панели: от 1 до {{ calculator_config.max_panel_dimension_mm }} мм. Пустые панели не учитываются.</p>
+                <div id="price-panels"></div>
+                <button type="button" class="price-button" id="price-add-panel">+ Добавить панель</button>
+                <p class="price-help" id="price-panel-limit" hidden>Добавлено максимальное количество панелей: {{ calculator_config.max_panels }}.</p>
+            </section>
+
+            {% if calculator_config.glass_type.visible or calculator_config.decoration_type.visible %}
+            <section class="price-card price-section price-section--materials" aria-labelledby="price-materials-title">
+                <div class="price-section__heading">
+                    <span class="price-section__number" aria-hidden="true"></span>
+                    <h2 id="price-materials-title">Материалы</h2>
+                </div>
+                <div class="price-materials">
+            {% for key, group in calculator_config.items %}
+            {% if key == 'glass_type' or key == 'decoration_type' %}
+            {% if group.visible %}
+            <div class="price-field">
+                <div class="price-field__label">
+                    <label for="price-{{ key }}">{% if key == 'glass_type' %}Тип стекла{% else %}Декорирование{% endif %}</label>
+                    {% if key == 'glass_type' %}
+                    {% include 'calculator/includes/field_help.html' with label='Тип стекла' text=group.hint only %}
+                    {% else %}
+                    {% include 'calculator/includes/field_help.html' with label='Декорирование' text=group.hint only %}
+                    {% endif %}
+                </div>
+                <select class="site-form-control" id="price-{{ key }}" name="{{ key }}" required>
+                    <option value="">Выберите вариант</option>
+                    {% for option in group.options %}
+                    <option value="{{ option.id }}"{% if option.id == group.default %} selected{% endif %}>{{ option.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            {% endif %}
+            {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            {% if calculator_config.services or calculator_config.stairs %}
+            <section class="price-card price-section price-section--services" aria-labelledby="price-services-title">
+                <div class="price-section__heading">
+                    <span class="price-section__number" aria-hidden="true"></span>
+                    <h2 id="price-services-title">Услуги</h2>
+                </div>
+            {% if calculator_config.services %}
+                <div class="price-services">
+                {% for service in calculator_config.services %}
+                <div class="price-field price-service{% if not service.has_price %} price-service--included{% endif %}" data-service-id="{{ service.id }}">
+                    <div class="price-field__label">
+                        {% if service.has_price %}
+                        <label for="price-service-{{ service.id }}">{{ service.name }}</label>
+                        {% else %}
+                        <span class="price-field__name">{{ service.name }}</span>
+                        {% endif %}
+                        {% include 'calculator/includes/field_help.html' with label=service.name text=service.hint only %}
+                    </div>
+                    {% if service.has_price %}
+                    <input class="price-checkbox" id="price-service-{{ service.id }}" type="checkbox" name="use_service_{{ service.id }}">
+                    {% if not service.fixed_price and not service.use_panel_area %}
+                    <div class="price-service__details" hidden>
+                        <div class="price-field price-field--subrow">
+                            <label for="price-quantity-{{ service.id }}">{{ service.quantity_label }}</label>
+                            <div class="price-quantity">
+                                <input class="site-form-control" id="price-quantity-{{ service.id }}" name="service_quantity_{{ service.id }}" type="number" inputmode="{% if service.whole_quantity %}numeric{% else %}decimal{% endif %}" min="{% if service.whole_quantity %}1{% else %}{{ calculator_config.quantity_step }}{% endif %}" max="{{ service.max_quantity }}" step="{% if service.whole_quantity %}1{% else %}{{ calculator_config.quantity_step }}{% endif %}" value="{{ service.initial_quantity }}" disabled required>
+                                {% if service.unit %}<span>{{ service.unit }}</span>{% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <span class="price-included" id="price-included-{{ service.id }}"><span class="price-included__mark" aria-hidden="true">✓</span><span>Включено в стоимость</span></span>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if calculator_config.stairs %}
+            <div class="price-field price-field--lifting">
+                <div class="price-field__label">
+                    <label for="price-lifting">Подъём</label>
+                    {% include 'calculator/includes/field_help.html' with label='Подъём' text=calculator_config.stairs.hint only %}
+                </div>
+                <select class="site-form-control" id="price-lifting" name="lifting_type">
+                    <option value="standard">Стандартный</option>
+                    <option value="stairs">По лестнице</option>
+                </select>
+                <div class="price-stairs" id="price-stairs" hidden>
+                    <div class="price-field price-field--subrow"><label for="price-floor">Этаж</label><div class="price-quantity"><input class="site-form-control" id="price-floor" name="stair_floor" type="number" inputmode="numeric" min="{{ calculator_config.min_stair_floor }}" max="{{ calculator_config.max_stair_floor }}" step="1" value="{{ calculator_config.initial_stair_floor }}" required disabled></div></div>
+                    <div class="price-field price-field--subrow"><label for="price-stair-count">Панелей для подъёма</label><select class="site-form-control" id="price-stair-count" name="stair_panel_count" disabled>{% for rule in calculator_config.stairs.rules %}<option value="{{ rule.count }}">{{ rule.count }}</option>{% endfor %}</select></div>
+                </div>
+            </div>
+            {% endif %}
+            </section>
+            {% endif %}
+        </div>
+
+        <aside class="price-summary" aria-labelledby="price-summary-title">
+            <div class="price-summary__card">
+                <div class="price-summary__information">
+                    <h2 id="price-summary-title"{% if not calculator_config.marketing_discount_description %} class="price-sr-only"{% endif %}>{% if calculator_config.marketing_discount_description %}{{ calculator_config.marketing_discount_description|linebreaksbr }}{% else %}Расчёт стоимости{% endif %}</h2>
+                    <p class="price-help" id="price-area"></p>
+                    <p class="price-help" id="price-status" aria-live="polite">Укажите размеры хотя бы одной панели.</p>
+                </div>
+                <div class="price-summary__price">
+                    <div class="price-total" aria-live="polite" aria-atomic="true">
+                        <span class="price-total__label">Итого к оплате<sup>*</sup></span>
+                        <div class="price-total__amount" id="price-amount">
+                            <span class="price-total__values"><strong><span id="price-total">—</span> <span class="price-total__currency">руб.</span></strong><span class="price-comparison" id="price-comparison" hidden><span class="price-sr-only">Цена до акции:</span><s><span id="price-old-total"></span> руб.</s></span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="price-summary__actions">
+                    <button class="price-button price-button--primary price-summary__action" type="button" id="price-order" aria-haspopup="dialog" aria-controls="calculator-order-dialog" disabled>Заказать</button>
+                    <div class="price-share" data-share data-share-kind="calculation" data-share-title="Расчёт стоимости скинали" data-share-url="" data-share-unavailable-message="Сначала заполните параметры расчёта." data-share-endpoint="{% url 'price_share' %}" data-price-share>
+                        <button type="button" class="share-toggle" data-share-toggle aria-expanded="false" aria-controls="price-share-services" title="Заполните параметры, чтобы поделиться расчётом" disabled>Поделиться расчётом</button>
+                        <div class="share-services" id="price-share-services" data-share-services role="group" aria-label="Поделиться расчётом" hidden>
+                            {% include 'pict/includes/share_service_links.html' only %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p class="price-help price-summary__note">* Предварительная стоимость по указанным размерам и выбранным услугам. Окончательную сумму подтвердим после замера.</p>
+        </aside>
+    </form>
+    <dialog class="contact-dialog" id="calculator-order-dialog" aria-labelledby="calculator-order-title">
+        <div class="contact-dialog__panel">
+            <button class="contact-dialog__close" type="button" data-contact-dialog-close aria-label="Закрыть форму">&times;</button>
+            <h2 id="calculator-order-title">Заказать скинали</h2>
+            {% include 'pict/includes/contact_form.html' with form=calculator_order_form form_kind='calculator_order' submit_label='Отправить заявку' %}
+        </div>
+    </dialog>
+    <template id="price-panel-template">
+        <div class="price-field price-panel">
+            <div class="price-field__label">
+                <span data-panel-title></span>
+            </div>
+            <div class="price-panel__controls">
+                <div class="price-panel__dimensions">
+                    <div><label class="price-dimension__label" data-width-label><span aria-hidden="true">Ширина</span><span class="price-sr-only" data-width-caption>Ширина, мм</span></label><input class="site-form-control" data-width type="number" inputmode="numeric" min="1" max="{{ calculator_config.max_panel_dimension_mm }}" step="1" aria-describedby="panel-help"></div>
+                    <span class="price-panel__separator" aria-hidden="true">×</span>
+                    <div><label class="price-dimension__label" data-height-label><span aria-hidden="true">Высота</span><span class="price-sr-only" data-height-caption>Высота, мм</span></label><input class="site-form-control" data-height type="number" inputmode="numeric" min="1" max="{{ calculator_config.max_panel_dimension_mm }}" step="1" aria-describedby="panel-help"></div>
+                </div>
+                <button type="button" class="price-panel__remove" data-remove-panel title="Удалить панель">×</button>
+            </div>
+        </div>
+    </template>
+    <script src="{% static 'calculator/js/price-engine.js' %}" defer></script>
+    <script src="{% static 'calculator/js/price.js' %}?rev=3" defer></script>
+    {% else %}
+    <div class="price-card"><p>Сейчас стоимость можно уточнить у нас. Поможем подобрать стекло, оформление и необходимые услуги.</p><a class="price-button price-button--primary" href="{% url 'about' %}">Узнать стоимость</a></div>
+    {% endif %}
+    {% include 'sitecontent/includes/price_tables.html' with tables=price_tables only %}
+</article>
+{% endblock %}

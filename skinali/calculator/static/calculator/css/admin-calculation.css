@@ -1,0 +1,22 @@
+#calculation-panels th,
+#calculation-panels td {
+    vertical-align: top;
+}
+
+#calculation-panels .calculation-panel-dimension {
+    width: 140px;
+}
+
+#calculation-panels .calculation-panel-dimension input {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+#calculation-panels .calculation-panel-dimension .errorlist {
+    margin-top: 6px;
+}
+
+#calculation-panels .calculation-panel-dimension .errorlist li {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}

@@ -1,0 +1,21 @@
+{% if tables %}
+<div class="price-tables">
+    {% for table in tables %}
+    <section class="price-table" aria-labelledby="price-table-{{ table.pk }}">
+        <h2 class="price-table__title" id="price-table-{{ table.pk }}">{{ table.title }}</h2>
+        <div class="price-table__frame">
+            <table aria-labelledby="price-table-{{ table.pk }}">
+                <colgroup><col class="price-table__service-column"><col class="price-table__price-column"></colgroup>
+                <thead><tr><th scope="col">{{ table.service_column }}</th><th scope="col">{{ table.price_column }}</th></tr></thead>
+                <tbody>
+                    {% for row in table.rows.all %}
+                    <tr><th scope="row">{{ row.description|linebreaksbr }}</th><td>{{ row.price|linebreaksbr }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if table.note %}<p class="price-table__note">{{ table.note|linebreaksbr }}</p>{% endif %}
+    </section>
+    {% endfor %}
+</div>
+{% endif %}

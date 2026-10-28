@@ -1,0 +1,6 @@
+.model-pricetable .column-drag_handle, .model-pricetable .field-drag_handle { width: 48px; text-align: center; }
+.model-pricetable #rows-group textarea { box-sizing: border-box; width: 100%; min-width: 140px; max-width: 100%; }
+.model-pricetable #rows-group .field-description { width: 60%; }
+.model-pricetable #rows-group .field-price { width: 30%; }
+.price-table-order-status { margin: 12px 0; padding: 10px 12px; background: var(--message-success-bg); }
+.price-table-order-status--error { background: var(--message-error-bg); }
