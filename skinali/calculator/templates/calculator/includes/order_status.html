@@ -1,0 +1,15 @@
+<div class="calculator-order-status" data-order-status data-state="loading" role="status" aria-live="polite" aria-atomic="true">
+  <span class="calculator-order-status__icon" aria-hidden="true">
+    <span class="calculator-order-status__spinner" data-order-state-icon="loading"></span>
+    <svg data-order-state-icon="ready" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" hidden><circle cx="12" cy="12" r="9"></circle><path d="m8 12 3 3 5-6"></path></svg>
+    <svg data-order-state-icon="error" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" hidden><circle cx="12" cy="12" r="9"></circle><path d="M12 7v6m0 4h.01"></path></svg>
+  </span>
+  <div class="calculator-order-status__body">
+    <p class="calculator-order-status__title" data-order-status-title>Подготавливаем расчёт…</p>
+    <p class="calculator-order-status__detail" data-order-status-detail>Вы можете заполнить имя и телефон.</p>
+    <button class="calculator-order-status__retry" type="button" data-order-retry hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10a9 9 0 1 1 1 7M3 4v6h6"></path></svg>
+      Повторить
+    </button>
+  </div>
+</div>
