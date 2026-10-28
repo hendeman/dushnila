@@ -1,3 +1,5 @@
+@charset "UTF-8";
+
 html {
 	scrollbar-gutter: stable;
 }
@@ -256,7 +258,7 @@ ul.mainmenu li a:focus-visible {
 .breadcrumbs li:not(:last-child)::after {
 	margin: 0 9px;
 	color: #afb3aa;
-	content: "›";
+	content: "\203A";
 }
 
 .breadcrumbs a {
@@ -1272,7 +1274,7 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-toast::before {
-	content: "✓";
+	content: "\2713";
 	flex: 0 0 auto;
 	margin-right: 16px;
 	color: var(--contact-toast-accent);
@@ -1282,12 +1284,12 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-toast--warning::before {
-	content: "⚠︎";
+	content: "\26A0\FE0E";
 	font-family: "Segoe UI Symbol", Arial, sans-serif;
 }
 
 .contact-toast--error::before {
-	content: "✖";
+	content: "\2716";
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -2997,7 +2999,7 @@ background-color: coral;
 }
 
 .catalog-modal__favorite::before {
-	content: "♡";
+	content: "\2661";
 	font-size: 19px;
 	font-weight: 400;
 	line-height: 1;
@@ -3010,7 +3012,7 @@ background-color: coral;
 }
 
 .catalog-modal__favorite.is-active::before {
-	content: "♥";
+	content: "\2665";
 }
 
 .catalog-modal__favorite.is-active:hover,
