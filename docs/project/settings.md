@@ -96,9 +96,12 @@
 - `pict.apps.PictConfig` — каталог изображений;
 - `quiz.apps.QuizConfig` — встроенный управляемый квиз и снимки его ответов;
 - `sitecontent.apps.SiteContentConfig` — редактируемые элементы интерфейса и отдельная группа «Управление сайтом» в admin;
+- `calculator.apps.CalculatorConfig` — отдельная группа «Калькулятор скинали» со справочниками и отдельными карточками «Настройки калькулятора» и «Тарифы и услуги»; [контракт](../calculator/overview.md);
 - `sorl.thumbnail` — генерация и учёт кешированных превью.
 
 Вместо стандартной записи `django.contrib.admin` подключена совместимая конфигурация `skinali.admin_config.SkinaliAdminConfig`: она оставляет стандартную регистрацию моделей и использует `SkinaliAdminSite` для счётчика новых заявок в меню admin.
+
+`skinali/admin_mixins.py` содержит общие `SuperuserAdminMixin` и `SingletonAdminMixin`: доступ к редактированию для активного суперпользователя, переход из списка в системную карточку с namespace текущего AdminSite и запрет её удаления. Эти классы переиспользуют `sitecontent.admin` и `calculator.admin`; прежние имена классов в `sitecontent.admin` сохранены импортами-псевдонимами. Для удаления пользовательских вариантов калькулятора его admin отдельно применяет ту же проверку суперпользователя.
 
 В development по умолчанию дополнительно подключаются `django_extensions`, `debug_toolbar` и `debug_toolbar.middleware.DebugToolbarMiddleware`. В preview и production они исключены, а `INTERNAL_IPS` пуст.
 

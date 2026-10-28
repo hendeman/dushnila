@@ -35,8 +35,6 @@
 
 		const rows = handles.map((handle) => handle.closest('tr'));
 		const tbody = rows[0].parentNode;
-		let draggedRow = null;
-		let orderBeforeDrag = [];
 		let saving = false;
 
 		function getOrderedIds() {
@@ -85,72 +83,14 @@
 			}
 		}
 
-		handles.forEach((handle) => {
-			handle.addEventListener('dragstart', (event) => {
-				draggedRow = handle.closest('tr');
-				orderBeforeDrag = Array.from(tbody.children);
-				draggedRow.classList.add('category-order-dragging');
-				event.dataTransfer.effectAllowed = 'move';
-				event.dataTransfer.setData('text/plain', handle.dataset.categoryId);
-			});
-
-			handle.addEventListener('dragend', () => {
-				if (!draggedRow) {
-					return;
-				}
-				draggedRow.classList.remove('category-order-dragging');
-				const changed = orderBeforeDrag.some(
-					(row, index) => tbody.children[index] !== row
-				);
-				if (changed) {
-					saveOrder(orderBeforeDrag);
-				}
-				draggedRow = null;
-			});
-
-			handle.addEventListener('keydown', (event) => {
-				if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
-					return;
-				}
-				const row = handle.closest('tr');
-				const previousRows = Array.from(tbody.children);
-				const sibling = event.key === 'ArrowUp'
-					? row.previousElementSibling
-					: row.nextElementSibling;
-				if (!sibling || !sibling.querySelector('.category-order-handle')) {
-					return;
-				}
-				event.preventDefault();
-				if (event.key === 'ArrowUp') {
-					tbody.insertBefore(row, sibling);
-				} else {
-					tbody.insertBefore(sibling, row);
-				}
-				handle.focus();
-				saveOrder(previousRows);
-			});
-		});
-
-		tbody.addEventListener('dragover', (event) => {
-			if (!draggedRow) {
-				return;
-			}
-			const targetRow = event.target.closest('tr');
-			if (
-				!targetRow
-				|| targetRow === draggedRow
-				|| !targetRow.querySelector('.category-order-handle')
-			) {
-				return;
-			}
-			event.preventDefault();
-			const bounds = targetRow.getBoundingClientRect();
-			const insertAfter = event.clientY > bounds.top + bounds.height / 2;
-			tbody.insertBefore(
-				draggedRow,
-				insertAfter ? targetRow.nextElementSibling : targetRow
-			);
-		});
+        window.SkinaliAdminOrder.initialize({
+            container: tbody,
+            itemSelector: 'tr',
+            handleSelector: '.category-order-handle',
+            getId: (row) => row.querySelector('.category-order-handle').dataset.categoryId,
+            onChange: saveOrder,
+            canMove: () => !saving,
+        });
 	}
 
 	document.addEventListener('DOMContentLoaded', initializeCategoryOrder);

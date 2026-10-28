@@ -263,6 +263,7 @@ Push в другую ветку production не обновляет. Merge pull r
 - `skinali/pict/` → `projects/odium/pict/`;
 - `skinali/quiz/` → `projects/odium/quiz/`;
 - `skinali/sitecontent/` → `projects/odium/sitecontent/`;
+- `skinali/calculator/` → `projects/odium/calculator/`;
 - `skinali/skinali/` → `projects/odium/skinali/`;
 - `skinali/manage.py` → `projects/odium/manage.py`;
 - `requirements-production.txt` → `projects/odium/requirements-production.txt`.

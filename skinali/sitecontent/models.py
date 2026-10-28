@@ -6,7 +6,7 @@ from django.core.validators import URLValidator, validate_email
 from django.db import models
 from django.db import router, transaction
 from django.conf import settings
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, MaxLengthValidator
 from django.urls import reverse
 from django.utils import timezone
 
@@ -54,6 +54,7 @@ class SitePage(SeoMetadataFields):
     class Code(models.TextChoices):
         HOME = 'home', 'Главная страница'
         CATALOG = 'skinali', 'Каталог скинали'
+        PRICE = 'price', 'Цена'
         FINISHED_WORKS = 'finished_works', 'Наши работы'
         DESIGNER = 'designer', 'Услуги дизайнера'
         ARTICLES = 'article_list', 'Полезно знать'
@@ -228,6 +229,70 @@ class MenuItem(models.Model):
         # Валидация протокола обязательна и для служебных сохранений вне admin-формы.
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class ValidatedPriceTableContent(models.Model):
+    """Проверяет текст и порядок информационных таблиц при обычном сохранении."""
+
+    position = models.PositiveIntegerField('Порядок', default=0, db_index=True)
+
+    def clean(self):
+        super().clean()
+        errors = {}
+        for field in self._meta.fields:
+            if isinstance(field, (models.CharField, models.TextField)):
+                value = getattr(self, field.name)
+                if isinstance(value, str):
+                    setattr(self, field.name, value.strip())
+                    if not field.blank and not value.strip():
+                        errors[field.name] = 'Заполните это поле.'
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    class Meta:
+        abstract = True
+        ordering = ['position', 'pk']
+
+
+class PriceTable(ValidatedPriceTableContent):
+    """Самостоятельная информационная таблица страницы «Цена»."""
+
+    title = models.CharField('Заголовок', max_length=200)
+    service_column = models.CharField('Название первой колонки', max_length=100, default='Услуга')
+    price_column = models.CharField('Название второй колонки', max_length=100, default='Стоимость')
+    note = models.TextField(
+        'Примечание под таблицей', max_length=2000, blank=True, validators=[MaxLengthValidator(2000)],
+    )
+    is_published = models.BooleanField('Показывать на сайте', default=False)
+
+    class Meta(ValidatedPriceTableContent.Meta):
+        verbose_name = 'Таблица страницы «Цена»'
+        verbose_name_plural = 'Таблицы страницы «Цена»'
+
+    def __str__(self):
+        return self.title
+
+
+class PriceTableRow(ValidatedPriceTableContent):
+    """Строка услуги с текстовой стоимостью без связи с тарифами калькулятора."""
+
+    table = models.ForeignKey(PriceTable, on_delete=models.CASCADE, related_name='rows', verbose_name='Таблица')
+    description = models.TextField('Услуга / описание', max_length=2000, validators=[MaxLengthValidator(2000)])
+    price = models.TextField(
+        'Стоимость', max_length=500, validators=[MaxLengthValidator(500)],
+        help_text='Например: Бесплатно, от 25 руб., 3 руб. за каждый макет или По согласованию.',
+    )
+
+    class Meta(ValidatedPriceTableContent.Meta):
+        verbose_name = 'Строка таблицы'
+        verbose_name_plural = 'Строки таблицы'
+
+    def __str__(self):
+        return self.description[:80]
 
 
 class ArticleImage(models.Model):

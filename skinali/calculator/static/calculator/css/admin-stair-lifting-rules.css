@@ -1,0 +1,59 @@
+.stair-lifting-rules {
+    display: inline-block;
+    max-width: 100%;
+    vertical-align: top;
+}
+
+.stair-lifting-rules-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.stair-lifting-rules [hidden] {
+    display: none;
+}
+
+.stair-lifting-rules-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.stair-lifting-rules-actions .help {
+    margin: 0;
+    padding: 0;
+}
+
+.stair-lifting-rules-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+}
+
+.stair-lifting-rules table {
+    width: auto;
+    border-collapse: collapse;
+    margin: 0;
+}
+
+.stair-lifting-rules th,
+.stair-lifting-rules td {
+    border: 1px solid var(--hairline-color);
+    padding: 6px 8px;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.stair-lifting-rules th[scope="row"] {
+    text-align: left;
+    white-space: nowrap;
+}
+
+.stair-lifting-rules input[type="number"] {
+    box-sizing: border-box;
+    width: 5rem;
+    min-width: 4rem;
+    margin: 0;
+    text-align: right;
+}

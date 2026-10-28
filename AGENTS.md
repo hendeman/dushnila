@@ -41,11 +41,17 @@
 | Избранное, лимит 50, подписанные ссылки без БД, частичный импорт, счётчики прогресса, повтор, полная очистка и Toast | [pict/favorites.md](docs/pict/favorites.md) | [pict/views.md](docs/pict/views.md), [pict/urls.md](docs/pict/urls.md), [pict/tests.md](docs/pict/tests.md) |
 | URL приложения `pict`, включая `/designer/`, добавление и удаление маршрутов | [pict/urls.md](docs/pict/urls.md) | [pict/views.md](docs/pict/views.md), [architecture.md](docs/architecture.md) |
 | Форма добавления изображения | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/admin.md](docs/pict/admin.md) |
+| Заказ из калькулятора: модальное имя/телефон, скрытая подписанная ссылка, проверка, сохранение заявки и уведомления | [calculator/overview.md](docs/calculator/overview.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/services.md](docs/pict/services.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
 | Контактные формы, заявки, валидация и антиспам | [pict/forms.md](docs/pict/forms.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/admin.md](docs/pict/admin.md), [pict/context_processors.md](docs/pict/context_processors.md), [pict/urls.md](docs/pict/urls.md) |
 | Список заявок в admin, статусы доставок и отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
 | Очередь и отправка контактных заявок в Telegram/email | [pict/services.md](docs/pict/services.md) | [pict/management.md](docs/pict/management.md), [pict/models.md](docs/pict/models.md), [project/settings.md](docs/project/settings.md), [pict/admin.md](docs/pict/admin.md) |
 | Цена на странице дизайнера | [pict/views.md](docs/pict/views.md) | [pict/tests.md](docs/pict/tests.md) |
+| Независимые таблицы под калькулятором только на странице «Цена», строки услуг с текстовой стоимостью, публикация и перетягивание в admin | [sitecontent/price-tables.md](docs/sitecontent/price-tables.md) | [sitecontent/overview.md](docs/sitecontent/overview.md), [calculator/overview.md](docs/calculator/overview.md), [pict/signals.md](docs/pict/signals.md), [migrations/README.md](docs/migrations/README.md) |
+| Редактируемые подсказки «?» параметров и услуг калькулятора, скрытие пустых текстов на сайте | [calculator/overview.md](docs/calculator/overview.md) | [architecture.md](docs/architecture.md), [migrations/README.md](docs/migrations/README.md) |
+| Публичная страница «Цена» (`/price/`), мгновенный расчёт в браузере, размеры панелей, округление общей площади до сотых перед стоимостью, услуги, подъём, акции и целый итог | [calculator/overview.md](docs/calculator/overview.md) | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/sitemaps.md](docs/pict/sitemaps.md), [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
+| Поделиться расчётом, подписанные ссылки без БД, восстановление параметров и актуальные тарифы | [calculator/overview.md](docs/calculator/overview.md) | [pict/favorites.md](docs/pict/favorites.md), [project/urls.md](docs/project/urls.md), [architecture.md](docs/architecture.md) |
 | Административная панель | [pict/admin.md](docs/pict/admin.md) | [pict/forms.md](docs/pict/forms.md), [pict/models.md](docs/pict/models.md) |
+| Админка калькулятора: отдельные «Настройки калькулятора» и «Тарифы и услуги», общий переключатель показа на сайте, прогрессивная скидка при площади больше 2 м² и маркетинговая скидка в процентах с описанием акции, общие услуги с CRUD/подписями/тарифами, индивидуальным максимумом количества, точностью дробного ввода до сотых и перетягиванием, единицы измерения, фиксированная плата за заказ и включённый режим, формула и проверочный расчёт; таблица правил лестницы 1–6 | [calculator/overview.md](docs/calculator/overview.md) | [pict/admin.md](docs/pict/admin.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md), [sitecontent/overview.md](docs/sitecontent/overview.md), [architecture.md](docs/architecture.md), [migrations/README.md](docs/migrations/README.md) |
 | Единая ширина SEO-полей admin, рекомендации длины и живые счётчики символов | [sitecontent/admin-seo.md](docs/sitecontent/admin-seo.md) | [pict/admin.md](docs/pict/admin.md), [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md) |
 | Счётчик новых заявок в меню admin и массовая отметка просмотра | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/tests.md](docs/pict/tests.md), [project/settings.md](docs/project/settings.md), [project/urls.md](docs/project/urls.md) |
 | Порядок категорий и перетягивание в admin | [pict/admin.md](docs/pict/admin.md) | [pict/models.md](docs/pict/models.md), [pict/views.md](docs/pict/views.md), [pict/tests.md](docs/pict/tests.md), [migrations/README.md](docs/migrations/README.md) |
@@ -69,6 +75,8 @@
 | `skinali/skinali/settings.py` | [project/settings.md](docs/project/settings.md) |
 | `skinali/skinali/log_alerts.py`, `test_log_alerts.py` | [project/settings.md](docs/project/settings.md) |
 | `skinali/skinali/admin_config.py` | [project/settings.md](docs/project/settings.md) |
+| `skinali/skinali/admin_mixins.py` | [project/settings.md](docs/project/settings.md), [sitecontent/overview.md](docs/sitecontent/overview.md), [calculator/overview.md](docs/calculator/overview.md) |
+| `skinali/skinali/admin_order.py` | [sitecontent/price-tables.md](docs/sitecontent/price-tables.md), [pict/admin.md](docs/pict/admin.md) |
 | `skinali/skinali/admin_site.py` | [project/urls.md](docs/project/urls.md), [pict/admin.md](docs/pict/admin.md) |
 | `skinali/skinali/middleware.py` | [project/middleware.md](docs/project/middleware.md) |
 | `skinali/skinali/urls.py` | [project/urls.md](docs/project/urls.md) |
@@ -99,19 +107,25 @@
 | `skinali/pict/tests.py` | [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/sitecontent/apps.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
-| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
-| `skinali/sitecontent/forms.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/models.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md), [sitecontent/price-tables.md](docs/sitecontent/price-tables.md) |
+| `skinali/sitecontent/test_price_tables.py` | [sitecontent/price-tables.md](docs/sitecontent/price-tables.md) |
+| `skinali/sitecontent/forms.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md), [sitecontent/price-tables.md](docs/sitecontent/price-tables.md) |
 | `skinali/sitecontent/secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
 | `skinali/sitecontent/views.py`, `urls.py`, `sitemaps.py`, `widgets.py`, `rich_text.py`, `article_media.py`, `test_articles.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
 | `skinali/sitecontent/querysets.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [pict/models.md](docs/pict/models.md) |
 | `skinali/sitecontent/management/commands/cleanup_article_images.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
-| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/sitecontent/admin.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md), [sitecontent/price-tables.md](docs/sitecontent/price-tables.md) |
 | `skinali/sitecontent/admin_seo.py`, `test_admin_seo.py` | [sitecontent/admin-seo.md](docs/sitecontent/admin-seo.md) |
 | `skinali/sitecontent/context_processors.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/tests.py` | [sitecontent/overview.md](docs/sitecontent/overview.md) |
 | `skinali/sitecontent/test_catalog_search_settings.py` | [sitecontent/overview.md](docs/sitecontent/overview.md), [pict/search.md](docs/pict/search.md) |
 | `skinali/sitecontent/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
 | `skinali/quiz/apps.py` | [quiz/overview.md](docs/quiz/overview.md) |
+| `skinali/calculator/apps.py`, `models.py`, `admin.py`, `tests.py` | [calculator/overview.md](docs/calculator/overview.md) |
+| `skinali/calculator/public.py`, `views.py`, `urls.py`, `test_public.py`, `test_hints.py` | [calculator/overview.md](docs/calculator/overview.md) |
+| `skinali/calculator/sharing.py`, `test_sharing.py`, `test_orders.py` | [calculator/overview.md](docs/calculator/overview.md) |
+| `skinali/calculator/calculation.py`, `forms.py`, `widgets.py`, `test_calculation.py`, `test_services.py`, `test_units.py`, `test_promotions.py`, `templatetags/calculator_numbers.py` | [calculator/overview.md](docs/calculator/overview.md) |
+| `skinali/calculator/migrations/*.py` | [calculator/overview.md](docs/calculator/overview.md), [migrations/README.md](docs/migrations/README.md) |
 | `skinali/quiz/models.py` | [quiz/overview.md](docs/quiz/overview.md) |
 | `skinali/quiz/forms.py` | [quiz/overview.md](docs/quiz/overview.md) |
 | `skinali/quiz/context_processors.py` | [quiz/overview.md](docs/quiz/overview.md) |

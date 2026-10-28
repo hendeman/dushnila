@@ -1,0 +1,57 @@
+.calculator-services [data-service-card] ~ [data-service-card] {
+    border-top: 3px solid var(--link-fg);
+    margin-top: 14px;
+    padding-top: 6px;
+}
+
+.calculator-services .service-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.calculator-services .service-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.calculator-services .service-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.calculator-services .service-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0;
+    border-radius: 4px;
+}
+
+.calculator-services .service-action img {
+    display: block;
+}
+
+.calculator-services .service-action:hover,
+.calculator-services .service-action:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+}
+
+.calculator-services h2 a.service-action {
+    color: var(--header-link-color);
+}
+
+.calculator-services h2 .service-action img {
+    filter: brightness(0) invert(1);
+}
+
+.calculator-services .service-delete {
+    color: var(--delete-button-bg);
+}

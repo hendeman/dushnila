@@ -1,0 +1,24 @@
+<div class="stair-lifting-rules" data-min="{{ widget.min_count }}" data-max="{{ widget.max_count }}">
+  <input type="hidden" name="{{ widget.name }}_count" value="{{ widget.count }}" data-rule-count>
+  <div class="stair-lifting-rules-scroll">
+  <table>
+    <caption class="visually-hidden">Этажи и коэффициенты сложности подъёма по лестнице</caption>
+    <thead>
+      <tr><th scope="row">Панель</th>{% for count, hidden in widget.columns %}<th scope="col" data-rule-column="{{ count }}"{% if hidden %} hidden{% endif %}>{{ count }}</th>{% endfor %}</tr>
+    </thead>
+    <tbody>
+      {% for label, cells in widget.rule_rows %}
+      <tr>
+        <th scope="row">{{ label }}</th>
+        {% for hidden, subwidget in cells %}<td data-rule-column="{{ forloop.counter }}"{% if hidden %} hidden{% endif %}>{% include subwidget.template_name with widget=subwidget %}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="stair-lifting-rules-actions">
+    <button type="button" class="button" data-add-rule disabled>Добавить столбец</button>
+    <button type="button" class="button" data-remove-rule disabled>Удалить столбец</button>
+    <span class="help">От {{ widget.min_count }} до {{ widget.max_count }} панелей. Удаляется последний столбец.</span>
+  </div>
+</div>

@@ -617,6 +617,7 @@ class ContactRequest(models.Model):
         EMAIL_MESSAGE = 'email_message', 'Сообщение по email'
         IMAGE_PURCHASE = 'image_purchase', 'Покупка изображения'
         QUIZ = 'quiz', 'Квиз'
+        CALCULATOR_ORDER = 'calculator_order', 'Заказ из калькулятора'
 
     request_type = models.CharField(
         max_length=20,
@@ -625,6 +626,9 @@ class ContactRequest(models.Model):
     )
     name = models.CharField(max_length=20, verbose_name='Имя')
     phone = models.CharField(max_length=20, blank=True, verbose_name='Телефон')
+    calculation_url = models.CharField(
+        'Ссылка на расчёт', max_length=8192, blank=True, default='', editable=False,
+    )
     email = models.EmailField(max_length=254, blank=True, default='', verbose_name='Email')
     question = models.CharField(max_length=250, blank=True, verbose_name='Вопрос')
     comment = models.CharField(

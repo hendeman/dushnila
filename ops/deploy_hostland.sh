@@ -10,7 +10,7 @@ readonly APP_DIR="/home/host1889656/odium.by/projects/odium"
 readonly PYTHON_BIN="/home/host1889656/odium.by/venv/python_3.11/bin/python"
 readonly BACKUP_ROOT="/home/host1889656/odium.by/backups/automatic-deploy"
 readonly BACKUPS_TO_KEEP=5
-readonly -a CODE_DIRECTORIES=(pict quiz sitecontent skinali)
+readonly -a CODE_DIRECTORIES=(pict quiz sitecontent calculator skinali)
 
 backup_dir=""
 code_changed=false

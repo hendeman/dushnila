@@ -1,54 +1,27 @@
+from django import forms
 from django.contrib import admin, messages
-from django.core.exceptions import ValidationError
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db.models import Count, Max, Q
 from django.shortcuts import redirect
 from django.urls import path, reverse
 from django.http import JsonResponse, HttpResponseNotAllowed
 from django.utils.html import format_html, format_html_join
 from django.utils import timezone
+from skinali.admin_mixins import (
+    SingletonAdminMixin as SingletonSiteContentAdminMixin,
+    SuperuserAdminMixin as SuperuserSiteContentAdminMixin,
+)
+from skinali.admin_order import reorder_admin_objects
 from pict.services.contact_delivery import enqueue_connection_test, retry_failed_deliveries
 from pict.services.delivery_errors import DeliveryConfigurationError
 
-from .forms import ArticleAdminForm, LeadConnectionForm
+from .forms import ArticleAdminForm, LeadConnectionForm, PriceTableRowForm, PriceTableRowFormSet
 from .admin_seo import SeoAdminMixin
 from .models import (
-    Article, ArticleImage, CatalogSearchSettings, LeadConnection, MenuItem, SiteMenu, SitePage,
+    Article, ArticleImage, CatalogSearchSettings, LeadConnection, MenuItem, PriceTable,
+    PriceTableRow, SiteMenu, SitePage,
 )
 from .article_media import prepare_article_image
-
-
-class SuperuserSiteContentAdminMixin:
-    """Содержимое сайта доступно только активному суперпользователю."""
-
-    def has_module_permission(self, request):
-        return request.user.is_active and request.user.is_superuser
-
-    def has_view_permission(self, request, obj=None):
-        return self.has_module_permission(request)
-
-    def has_add_permission(self, request):
-        return self.has_module_permission(request)
-
-    def has_change_permission(self, request, obj=None):
-        return self.has_module_permission(request)
-
-
-class SingletonSiteContentAdminMixin(SuperuserSiteContentAdminMixin):
-    """Общий переход в единственную системную карточку и запрет её удаления."""
-
-    def has_delete_permission(self, request, obj=None):
-        return False
-
-    def changelist_view(self, request, extra_context=None):
-        if self.has_view_permission(request):
-            instance = self.model.objects.only('pk').first()
-            if instance:
-                opts = self.model._meta
-                return redirect(reverse(
-                    f'{self.admin_site.name}:{opts.app_label}_{opts.model_name}_change',
-                    args=[instance.pk],
-                ))
-        return super().changelist_view(request, extra_context=extra_context)
 
 
 @admin.register(CatalogSearchSettings)
@@ -99,6 +72,97 @@ class SiteMenuAdmin(SingletonSiteContentAdminMixin, admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return super().has_add_permission(request) and not SiteMenu.objects.exists()
+
+
+class PriceTableRowInline(SuperuserSiteContentAdminMixin, admin.TabularInline):
+    model = PriceTableRow
+    form = PriceTableRowForm
+    formset = PriceTableRowFormSet
+    fields = ('drag_handle', 'description', 'price', 'position')
+    readonly_fields = ('drag_handle',)
+    extra = 1
+
+    def has_add_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    @admin.display(description='Порядок')
+    def drag_handle(self, obj=None):
+        return format_html(
+            '<button type="button" class="admin-order-handle" data-price-row-order '
+            'title="{}" aria-label="{}">⋮⋮</button>',
+            'Перетащить строку; ↑ и ↓ на клавиатуре', 'Изменить порядок строки',
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+
+@admin.register(PriceTable)
+class PriceTableAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
+    list_display = ('drag_handle', 'title', 'is_published', 'row_count')
+    list_display_links = ('title',)
+    list_filter = ('is_published',)
+    search_fields = ('title',)
+    sortable_by = ()
+    ordering = ('position', 'pk')
+    inlines = (PriceTableRowInline,)
+    fields = ('title', 'service_column', 'price_column', 'note', 'is_published')
+
+    class Media:
+        css = {'all': ('skinali/css/admin-order.css', 'sitecontent/css/admin-price-tables.css')}
+        js = ('skinali/js/admin-order.js', 'sitecontent/js/admin-price-tables.js')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(_row_count=Count('rows'))
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == 'note':
+            kwargs['widget'] = forms.Textarea(attrs={'rows': 3, 'cols': 70})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
+
+    @admin.display(description='Строк')
+    def row_count(self, obj):
+        return obj._row_count
+
+    @admin.display(description='Порядок')
+    def drag_handle(self, obj):
+        return format_html(
+            '<button type="button" class="admin-order-handle" data-price-table-id="{}" '
+            'data-reorder-url="{}" title="Перетащить таблицу; ↑ и ↓ на клавиатуре" '
+            'aria-label="Изменить порядок таблицы {}">⋮⋮</button>',
+            obj.pk, reverse(f'{self.admin_site.name}:sitecontent_pricetable_reorder'), obj.title,
+        )
+
+    def has_delete_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def get_urls(self):
+        return [path(
+            'reorder/', self.admin_site.admin_view(self.reorder_view),
+            name='sitecontent_pricetable_reorder',
+        )] + super().get_urls()
+
+    def reorder_view(self, request):
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        if not self.has_change_permission(request):
+            raise PermissionDenied
+
+        def on_reorder(objects, using):
+            from pict.signals import touch_site_pages
+
+            touch_site_pages((SitePage.Code.PRICE,), changed_at=timezone.now(), using=using)
+            for obj in objects:
+                self.log_change(request, obj, 'Изменён порядок таблиц страницы «Цена».')
+
+        return reorder_admin_objects(
+            request, PriceTable.objects.all(), on_reorder=on_reorder,
+        )
+
+    def save_model(self, request, obj, form, change):
+        if not change:
+            obj.position = (PriceTable.objects.aggregate(last=Max('position'))['last'] or 0) + 1
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(Article)

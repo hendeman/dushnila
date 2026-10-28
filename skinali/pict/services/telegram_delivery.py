@@ -45,7 +45,7 @@ def get_configuration(connection):
 
 def send(delivery, configuration):
     text = (
-        format_contact_request_message(delivery.contact_request)
+        format_contact_request_message(delivery.contact_request, compact_links=True)
         if delivery.contact_request_id else 'Проверка подключения: сайт успешно отправил тестовое сообщение.'
     )
     session = requests.Session()

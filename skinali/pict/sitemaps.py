@@ -32,6 +32,7 @@ class StaticViewSitemap(PublicOriginSitemap):
     view_names = (
         'home',
         'skinali',
+        'price',
         'finished_works',
         'designer',
         'article_list',

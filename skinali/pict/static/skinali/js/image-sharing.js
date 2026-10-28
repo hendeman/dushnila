@@ -26,7 +26,7 @@
     };
   }
 
-  function getFavoritesShareData(shareBlock) {
+  function getUrlShareData(shareBlock) {
     const sharedUrl = shareBlock.dataset.shareUrl;
     if (!sharedUrl) {
       document.dispatchEvent(new CustomEvent('site:toast', {
@@ -35,7 +35,7 @@
       return null;
     }
 
-    const title = 'Избранные изображения для скинали';
+    const title = shareBlock.dataset.shareTitle || 'Избранные изображения для скинали';
     return {
       sharedUrl,
       title,
@@ -44,8 +44,8 @@
   }
 
   function getShareData(shareBlock) {
-    return shareBlock.dataset.shareKind === 'favorites'
-      ? getFavoritesShareData(shareBlock)
+    return ['favorites', 'calculation'].includes(shareBlock.dataset.shareKind)
+      ? getUrlShareData(shareBlock)
       : getImageShareData(shareBlock);
   }
 
@@ -126,6 +126,11 @@
         link.href = buildShareUrl(shareData);
       }
     });
+    shareBlock.querySelectorAll('[data-share-copy]').forEach((button) => {
+      window.clearTimeout(copyFeedbackTimers.get(button));
+      copyFeedbackTimers.delete(button);
+      setCopyFeedback(button, false);
+    });
     return true;
   }
 
@@ -148,13 +153,26 @@
     event.preventDefault();
     const shareBlock = toggle.closest('[data-share]');
     const services = shareBlock?.querySelector('[data-share-services]');
-    if (!shareBlock || !services) {
+    if (!shareBlock || !services || toggle.getAttribute('aria-busy') === 'true') {
       return;
     }
 
     const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
-    if (willOpen && !prepareShareLinks(shareBlock)) {
-      return;
+    if (willOpen) {
+      toggle.setAttribute('aria-busy', 'true');
+      try {
+        const preparation = { promises: [] };
+        shareBlock.dispatchEvent(new CustomEvent('share:prepare', { detail: preparation }));
+        await Promise.all(preparation.promises);
+        if (!prepareShareLinks(shareBlock)) return;
+      } catch (error) {
+        document.dispatchEvent(new CustomEvent('site:toast', {
+          detail: { message: error.message || 'Не удалось подготовить ссылку. Попробуйте ещё раз.', kind: 'error' }
+        }));
+        return;
+      } finally {
+        toggle.removeAttribute('aria-busy');
+      }
     }
 
     toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');

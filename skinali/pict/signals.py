@@ -2,7 +2,7 @@ from django.db.models.signals import m2m_changed, post_delete, post_save, pre_de
 from django.db import transaction
 from django.dispatch import receiver
 from django.utils import timezone
-from sitecontent.models import Article, ArticleImage, SitePage
+from sitecontent.models import Article, ArticleImage, PriceTable, PriceTableRow, SitePage
 
 from .models import Category, Color, FinishedWork, Pict, TagPict
 from .services.photo_cleanup import schedule_photo_cleanup
@@ -72,6 +72,15 @@ def touch_site_pages(page_codes, *, changed_at, using):
     SitePage.objects.using(using).filter(code__in=page_codes).update(
         updated_at=changed_at,
     )
+
+
+@receiver(post_save, sender=PriceTable)
+@receiver(post_delete, sender=PriceTable)
+@receiver(post_save, sender=PriceTableRow)
+@receiver(post_delete, sender=PriceTableRow)
+def price_table_content_changed(sender, instance, using, raw=False, **kwargs):
+    if not raw:
+        touch_site_pages((SitePage.Code.PRICE,), changed_at=timezone.now(), using=using)
 
 
 def touch_all_category_pages(*, changed_at, using):

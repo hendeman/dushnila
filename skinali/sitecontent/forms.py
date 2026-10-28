@@ -4,10 +4,39 @@ from django import forms
 from django.core.exceptions import ValidationError
 from pict.models import ContactRequest
 
-from .models import Article, LeadConnection
+from .models import Article, LeadConnection, PriceTableRow
 from .rich_text import MAX_ARTICLE_HTML_LENGTH, sanitize_article_html
 from .widgets import QuillWidget
 from .secrets import encrypt_secret
+
+
+class PriceTableRowForm(forms.ModelForm):
+    class Meta:
+        model = PriceTableRow
+        fields = '__all__'
+        widgets = {
+            'position': forms.HiddenInput,
+            'description': forms.Textarea(attrs={'rows': 3, 'cols': 50}),
+            'price': forms.Textarea(attrs={'rows': 3, 'cols': 25}),
+        }
+
+    def has_changed(self):
+        # Перестановка пустой дополнительной строки не должна требовать её заполнения.
+        if not self.instance.pk:
+            return any(name != 'position' for name in self.changed_data)
+        return super().has_changed()
+
+
+class PriceTableRowFormSet(forms.BaseInlineFormSet):
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        if self.instance.is_published and not any(
+            form.cleaned_data.get('description') and not form.cleaned_data.get('DELETE')
+            for form in self.forms
+        ):
+            raise ValidationError('Добавьте хотя бы одну строку перед публикацией таблицы.')
 
 
 class ArticleAdminForm(forms.ModelForm):

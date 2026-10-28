@@ -1,0 +1,28 @@
+.admin-order-handle {
+    border: 0;
+    background: transparent;
+    color: var(--body-quiet-color);
+    cursor: grab;
+    font-size: 22px;
+    line-height: 1;
+    padding: 6px 10px;
+    touch-action: none;
+}
+
+.admin-order-handle:hover,
+.admin-order-handle:focus-visible {
+    color: var(--link-fg);
+}
+
+.admin-order-handle:active {
+    cursor: grabbing;
+}
+
+.admin-order-handle:disabled {
+    cursor: default;
+    opacity: 0.4;
+}
+
+.admin-order-dragging {
+    opacity: 0.45;
+}

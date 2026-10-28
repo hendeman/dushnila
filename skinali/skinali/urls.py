@@ -82,6 +82,7 @@ if settings.ENABLE_DEBUG_TOOLBAR:
     urlpatterns.append(path('__debug__/', include('debug_toolbar.urls')))
 
 urlpatterns.append(path('quiz/', include('quiz.urls')))
+urlpatterns.append(path('', include('calculator.urls')))
 urlpatterns.append(path('', include('sitecontent.urls')))
 urlpatterns.append(path('', include('pict.urls')))
 

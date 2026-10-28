@@ -200,6 +200,22 @@ class CallbackContactForm(PhoneContactForm):
     form_kind = ContactRequest.RequestType.CALLBACK
 
 
+class CalculatorOrderContactForm(PhoneContactForm):
+    form_kind = ContactRequest.RequestType.CALCULATOR_ORDER
+
+    calculation_url = forms.CharField(
+        label='Ссылка на расчёт',
+        max_length=ContactRequest._meta.get_field('calculation_url').max_length,
+        widget=forms.HiddenInput(attrs={'data-calculation-url': True, 'data-field-name': 'calculation_url'}),
+        error_messages={'required': 'Сначала заполните параметры расчёта и нажмите «Заказать».'},
+    )
+
+    def clean_calculation_url(self):
+        from calculator.sharing import validate_calculation_share_url
+
+        return validate_calculation_share_url(self.cleaned_data['calculation_url'])
+
+
 class QuestionContactForm(PhoneContactForm):
     form_kind = ContactRequest.RequestType.QUESTION
 

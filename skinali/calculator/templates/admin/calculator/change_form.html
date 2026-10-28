@@ -1,0 +1,10 @@
+{% extends "admin/change_form.html" %}
+
+{% block object-tools-items %}
+{% if original and has_view_permission %}
+<li><a href="{{ counterpart_url }}">{{ counterpart_label }}</a></li>
+<li><a href="{{ calculation_url }}">Проверить расчёт</a></li>
+{% if units_url %}<li><a href="{{ units_url }}">Единицы измерения</a></li>{% endif %}
+{% endif %}
+{{ block.super }}
+{% endblock %}

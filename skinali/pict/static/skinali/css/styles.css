@@ -1139,7 +1139,8 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-form__field input,
-.contact-form__field textarea {
+.contact-form__field textarea,
+.site-form-control {
 	display: block;
 	box-sizing: border-box;
 	width: 100%;
@@ -1153,7 +1154,8 @@ ul.mainmenu li a:focus-visible {
 	transition: border-color .16s, box-shadow .16s;
 }
 
-.contact-form__field input {
+.contact-form__field input,
+.site-form-control {
 	height: 48px;
 	padding: 0 14px;
 }
@@ -1165,13 +1167,15 @@ ul.mainmenu li a:focus-visible {
 }
 
 .contact-form__field input:focus,
-.contact-form__field textarea:focus {
+.contact-form__field textarea:focus,
+.site-form-control:focus {
 	border-color: #6f8a68;
 	box-shadow: 0 0 0 3px rgba(111, 138, 104, .16);
 }
 
 .contact-form__field input[aria-invalid="true"],
-.contact-form__field textarea[aria-invalid="true"] {
+.contact-form__field textarea[aria-invalid="true"],
+.site-form-control[aria-invalid="true"] {
 	border-color: #a3483f;
 }
 
@@ -3048,6 +3052,7 @@ background-color: coral;
 
 .share-toggle::before {
 	content: "";
+	flex: 0 0 15px;
 	width: 15px;
 	height: 15px;
 	margin-right: 8px;
@@ -3057,6 +3062,12 @@ background-color: coral;
 		radial-gradient(circle at 12px 12px, currentColor 0 2px, transparent 2.5px),
 		linear-gradient(153deg, transparent 45%, currentColor 46% 54%, transparent 55%) 3px 3px / 9px 5px no-repeat,
 		linear-gradient(27deg, transparent 45%, currentColor 46% 54%, transparent 55%) 3px 7px / 9px 5px no-repeat;
+}
+
+.share-toggle[aria-expanded="true"]::before {
+	background:
+		linear-gradient(45deg, transparent calc(50% - 1px), currentColor calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px)),
+		linear-gradient(-45deg, transparent calc(50% - 1px), currentColor calc(50% - 1px) calc(50% + 1px), transparent calc(50% + 1px));
 }
 
 .share-toggle:hover,
@@ -3499,7 +3510,8 @@ background-color: coral;
 	font-style: italic;
 }
 
-.favorites-notice {
+.favorites-notice,
+.site-notice {
 	margin: 0 0 20px;
 	padding: 14px 18px;
 	border-left: 4px solid #6f8a68;
@@ -3509,7 +3521,8 @@ background-color: coral;
 	line-height: 1.6;
 }
 
-.favorites-notice--warning {
+.favorites-notice--warning,
+.site-notice--warning {
 	border-left-color: #d47b11;
 	background: #fff7ed;
 }

@@ -318,7 +318,7 @@ class PopularTagsTests(TestCase):
         )
         self.assertContains(response, '<div class="list-all">Все цвета</div>', html=True)
         self.assertContains(response, 'placeholder="Поиск, например море"')
-        self.assertContains(response, 'href="/static/skinali/css/styles.css"')
+        self.assertContains(response, 'href="/static/skinali/css/styles.css')
         self.assertContains(response, 'skinali/images/logo_skinali.png', count=1)
         self.assertContains(response, 'skinali/images/logo_skinali_white.png', count=1)
         self.assertTrue(
@@ -1753,6 +1753,7 @@ class CategoryOrderingAdminTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'category-order-handle', count=3)
         self.assertContains(response, 'skinali/js/admin-category-order.js')
+        self.assertContains(response, 'skinali/js/admin-order.js')
         self.assertContains(response, 'skinali/css/admin-category-order.css')
 
     def test_new_admin_category_is_appended_to_current_order(self):

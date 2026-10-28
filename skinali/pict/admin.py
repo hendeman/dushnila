@@ -1,4 +1,3 @@
-import json
 import logging
 import re
 from pathlib import Path
@@ -7,13 +6,14 @@ from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Exists, OuterRef, Q
-from django.http import HttpResponseNotAllowed, JsonResponse
+from django.http import HttpResponseNotAllowed
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 from sorl.thumbnail.shortcuts import get_thumbnail
+from skinali.admin_order import reorder_admin_objects
 from sitecontent.admin_seo import SeoAdminMixin
 from sitecontent.models import CatalogSearchSettings
 
@@ -434,10 +434,11 @@ class CategoryAdmin(SeoAdminMixin, admin.ModelAdmin):
 
     class Media:
         css = {'all': (
+            'skinali/css/admin-order.css',
             'skinali/css/admin-category-order.css',
             'skinali/css/admin-seo-landing-fields.css',
         )}
-        js = ('skinali/js/admin-category-order.js',)
+        js = ('skinali/js/admin-order.js', 'skinali/js/admin-category-order.js')
 
     def get_list_display(self, request):
         if self.has_change_permission(request):
@@ -456,7 +457,7 @@ class CategoryAdmin(SeoAdminMixin, admin.ModelAdmin):
     @admin.display(description='Порядок')
     def drag_handle(self, obj):
         return format_html(
-            '<button type="button" class="category-order-handle" '
+            '<button type="button" class="category-order-handle admin-order-handle" '
             'draggable="true" data-category-id="{}" '
             'title="Перетащить категорию" '
             'aria-label="Изменить порядок категории {}">⋮⋮</button>',
@@ -470,63 +471,7 @@ class CategoryAdmin(SeoAdminMixin, admin.ModelAdmin):
         if not self.has_change_permission(request):
             raise PermissionDenied
 
-        try:
-            payload = json.loads(request.body)
-            raw_ids = payload['ordered_ids']
-            if not isinstance(raw_ids, list) or not raw_ids:
-                raise ValueError
-            if any(
-                not isinstance(category_id, int) or isinstance(category_id, bool)
-                for category_id in raw_ids
-            ):
-                raise TypeError
-            ordered_ids = raw_ids
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-            return JsonResponse(
-                {'error': 'Некорректный список категорий.'},
-                status=400,
-            )
-
-        if len(ordered_ids) != len(set(ordered_ids)):
-            return JsonResponse(
-                {'error': 'Категория не может встречаться в порядке дважды.'},
-                status=400,
-            )
-
-        with transaction.atomic():
-            categories = list(
-                Category.objects.select_for_update()
-                .order_by('position', 'pk')
-                .only('pk', 'position')
-            )
-            current_ids = [category.pk for category in categories]
-            submitted_ids = set(ordered_ids)
-            if not submitted_ids.issubset(current_ids):
-                return JsonResponse(
-                    {'error': 'Одна из категорий больше не существует.'},
-                    status=409,
-                )
-
-            # При поиске или пагинации меняются только места видимых строк.
-            visible_slots = [
-                index
-                for index, category_id in enumerate(current_ids)
-                if category_id in submitted_ids
-            ]
-            if len(visible_slots) != len(ordered_ids):
-                return JsonResponse(
-                    {'error': 'Список категорий изменился. Обновите страницу.'},
-                    status=409,
-                )
-            for slot, category_id in zip(visible_slots, ordered_ids):
-                current_ids[slot] = category_id
-
-            category_by_id = {category.pk: category for category in categories}
-            for position, category_id in enumerate(current_ids, start=1):
-                category_by_id[category_id].position = position
-            Category.objects.bulk_update(categories, ['position'])
-
-        return JsonResponse({'saved': True})
+        return reorder_admin_objects(request, Category.objects.only('pk', 'position'))
 
     def save_model(self, request, obj, form, change):
         if not change and obj.position == 0:
@@ -746,6 +691,9 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             'phone',
             'get_quiz_answers',
         ],
+        ContactRequest.RequestType.CALCULATOR_ORDER: [
+            'name', 'phone', 'get_calculation_link',
+        ],
     }
     service_fields = ['request_type', 'get_delivery_status', 'created_at']
     list_display = [
@@ -764,6 +712,7 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
     readonly_fields = [
         'get_catalog_image_thumbnail',
         'get_quiz_answers',
+        'get_calculation_link',
         'get_delivery_status',
         'created_at',
     ]
@@ -875,6 +824,15 @@ class ContactRequestAdmin(AdminImagePreviewMixin, admin.ModelAdmin):
             '',
             '<div style="margin-bottom:10px"><strong>{}</strong><br>{}</div>',
             rows,
+        )
+
+    @admin.display(description='Ссылка на расчёт')
+    def get_calculation_link(self, obj):
+        if not obj or not obj.calculation_url:
+            return '—'
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener noreferrer">Открыть расчёт</a>',
+            obj.calculation_url,
         )
 
     @admin.action(description='Отправить выбранные заявки в активные подключения')

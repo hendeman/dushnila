@@ -187,9 +187,10 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 
 | Поле | Тип | Ограничения и смысл |
 |---|---|---|
-| `request_type` | `CharField(20)` | тип формы: `callback`, `question`, `email_message`, `image_purchase` или `quiz` |
+| `request_type` | `CharField(20)` | тип формы: `callback`, `question`, `email_message`, `image_purchase`, `quiz` или `calculator_order` |
 | `name` | `CharField(20)` | проверенное имя посетителя |
 | `phone` | `CharField(20)` | телефон в исходном форматировании; необязателен в модели для заявки с email |
+| `calculation_url` | `CharField(8192)` | каноническая подписанная ссылка заказа из калькулятора; по умолчанию пустая строка, `editable=False`; сохраняется после серверной проверки формы |
 | `email` | `EmailField(254)` | настоящий email; необязателен в модели для телефонных заявок, по умолчанию пустая строка |
 | `question` | `CharField(250)` | необязательный вопрос (`blank=True`) |
 | `comment` | `CharField(250)` | необязательный комментарий формы с email, по умолчанию пустая строка |
@@ -199,8 +200,9 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 | `viewed_at` | `DateTimeField` | необязательное, не редактируемое через ModelForm время первого успешного открытия заявки в Django Admin |
 
 - `__str__()` возвращает имя и первый доступный контакт: телефон, затем email; если оба отсутствуют — диагностическую подпись.
-- Обязательность контакта зависит от формы: `CallbackContactForm`, `QuestionContactForm` и `quiz.QuizContactForm` требуют телефон, а `EmailCommentContactForm` и `ImagePurchaseContactForm` требуют email. Поля модели допускают пустое значение, чтобы хранить все типы в одной таблице.
+- Обязательность контакта зависит от формы: `CallbackContactForm`, `CalculatorOrderContactForm`, `QuestionContactForm` и `quiz.QuizContactForm` требуют телефон, а `EmailCommentContactForm` и `ImagePurchaseContactForm` требуют email. Поля модели допускают пустое значение, чтобы хранить все типы в одной таблице.
 - Для `image_purchase` обработчик сохраняет одновременно проверенную связь `catalog_image` и `image_number`. При удалении `Pict` связь обнуляется, но снимок номера остается; обратная связь доступна как `pict.purchase_requests`.
+- Тип `calculator_order` («Заказ из калькулятора») хранит имя, телефон и проверенный `calculation_url`. Параметры и цена заново проверяются при отправке; ссылка при открытии пересчитывается по действующим тарифам, историческая цена не фиксируется. Новое поле и choices добавляет `0039_calculator_order_requests`; старые заявки получают пустую ссылку.
 - Для `quiz` отдельное приложение атомарно создаёт `QuizSubmission` со снимком формулировок и ответов; изменение вопросов после отправки не меняет историческую заявку.
 - `Meta.ordering = ['-created_at', '-id']`: новые заявки находятся первыми.
 - Модель хранит только валидные заявки, прошедшие антиспам-проверки обработчика. Honeypot и подозрительно быстрые отправки внешне получают успешный ответ, но запись не создают.

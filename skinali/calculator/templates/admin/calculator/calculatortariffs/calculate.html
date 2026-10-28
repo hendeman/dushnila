@@ -1,0 +1,130 @@
+{% extends "admin/base_site.html" %}
+{% load static calculator_numbers %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/forms.css' %}">
+<link rel="stylesheet" href="{% static 'calculator/css/admin-calculation.css' %}">
+{% endblock %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'calculator/js/admin-calculation.js' %}" defer></script>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">Начало</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">Калькулятор скинали</a>
+  &rsaquo; <a href="{{ tariffs_url }}">Тарифы и услуги</a>
+  &rsaquo; Проверочный расчёт
+</div>
+{% endblock %}
+
+{% block content %}
+<p>Расчёт использует сохранённые <a href="{{ tariffs_url }}">тарифы и услуги</a>.
+  <a href="{{ glass_url }}">Типы стекла</a> · <a href="{{ decoration_url }}">Декорирование</a></p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {{ panels.non_form_errors }}
+  {{ panels.management_form }}
+  <fieldset class="module">
+    <h2>Панели</h2>
+    <p>Ширина и высота — от 1 до {{ panels.empty_form.width_mm.field.max_value }} мм. Площадь рассчитывается по заполненным панелям. Количество панелей для подъёма по лестнице задаётся отдельно ниже.</p>
+    <p>Нажмите на последнюю панель, чтобы добавить следующую.</p>
+    <div class="results">
+      <table id="calculation-panels" data-prefix="{{ panels.prefix }}" data-limit="{{ panels.max_num }}">
+        <thead><tr><th>Панель</th><th>Ширина, мм</th><th>Высота, мм</th><th>Исключить</th></tr></thead>
+        <tbody>
+        {% for panel in panels %}
+          <tr>
+            <th scope="row">Панель <span class="panel-number">{{ forloop.counter }}</span></th>
+            <td>{% include "admin/calculator/panel_dimension.html" with field=panel.width_mm only %}</td>
+            <td>{% include "admin/calculator/panel_dimension.html" with field=panel.height_mm only %}</td>
+            <td>{{ panel.DELETE }}<label class="visually-hidden" for="{{ panel.DELETE.id_for_label }}">Исключить панель</label>{{ panel.non_field_errors }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </fieldset>
+
+  <template id="empty-calculation-panel">
+    {% with panel=panels.empty_form %}
+    <tr>
+      <th scope="row">Панель <span class="panel-number"></span></th>
+      <td>{% include "admin/calculator/panel_dimension.html" with field=panel.width_mm only %}</td>
+      <td>{% include "admin/calculator/panel_dimension.html" with field=panel.height_mm only %}</td>
+      <td>{{ panel.DELETE }}<label class="visually-hidden" for="{{ panel.DELETE.id_for_label }}">Исключить панель</label></td>
+    </tr>
+    {% endwith %}
+  </template>
+
+  {% for title, fields in field_groups %}
+  <fieldset class="module aligned">
+    <h2>{{ title }}</h2>
+    {% for field in fields %}
+    <div class="form-row"{% if field.name == 'stair_floor' or field.name == 'stair_panel_count' %} data-stair-field{% if form.lifting_type.value != 'stairs' %} hidden{% endif %}{% endif %}>
+      {{ field.errors }}
+      <div>{{ field.label_tag }} {{ field }}{% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}</div>
+    </div>
+    {% endfor %}
+  </fieldset>
+  {% endfor %}
+  {% for row in form.service_rows %}
+  <fieldset class="module aligned calculation-service">
+    <h2>{{ row.service.name }}</h2>
+    {% if row.service.has_price %}
+    <div class="form-row" data-service-select>
+      {{ row.selected.errors }}
+      <div class="flex-container checkbox-row">
+        {{ row.selected }}<label class="vCheckboxLabel" for="{{ row.selected.id_for_label }}">{{ row.selected.label }}</label>
+      </div>
+    </div>
+    {% if not row.service.fixed_price %}
+    <div class="form-row" data-service-quantity{% if not row.enabled %} hidden{% endif %}>
+      {% if row.quantity %}{{ row.quantity.errors }}{{ row.quantity.label_tag }} {{ row.quantity }}
+      {% else %}<p>Количество определяется по общей площади панелей.</p>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}<div class="form-row">Включено в стоимость</div>{% endif %}
+  </fieldset>
+  {% endfor %}
+  <div class="submit-row"><input type="submit" value="Рассчитать" class="default"></div>
+</form>
+
+{% if result %}
+<section class="module" aria-labelledby="calculation-result-title">
+  <h2 id="calculation-result-title">Результат расчёта</h2>
+  <p>Панелей: <strong>{{ result.panel_count }}</strong>. Общая площадь: <strong>{{ result.area_sqm|area_decimal }} м²</strong>.</p>
+  <div class="results">
+    <table>
+      <thead><tr><th>Позиция</th><th>Количество</th><th>Тариф</th><th>Стоимость</th></tr></thead>
+      <tbody>
+      {% for line in result.lines %}
+        <tr>
+          <th scope="row">{{ line.label }}{% if line.description %}<div class="help">{{ line.description }}</div>{% endif %}</th>
+          {% if line.included %}
+          <td colspan="3">Включено в стоимость</td>
+          {% else %}
+          <td>{% if line.unit == 'м²' %}{{ line.quantity|area_decimal }}{% else %}{{ line.quantity|exact_decimal }}{% endif %} {{ line.unit }}</td>
+          <td>{{ line.unit_price|exact_decimal }}</td>
+          <td>{{ line.amount|exact_decimal }}</td>
+          {% endif %}
+        </tr>
+      {% endfor %}
+        <tr><th scope="row" colspan="3">До округления</th><td>{{ result.subtotal|exact_decimal }}</td></tr>
+        <tr><th scope="row" colspan="3">Округление вверх до целого</th><td>+{{ result.rounding_adjustment|exact_decimal }}</td></tr>
+        {% if result.comparison_total > result.total %}
+        <tr><th scope="row" colspan="3">Цена для зачёркивания (маркетинговая скидка {{ result.marketing_discount_percent|exact_decimal }}%)</th><td><s>{{ result.comparison_total|exact_decimal }}</s></td></tr>
+        {% endif %}
+        <tr><th scope="row" colspan="3">Итого</th><td><strong>{{ result.total|exact_decimal }}</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Общая площадь округляется до двух знаков перед расчётом стоимости. Итоговая стоимость округляется вверх до целого. Минимальная площадь и минимальная стоимость заказа не применяются.</p>
+</section>
+{% endif %}
+{% endblock %}

@@ -17,6 +17,7 @@ from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .forms import (
     CallbackContactForm,
+    CalculatorOrderContactForm,
     CatalogSearchForm,
     EmailCommentContactForm,
     ImagePurchaseContactForm,
@@ -59,6 +60,7 @@ CONTACT_FORM_CLASSES = {
     QuestionContactForm.form_kind: QuestionContactForm,
     EmailCommentContactForm.form_kind: EmailCommentContactForm,
     ImagePurchaseContactForm.form_kind: ImagePurchaseContactForm,
+    CalculatorOrderContactForm.form_kind: CalculatorOrderContactForm,
 }
 logger = logging.getLogger(__name__)
 
@@ -989,6 +991,7 @@ def submit_contact_form(request):
                 request_type=form_kind,
                 name=form.cleaned_data['name'],
                 phone=form.cleaned_data.get('phone', ''),
+                calculation_url=form.cleaned_data.get('calculation_url', ''),
                 email=form.cleaned_data.get('email', ''),
                 question=form.cleaned_data.get('question', ''),
                 comment=form.cleaned_data.get('comment', ''),

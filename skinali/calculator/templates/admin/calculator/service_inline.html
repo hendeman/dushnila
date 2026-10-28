@@ -1,0 +1,43 @@
+{% load static %}
+<div class="inline-group calculator-services" id="{{ inline_admin_formset.formset.prefix }}-group">
+  <fieldset class="module">
+    <h2 class="service-heading">Дополнительные услуги
+      <a class="service-action" href="{{ service_add_url }}" title="Добавить услугу" aria-label="Добавить услугу">
+        <img src="{% static 'admin/img/icon-addlink.svg' %}" alt="" width="24" height="24">
+      </a>
+    </h2>
+    <p id="service-order-status" class="help" role="status">Перетащите блоки за маркер ⋮⋮. Порядок сохраняется кнопкой «Сохранить».</p>
+    {{ inline_admin_formset.formset.management_form }}
+    {{ inline_admin_formset.formset.non_form_errors }}
+    <div data-service-order-items>
+    {% for item in inline_admin_formset %}
+    {% if item.original %}
+    <div class="inline-related" data-service-card data-service-id="{{ item.original.pk }}" id="{{ inline_admin_formset.formset.prefix }}-{{ forloop.counter0 }}">
+      <h3 class="service-heading">
+        <span class="service-title"><button type="button" class="admin-order-handle" data-service-order-handle draggable="true" title="Перетащите блок или используйте стрелки ↑/↓" aria-label="Изменить порядок услуги {{ item.original.name }}">⋮⋮</button>{{ item.original.name }}</span>
+        <span class="service-actions">
+          <a class="service-action" href="{% url service_change_url_name item.original.pk %}" title="Редактировать" aria-label="Редактировать услугу «{{ item.original.name }}»">
+            <img src="{% static 'admin/img/icon-changelink.svg' %}" alt="" width="24" height="24">
+          </a>
+          <a class="service-action service-delete" href="{% url service_delete_url_name item.original.pk %}" title="Удалить" aria-label="Удалить услугу «{{ item.original.name }}»">
+            <img src="{% static 'admin/img/icon-deletelink.svg' %}" alt="" width="24" height="24">
+          </a>
+        </span>
+      </h3>
+      {{ item.form.non_field_errors }}
+      {{ item.form.id }}{{ item.form.settings }}
+      {{ item.form.position.errors }}{{ item.form.position }}
+      <div class="form-row">{{ item.form.is_visible.errors }}{{ item.form.is_visible }} {{ item.form.is_visible.label_tag }}</div>
+      {% if item.original.has_price %}
+      <div class="form-row">{{ item.form.price_per_unit.errors }}{{ item.form.price_per_unit.label_tag }} {{ item.form.price_per_unit }}
+        {% if item.form.price_per_unit.help_text %}<div class="help" id="{{ item.form.price_per_unit.id_for_label }}_helptext">{{ item.form.price_per_unit.help_text }}</div>{% endif %}
+      </div>
+      {% else %}
+      <div class="form-row">Включено в стоимость</div>
+      {% endif %}
+    </div>
+    {% else %}{{ item.form.errors }}{% endif %}
+    {% empty %}<p>Добавьте услугу, чтобы настроить её показ и стоимость.</p>{% endfor %}
+    </div>
+  </fieldset>
+</div>

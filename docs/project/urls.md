@@ -12,6 +12,8 @@
 | `/robots.txt` | Текстовые правила обхода, очистка рекламных параметров для Яндекса и абсолютная ссылка на XML-карту |
 | `/sitemap.xml` | XML-карта постоянных страниц, опубликованных изображений и статей, непустых категорий и непустых тегов |
 | `/quiz/` | маршруты POST-обработчика из `quiz.urls` |
+| `/price/` | публичный калькулятор из `calculator.urls`, имя `price`, расчёт в браузере; `?calculation=...` восстанавливает подписанный расчёт |
+| `/price/share/` | POST с JSON и CSRF: создание подписанной ссылки, имя `price_share`, без записи расчёта в БД |
 | `/polezno-znat/`, `/polezno-znat/<slug>/` | список и страница опубликованных статей из `sitecontent.urls`, подключённого перед `pict.urls` |
 | `/` | все маршруты из `pict.urls` |
 | `/__debug__/` | Django Debug Toolbar; добавляется только при `ENABLE_DEBUG_TOOLBAR=True` |
@@ -23,6 +25,12 @@
 В профиле `preview` вместо публичных правил возвращается только `User-agent: *` и `Disallow: /` с `Cache-Control: no-store`; sitemap в этом ответе не раскрывается. Дополнительный middleware ставит `X-Robots-Tag: noindex, nofollow` на все ответы технического сайта.
 
 ## Дополнительная конфигурация
+
+В admin калькулятор разделён на `/<DJANGO_ADMIN_PATH>/calculator/calculatorsettings/` («Настройки калькулятора», общий показ) и `/<DJANGO_ADMIN_PATH>/calculator/calculatortariffs/` («Тарифы и услуги»); обе ссылки списка открывают соответствующую singleton-карточку. Проверочный расчёт зарегистрирован в `CalculatorTariffsAdmin.get_urls()` по `/<DJANGO_ADMIN_PATH>/calculator/calculatortariffs/calculate/`, имя `admin:calculator_calculatortariffs_calculate`. Старый `/<DJANGO_ADMIN_PATH>/calculator/calculatorsettings/calculate/`, имя `admin:calculator_calculatorsettings_calculate`, вызывает тот же обработчик напрямую и сохраняет POST. Он принимает GET/POST, требует активного суперпользователя и CSRF. Корневой URLconf не меняется, namespace текущего AdminSite учитывается. В обеих карточках есть взаимные ссылки и «Проверить расчёт». Публичного API расчёта нет; [контракт](../calculator/overview.md).
+
+Общие услуги используют штатные административные маршруты `calculator_calculatorservice_add/change/delete`, открываемые из «Тарифов и услуг». Их список перенаправляет в тарифы, отдельный пункт меню скрыт. Создание/изменение/подтверждённое удаление доступны только активному суперпользователю, защищены CSRF и учитывают namespace `AdminSite`; обычное сохранение возвращает в тарифы.
+
+Справочник единиц доступен по `/<DJANGO_ADMIN_PATH>/calculator/measurementunit/`, имя `admin:calculator_measurementunit_changelist`, и через стандартные add/change/delete модели. Ссылка на него есть в меню и карточке «Тарифы и услуги»; поле единицы услуги использует связанный выбор Django Admin. Доступ открыт активному суперпользователю, удаления используемых единиц защищены `PROTECT`.
 
 - Заголовок admin: `Админка skinali`.
 - Заголовок главной страницы admin: `Админка`.
@@ -52,3 +60,7 @@
 ## Административная загрузка статей
 
 `ArticleAdmin.get_urls()` добавляет `/<ADMIN_URL>/sitecontent/article/upload-image/` внутри штатного AdminSite. Маршрут принимает только POST, использует `admin_view`/CSRF и дополнительное ограничение активного суперпользователя; в публичный URLconf не вынесен. `sitecontent.sitemaps.ArticleSitemap` подключён как секция `articles`. Полный контракт: [Статьи](../sitecontent/articles.md).
+
+## Публичная страница цены
+
+`calculator.urls` подключён без префикса перед `sitecontent.urls` и `pict.urls`. Маршрут `/price/` с именем `price` вызывает `calculator.views.price`, принимает GET/HEAD, остальные методы возвращают 405. Он входит в постоянную секцию sitemap, имеет SEO-карточку и общий пункт меню. Тарифы и акции передаются безопасным JSON непосредственно в HTML только при включённом и настроенном калькуляторе; изменение полей рассчитывается в браузере. Отдельный POST `/price/share/` создаёт подписанную ссылку; `/price/?calculation=...` проверяет параметры, восстанавливает форму и использует актуальные тарифы. Эти ссылки не индексируются, canonical остаётся `/price/`. Ответ не кешируется. [Контракт](../calculator/overview.md#публичная-страница-цена).

@@ -314,6 +314,7 @@ INSTALLED_APPS = [
     'pict.apps.PictConfig',
     'quiz.apps.QuizConfig',
     'sitecontent.apps.SiteContentConfig',
+    'calculator.apps.CalculatorConfig',
     'sorl.thumbnail',
 ]
 

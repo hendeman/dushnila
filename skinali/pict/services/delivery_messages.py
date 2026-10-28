@@ -9,10 +9,11 @@ TELEGRAM_REQUEST_ICON_BY_TYPE = {
     ContactRequest.RequestType.EMAIL_MESSAGE: '✉',
     ContactRequest.RequestType.IMAGE_PURCHASE: '💲',
     ContactRequest.RequestType.QUIZ: '📋',
+    ContactRequest.RequestType.CALCULATOR_ORDER: '🧮',
 }
 
 
-def format_contact_request_message(contact_request):
+def format_contact_request_message(contact_request, *, compact_links=False):
     created_at = timezone.localtime(contact_request.created_at)
     request_icon = TELEGRAM_REQUEST_ICON_BY_TYPE.get(
         contact_request.request_type,
@@ -27,6 +28,11 @@ def format_contact_request_message(contact_request):
     ]
     if contact_request.phone:
         lines.append(f'📞 {escape(contact_request.phone, quote=False)}')
+    if contact_request.calculation_url:
+        if compact_links:
+            lines.append(f'🔗 <a href="{escape(contact_request.calculation_url)}">Открыть расчёт</a>')
+        else:
+            lines.append(f'🔗 Расчёт: {escape(contact_request.calculation_url, quote=False)}')
     if contact_request.email:
         lines.append(f'✉ {escape(contact_request.email, quote=False)}')
     if contact_request.question:
