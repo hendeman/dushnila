@@ -3831,7 +3831,7 @@ class ContactFormSubmissionTests(TestCase):
         self.assertIn('.contact-toast.is-visible::after {', styles)
         self.assertIn('background: #fff;', styles)
         self.assertIn('.contact-toast::before {', styles)
-        self.assertIn('content: "✓";', styles)
+        self.assertIn(r'content: "\2713";', styles)
         self.assertIn('.contact-toast__message span {', styles)
         self.assertIn('white-space: nowrap;', styles)
         self.assertIn('.contact-toast__close {', styles)
