@@ -1,5 +1,5 @@
 <nav class="list-pages-color" aria-label="Фильтр по цвету">
-  <p class="color-filter__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите выбранный цвет, чтобы убрать его.</p>
+  <p class="color-filter__hint">Можно выбрать до {{ max_catalog_colors }} цветов. Нажмите на выбранный цвет, чтобы убрать его.</p>
   <div class="color-filter__row">
     <ul class="color-filter__options">
       {% for option in color_options %}
@@ -7,9 +7,13 @@
           <li class="page-num color-option color-option--selected">
             <a class="color-option__link color-option__link--selected"
                href="{{ option.toggle_url }}"
-               style="background-color: {{ option.color.slug_color }};"
+               style="--color-option-fill: {{ option.color.slug_color }};"
                aria-label="Убрать цвет: {{ option.color }}">
-              <span class="color-option__selected-mark" aria-hidden="true"></span>
+              <span class="color-option__selected-mark" aria-hidden="true">
+                <svg class="color-option__action-icon" viewBox="0 0 16 16">
+                  <path d="m4 4 8 8M4 12 12 4"></path>
+                </svg>
+              </span>
             </a>
             <p class="color-description">{{ option.color }}</p>
           </li>
@@ -17,14 +21,20 @@
           <li class="page-num color-option">
             <a class="color-option__link"
                href="{{ option.toggle_url }}"
-               style="background-color: {{ option.color.slug_color }};"
-               aria-label="Добавить цвет: {{ option.color }}"></a>
+               style="--color-option-fill: {{ option.color.slug_color }};"
+               aria-label="Добавить цвет: {{ option.color }}">
+              <span class="color-option__add-mark" aria-hidden="true">
+                <svg class="color-option__action-icon" viewBox="0 0 16 16">
+                  <path d="M8 3v10M3 8h10"></path>
+                </svg>
+              </span>
+            </a>
             <p class="color-description">{{ option.color }}</p>
           </li>
         {% else %}
           <li class="page-num color-option color-option--disabled">
             <span class="color-option__link color-option__link--disabled"
-                  style="background-color: {{ option.color.slug_color }};"
+                  style="--color-option-fill: {{ option.color.slug_color }};"
                   aria-disabled="true"
                   aria-label="Сначала уберите один из выбранных цветов"></span>
             <p class="color-description">{{ option.color }}</p>

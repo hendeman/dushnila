@@ -2433,6 +2433,10 @@ background-color: coral;
 }
 
 .list-pages-color {
+    --color-filter-icon: #49443d;
+    --color-filter-remove: #d83a3a;
+    --color-filter-scale: 1.2;
+    --color-filter-marker-size: calc(18px * var(--color-filter-scale));
     clear: both;
 	text-align: center;
 	box-sizing: border-box;
@@ -2502,6 +2506,7 @@ background-color: coral;
 .list-all__reset-icon {
 	display: inline-block;
 	margin-right: 6px;
+	color: var(--color-filter-remove);
 	font-size: 24px;
 	line-height: 1;
 }
@@ -2512,18 +2517,19 @@ background-color: coral;
 	justify-content: center;
 	margin: 0;
 	font-size: 24px;
-	height: 30px;
-	width: 30px;
-	border: 1px solid gray;
+	height: calc(30px * var(--color-filter-scale));
+	width: calc(30px * var(--color-filter-scale));
+	border: calc(1px * var(--color-filter-scale)) solid gray;
 	border-radius: 50%;
     position: relative;
 	isolation: isolate;
+	transition: transform .16s;
 }
 
 .list-pages-color ul .color-option::before {
 	content: "";
 	position: absolute;
-	inset: -8px;
+	inset: calc(-8px * var(--color-filter-scale));
 	z-index: -1;
 	border-radius: 50%;
 	background: radial-gradient(circle, rgba(151, 158, 145, .42) 0%, rgba(151, 158, 145, .2) 50%, transparent 74%);
@@ -2539,6 +2545,12 @@ background-color: coral;
 	transform: scale(1);
 }
 
+.list-pages-color ul .color-option--selected,
+.list-pages-color ul .color-option:not(.color-option--selected):not(.color-option--disabled):hover,
+.list-pages-color ul .color-option:not(.color-option--selected):not(.color-option--disabled):focus-within {
+	transform: translateY(calc(-2px * var(--color-filter-scale))) scale(1.06);
+}
+
 .list-pages-color ul .color-option:hover,
 .list-pages-color ul .color-option:focus-within {
 	z-index: 10;
@@ -2550,6 +2562,7 @@ background-color: coral;
 	width: 100%;
 	height: 100%;
 	border-radius: 50%;
+	background-color: var(--color-option-fill);
 }
 
 .list-pages-color .color-option--disabled {
@@ -2560,20 +2573,42 @@ background-color: coral;
 .list-pages-color .color-option--disabled::before {
 	display: none;
 }
-.color-description {
-    position: absolute;
-    display:none;
-    top: -25px;
-    left: 25px;
-    z-index: 1; /* Отображаем подсказку поверх других элементов */
-    background: rgba(255,255,230,0.9); /* Полупрозрачный цвет фона */
-    font-family: Arial, sans-serif; /* Гарнитура шрифта */
-    font-size: 11px; /* Размер текста подсказки */
-    padding: 5px 10px; /* Поля */
-    border: 1px solid #333; /* Параметры рамки */
-   }
 
-.list-pages-color .page-num:hover .color-description {
+.color-description {
+	position: absolute;
+	display: none;
+	bottom: calc(100% + 8px);
+	left: 50%;
+	z-index: 1;
+	margin: 0;
+	padding: 4px 9px;
+	border: 1px solid #d6d3c9;
+	border-radius: 4px;
+	color: #49443d;
+	background: #fff;
+	font-family: inherit;
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: nowrap;
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+
+.color-description::after {
+	content: "";
+	position: absolute;
+	top: 100%;
+	left: 50%;
+	width: 6px;
+	height: 6px;
+	border-right: 1px solid #d6d3c9;
+	border-bottom: 1px solid #d6d3c9;
+	background: inherit;
+	transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.list-pages-color .page-num:hover .color-description,
+.list-pages-color .page-num:focus-within .color-description {
   display: block;
 }
 
@@ -2586,15 +2621,58 @@ background-color: coral;
 	box-shadow: none;
 }
 
-.color-option__selected-mark {
+.color-option__selected-mark,
+.color-option__add-mark {
 	box-sizing: border-box;
-	display: block;
-	width: 14px;
-	height: 14px;
-	border: 1px solid #777;
+	display: flex;
+	flex: 0 0 var(--color-filter-marker-size);
+	align-items: center;
+	justify-content: center;
+	width: var(--color-filter-marker-size);
+	height: var(--color-filter-marker-size);
+	border: calc(1px * var(--color-filter-scale)) solid #777;
+	border-color: color-mix(in srgb, var(--color-option-fill) 70%, #000);
 	border-radius: 50%;
+	color: var(--color-filter-icon);
 	background: #fff;
 	pointer-events: none;
+}
+
+.color-option__add-mark {
+	opacity: 0;
+	transition: opacity .16s;
+}
+
+.color-option__action-icon {
+	display: block;
+	flex: 0 0 auto;
+	width: calc(12px * var(--color-filter-scale));
+	height: calc(12px * var(--color-filter-scale));
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.5;
+	stroke-linecap: round;
+}
+
+.color-option__selected-mark .color-option__action-icon {
+	opacity: 0;
+	transition: opacity .16s;
+}
+
+.list-pages-color .color-option:hover .color-option__add-mark,
+.list-pages-color .color-option:focus-within .color-option__add-mark,
+.list-pages-color .color-option--selected:hover .color-option__action-icon,
+.list-pages-color .color-option--selected:focus-within .color-option__action-icon {
+	opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.list-pages-color ul .color-option,
+	.list-pages-color ul .color-option::before,
+	.color-option__add-mark,
+	.color-option__selected-mark .color-option__action-icon {
+		transition: none;
+	}
 }
 .list-pages-tags {
     clear: both;
