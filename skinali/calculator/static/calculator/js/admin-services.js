@@ -3,25 +3,24 @@
 
     const initialize = () => {
         const name = document.getElementById('id_name');
-        const visibleLabel = document.getElementById('id_visibility_label');
         const priceLabel = document.getElementById('id_price_label');
-        if (name && visibleLabel && priceLabel) {
-            const refreshLabels = () => {
-                [[visibleLabel, 'id_is_visible', 'Показывать услугу'], [priceLabel, 'id_price_per_unit', 'Цена за одну единицу']].forEach(([input, target, fallback]) => {
-                    const label = document.querySelector(`label[for="${target}"]`);
-                    const text = input.value.trim() || fallback;
-                    if (label) label.textContent = text.endsWith(':') ? text : `${text}:`;
-                });
+        if (name && priceLabel) {
+            const refreshPriceLabel = () => {
+                const label = document.querySelector('label[for="id_price_per_unit"]');
+                const text = priceLabel.value.trim() || 'Цена за одну единицу';
+                if (label) label.textContent = text.endsWith(':') ? text : `${text}:`;
             };
-            const defaults = [[visibleLabel, (value) => value ? `Показать: ${value}` : ''], [priceLabel, (value) => value]];
-            defaults.forEach(([input, label]) => {
-                let automatic = input.value === '' || input.value === label(name.value);
-                input.addEventListener('input', () => { automatic = input.value === ''; refreshLabels(); });
-                name.addEventListener('input', () => { if (automatic) input.value = label(name.value); refreshLabels(); });
+            let automatic = priceLabel.value === '' || priceLabel.value === name.value;
+            priceLabel.addEventListener('input', () => { automatic = priceLabel.value === ''; refreshPriceLabel(); });
+            name.addEventListener('input', () => {
+                if (automatic) priceLabel.value = name.value;
+                refreshPriceLabel();
             });
-            refreshLabels();
+            refreshPriceLabel();
         }
         const paid = document.getElementById('id_has_price');
+        const types = document.querySelectorAll('input[name="calculation_type"]');
+        const discount = document.getElementById('id_discount_percent');
         const price = document.getElementById('id_price_per_unit');
         const fixed = document.getElementById('id_fixed_price');
         const area = document.getElementById('id_use_panel_area');
@@ -29,10 +28,24 @@
         const maximum = document.getElementById('id_max_quantity');
         if (paid && price) {
             const update = () => {
+                const isDiscount = Array.from(types).find(input => input.checked)?.value === 'order_discount';
+                paid.closest('fieldset').hidden = isDiscount;
+                paid.disabled = isDiscount;
+                if (discount) {
+                    discount.closest('.form-row').hidden = !isDiscount;
+                    discount.disabled = !isDiscount;
+                }
+                if (priceLabel) {
+                    priceLabel.closest('.form-row').hidden = !paid.checked;
+                    priceLabel.disabled = isDiscount;
+                }
                 price.closest('.form-row').hidden = !paid.checked;
-                price.disabled = !paid.checked;
-                if (fixed) fixed.closest('.form-row').hidden = !paid.checked;
-                const hideQuantity = !paid.checked || Boolean(fixed?.checked);
+                price.disabled = isDiscount || !paid.checked;
+                if (fixed) {
+                    fixed.closest('.form-row').hidden = !paid.checked;
+                    fixed.disabled = isDiscount;
+                }
+                const hideQuantity = isDiscount || !paid.checked || Boolean(fixed?.checked);
                 const quantitySection = document.getElementById('id_quantity_label')?.closest('fieldset');
                 if (quantitySection) quantitySection.hidden = hideQuantity;
                 ['quantity_label', 'unit', 'use_panel_area', 'whole_quantity'].forEach((name) => {
@@ -58,11 +71,15 @@
                 }
             };
             paid.addEventListener('change', update);
+            types.forEach(input => input.addEventListener('change', update));
             if (fixed) fixed.addEventListener('change', update);
             if (area) area.addEventListener('change', update);
             if (whole) whole.addEventListener('change', update);
             if (maximum) maximum.addEventListener('change', update);
             update();
+        }
+        if (document.getElementById('calculator-service-editor-script')?.dataset.focusName === 'true') {
+            name?.focus({preventScroll: true});
         }
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize);

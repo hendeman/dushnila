@@ -76,14 +76,14 @@
   {% for row in form.service_rows %}
   <fieldset class="module aligned calculation-service">
     <h2>{{ row.service.name }}</h2>
-    {% if row.service.has_price %}
+    {% if row.service.is_selectable %}
     <div class="form-row" data-service-select>
       {{ row.selected.errors }}
       <div class="flex-container checkbox-row">
         {{ row.selected }}<label class="vCheckboxLabel" for="{{ row.selected.id_for_label }}">{{ row.selected.label }}</label>
       </div>
     </div>
-    {% if not row.service.fixed_price %}
+    {% if not row.service.fixed_price and not row.service.is_order_discount %}
     <div class="form-row" data-service-quantity{% if not row.enabled %} hidden{% endif %}>
       {% if row.quantity %}{{ row.quantity.errors }}{{ row.quantity.label_tag }} {{ row.quantity }}
       {% else %}<p>Количество определяется по общей площади панелей.</p>{% endif %}

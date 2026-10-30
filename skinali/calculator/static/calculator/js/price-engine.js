@@ -24,25 +24,24 @@
     };
     const ceil = (numerator, denominator) => (numerator + denominator - 1n) / denominator;
 
-    function weightedArea(area, percent, threshold) {
-        if (percent === 0n || area <= threshold) return area;
-        const ratio = SCALE - percent / 100n;
-        let remaining = area / SCALE;
-        let power = ratio;
-        let sum = SCALE;
-        let resultPower = SCALE;
-        let resultSum = 0n;
-        // Геометрическая сумма за O(log S), включая очень большие площади.
-        while (remaining > 0n) {
-            if (remaining % 2n) {
-                resultSum += multiply(resultPower, sum);
-                resultPower = multiply(resultPower, power);
+    function materialDiscount(area, price, configuration) {
+        if (configuration.mode === 'none' || area < decimal(configuration.minimum_area)) return 0n;
+        const rules = configuration.rules.map(rule => ({start: decimal(rule.area_from), percent: decimal(rule.percent)}));
+        if (configuration.mode === 'stepped') {
+            for (let index = rules.length - 1; index >= 0; index--) {
+                if (area >= rules[index].start) return multiply(multiply(area, price), rules[index].percent) / 100n;
             }
-            sum += multiply(power, sum);
-            power = multiply(power, power);
-            remaining /= 2n;
+            return 0n;
         }
-        return resultSum + multiply(area % SCALE, resultPower);
+        for (const rule of rules) rule.start -= SCALE;
+        let weighted = 0n;
+        for (let index = 0; index < rules.length; index++) {
+            const {start, percent} = rules[index];
+            const next = rules[index + 1]?.start;
+            const end = next !== undefined && next < area ? next : area;
+            if (end > start) weighted += multiply(end - start, percent) / 100n;
+        }
+        return multiply(weighted, price);
     }
 
     function calculate(config, input) {
@@ -69,8 +68,7 @@
             materialPrice += price;
             add(`${label}: ${option.name}`, multiply(area, price));
         }
-        const weighted = weightedArea(area, decimal(config.area_discount_percent), decimal(config.area_discount_threshold));
-        const discount = multiply(area - weighted, materialPrice);
+        const discount = materialDiscount(area, materialPrice, config.material_discount);
         if (discount > 0n) add('Скидка на стекло и декорирование', -discount);
         if (config.stairs) {
             if (input.stairs) {
@@ -84,8 +82,11 @@
             } else add('Стандартный подъём', 0n, true);
         }
         const selected = new Map((input.services || []).map((service) => [String(service.id), service.quantity]));
+        const orderDiscounts = [];
         for (const service of config.services) {
-            if (!service.has_price) {
+            if (service.calculation_type === 'order_discount') {
+                if (selected.has(String(service.id))) orderDiscounts.push({name: service.name, percent: decimal(service.discount_percent)});
+            } else if (!service.has_price) {
                 add(service.name, 0n, true);
             } else if (selected.has(String(service.id))) {
                 let quantity = SCALE;
@@ -108,13 +109,19 @@
                 add(service.name, multiply(quantity, decimal(service.price)));
             }
         }
-        const subtotal = lines.reduce((sum, line) => sum + line.amount, 0n);
+        let subtotal = lines.reduce((sum, line) => sum + line.amount, 0n);
+        const requestedDiscount = orderDiscounts.reduce((sum, item) => sum + item.percent, 0n);
+        const orderDiscountPercent = requestedDiscount > 100n * SCALE ? 100n * SCALE : requestedDiscount;
+        const orderDiscount = multiply(subtotal, orderDiscountPercent) / 100n;
+        if (orderDiscounts.length) add(orderDiscounts.length === 1 ? orderDiscounts[0].name : 'Скидки на весь заказ', -orderDiscount);
+        subtotal -= orderDiscount;
         const total = ceil(subtotal, SCALE);
         const marketing = decimal(config.marketing_discount_percent);
         const comparison = ceil(total * 100n * SCALE, 100n * SCALE - marketing);
         return {
             area: text(area), subtotal: text(subtotal), total: String(total), comparison: String(comparison),
             materials_discount: text(discount), panel_count: input.panels.length,
+            order_discount_percent: text(orderDiscountPercent), order_discount: text(orderDiscount),
             lines: lines.map((line) => ({...line, amount: text(line.amount)})),
         };
     }

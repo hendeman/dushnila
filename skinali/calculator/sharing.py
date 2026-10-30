@@ -79,7 +79,7 @@ def validate_shared_calculation(data, configuration, tariffs):
         if option_id not in {item['id'] for item in configuration[name]['options']}:
             raise ValidationError(UNAVAILABLE_SHARE_MESSAGE)
         selected_options[f'{name}_id'] = option_id
-    available_services = {item['id'] for item in configuration['services'] if item['has_price']}
+    available_services = {item['id'] for item in configuration['services'] if item['selectable']}
     if any(item.service_id not in available_services for item in data.services):
         raise ValidationError(UNAVAILABLE_SHARE_MESSAGE)
     if data.stair_floor is not None and not configuration['stairs']:

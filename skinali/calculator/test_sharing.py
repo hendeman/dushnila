@@ -1,5 +1,6 @@
 import copy
 import json
+from decimal import Decimal
 from urllib.parse import parse_qs, urlsplit
 
 from django.conf import settings
@@ -70,6 +71,22 @@ class CalculationSharingTests(CalculationFixture, TestCase):
         payload = signing.Signer(salt=SHARE_SALT).unsign_object(self.token(created))
         self.assertEqual(set(payload), {'v', 'input'})
         self.assertNotIn('total', payload['input'])
+
+    def test_existing_link_uses_current_discount_mode_and_rules(self):
+        self.input['panels'] = [{'width': '3500', 'height': '1000'}]
+        created = self.create_link()
+        data = read_calculation_share_token(self.token(created))
+        baseline = calculate_price(data).subtotal
+        self.set_material_discount('stepped', (('2', '10'), ('3', '20')))
+        stepped = calculate_price(data).subtotal
+        self.assertEqual(baseline - stepped, Decimal('3.5') * Decimal('120.75') * Decimal('.2'))
+        response = Client().get(self.shared_path(created))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['calculator_config']['material_discount']['mode'], 'stepped')
+        self.set_material_discount('progressive', (('2', '10'), ('3', '20')))
+        progressive = calculate_price(data).subtotal
+        self.assertEqual(baseline - progressive, Decimal('120.75') * Decimal('.4'))
+        self.assertGreater(progressive, stepped)
 
     def test_signature_origin_and_key_fallbacks(self):
         with override_settings(PUBLIC_SITE_ORIGIN='https://example.org', SECRET_KEY='calculation-old-key'):

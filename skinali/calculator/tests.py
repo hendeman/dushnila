@@ -219,7 +219,7 @@ class CalculatorAdminTests(TestCase):
         for index, service in enumerate(services):
             data = {**model_to_dict(service), **(service_changes or {}).get(service.code, {})}
             inline.update({f'services-{index}-{name}': 'on' if value is True else '' if value is False or value is None else str(value)
-                           for name, value in data.items() if name in ('id', 'settings', 'is_visible', 'price_per_unit', 'position')})
+                           for name, value in data.items() if name in ('id', 'settings', 'is_visible', 'price_per_unit', 'discount_percent', 'position')})
         return {
             **inline,
             **{key: 'on' if value is True else '' if value is None else str(value)
@@ -349,15 +349,16 @@ class CalculatorAdminTests(TestCase):
         preview_url = reverse('admin:calculator_calculatortariffs_calculate')
         card = self.client.get(self.settings_url)
         self.assertEqual(list(card.context['adminform'].form.fields), [
-            'is_enabled', 'area_discount_percent', 'marketing_discount_percent', 'marketing_discount_description',
+            'is_enabled', 'material_discount_mode', 'marketing_discount_percent', 'marketing_discount_description',
         ])
-        self.assertFalse(card.context['inline_admin_formsets'])
+        self.assertEqual(len(card.context['inline_admin_formsets']), 2)
         self.assertContains(card, self.list_url)
         self.assertContains(self.client.get(self.card_url), reverse('admin:calculator_calculatorsettings_changelist'))
         for enabled in (True, False):
             with self.subTest(enabled=enabled):
                 response = self.client.post(self.settings_url, {
                     **model_to_dict(settings),
+                    **{f'{mode}_discounts-{key}': '0' for mode in ('stepped', 'progressive') for key in ('TOTAL_FORMS', 'INITIAL_FORMS')},
                     'is_enabled': 'on' if enabled else '', 'show_glass_type': '',
                     'stair_lifting_min_price': '999',
                 })

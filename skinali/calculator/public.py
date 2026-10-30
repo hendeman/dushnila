@@ -1,8 +1,8 @@
 from django.core.exceptions import ValidationError
 
 from .calculation import (
-    AREA_DECIMAL_PLACES, CalculatorConfigurationError, DEFAULT_STAIR_FLOOR, MATERIAL_DISCOUNT_THRESHOLD_SQM, MAX_INTEGER, MAX_PANELS,
-    MAX_PANEL_DIMENSION_MM, MAX_QUANTITY, MAX_STAIR_FLOOR, MIN_STAIR_FLOOR, configured_price, service_quantity_limit,
+    AREA_DECIMAL_PLACES, CalculatorConfigurationError, DEFAULT_STAIR_FLOOR, MAX_INTEGER, MAX_PANELS,
+    MAX_PANEL_DIMENSION_MM, MAX_QUANTITY, MAX_STAIR_FLOOR, MIN_STAIR_FLOOR, configured_discount_percent, configured_price, material_discount_configuration, service_quantity_limit,
 )
 from .models import CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, QUANTITY_DECIMAL_PLACES, QUANTITY_STEP, validate_stair_rule_counts
 
@@ -53,13 +53,16 @@ def public_configuration(tariffs, settings):
             limit = int(limit)
         result['services'].append({
             'id': service.pk, 'name': service.name, 'has_price': service.has_price, 'hint': service.hint.strip(),
+            'calculation_type': service.calculation_type, 'selectable': service.is_selectable,
+            'requires_manual_quantity': service.requires_manual_quantity,
+            'discount_percent': str(configured_discount_percent(service.discount_percent, service.name)) if service.is_order_discount else '0',
             'fixed_price': service.fixed_price, 'use_panel_area': service.use_panel_area,
             'whole_quantity': service.whole_quantity, 'quantity_label': service.quantity_label,
             'max_quantity': str(limit) if limit is not None else None,
             'initial_quantity': (str(min(1, limit)) if service.whole_quantity
                                  else f'{min(1, limit):.{QUANTITY_DECIMAL_PLACES}f}') if limit is not None else '1',
             'unit': service.unit.symbol if service.unit_id else '',
-            'price': str(configured_price(service.price_per_unit, service.name)) if service.has_price else '0',
+            'price': str(configured_price(service.price_per_unit, service.name)) if service.has_price and not service.is_order_discount else '0',
         })
     result['stairs'] = None
     if tariffs.show_stair_lifting:
@@ -75,8 +78,7 @@ def public_configuration(tariffs, settings):
             'rules': [{'count': count, 'floor': floor, 'multiplier': str(multiplier)}
                       for count, (floor, multiplier) in sorted(rules.items())],
         }
-    result['area_discount_percent'] = str(settings.area_discount_percent)
-    result['area_discount_threshold'] = str(MATERIAL_DISCOUNT_THRESHOLD_SQM)
+    result['material_discount'] = material_discount_configuration(settings)
     result['marketing_discount_percent'] = str(settings.marketing_discount_percent)
     result['marketing_discount_description'] = settings.marketing_discount_description.strip()
     return result

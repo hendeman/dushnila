@@ -3,12 +3,11 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_HALF_UP, loc
 
 from django.core.exceptions import ValidationError
 
-from .models import CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MAX_STAIR_PANELS, QUANTITY_STEP, validate_stair_rule_counts
+from .models import CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MaterialDiscountMode, MIN_DISCOUNT_RULE_START, MAX_DISCOUNT_RULES, MAX_STAIR_PANELS, QUANTITY_STEP, validate_stair_rule_counts
 
 
 ZERO = Decimal('0')
 AREA_DECIMAL_PLACES = 2
-MATERIAL_DISCOUNT_THRESHOLD_SQM = Decimal('2')
 MAX_PANELS = 10
 MAX_PANEL_DIMENSION_MM = 6000
 MIN_STAIR_FLOOR = 2
@@ -115,10 +114,12 @@ class CalculationResult:
     subtotal: Decimal
     total: Decimal
     rounding_adjustment: Decimal
-    area_discount_percent: Decimal
+    material_discount_mode: str
     materials_discount: Decimal
     marketing_discount_percent: Decimal
     comparison_total: Decimal
+    order_discount_percent: Decimal
+    order_discount: Decimal
 
     @property
     def panel_count(self):
@@ -147,6 +148,13 @@ def configured_price(value, label):
     return value
 
 
+def configured_discount_percent(value, label):
+    value = configured_price(value, label)
+    if value > 100:
+        raise CalculatorConfigurationError(f'Скидка «{label}» должна быть от 0 до 100%.')
+    return value
+
+
 def service_quantity_limit(service):
     """Единый предел ручного ввода для формы, расчёта и публичной конфигурации."""
     if not service.requires_manual_quantity:
@@ -156,16 +164,42 @@ def service_quantity_limit(service):
     return Decimal(MAX_INTEGER) if service.whole_quantity else MAX_QUANTITY
 
 
-def material_discount_amount(area, price_per_sqm, percent):
-    """Прогрессивная скидка включается только при общей площади больше 2 м²."""
-    if not percent or area <= MATERIAL_DISCOUNT_THRESHOLD_SQM:
+def material_discount_configuration(settings):
+    """Единые проверенные правила для серверного расчёта и браузера."""
+    mode = settings.material_discount_mode
+    if mode not in MaterialDiscountMode.values:
+        raise CalculatorConfigurationError('Выберите допустимый вид скидки.')
+    rules = []
+    if mode != MaterialDiscountMode.NONE:
+        previous = None
+        for rule in settings.discount_rules.filter(mode=mode).order_by('area_from'):
+            start = configured_price(rule.area_from, 'Порог площади скидки')
+            percent = configured_discount_percent(rule.discount_percent, 'Процент скидки')
+            if start < MIN_DISCOUNT_RULE_START or start == previous:
+                raise CalculatorConfigurationError('Проверьте пороги и проценты скидки.')
+            rules.append({'area_from': str(start), 'percent': str(percent)})
+            previous = start
+        if not 1 <= len(rules) <= MAX_DISCOUNT_RULES:
+            raise CalculatorConfigurationError(f'Добавьте от 1 до {MAX_DISCOUNT_RULES} ступеней для выбранной скидки.')
+    return {'mode': mode, 'minimum_area': rules[0]['area_from'] if rules else None, 'rules': rules}
+
+
+def material_discount_amount(area, price_per_sqm, configuration):
+    """Разовая скидка на весь объём либо отдельные ставки на участки площади."""
+    mode = configuration['mode']
+    if mode == MaterialDiscountMode.NONE or area < Decimal(configuration['minimum_area']):
         return ZERO
-    coefficient = Decimal('1') - percent / Decimal('100')
-    whole_sqm = int(area)
-    next_multiplier = coefficient ** whole_sqm
-    weighted_area = ((Decimal('1') - next_multiplier) / (Decimal('1') - coefficient)
-                     + (area - whole_sqm) * next_multiplier)
-    return (area - weighted_area) * price_per_sqm
+    rules = [(Decimal(rule['area_from']), Decimal(rule['percent'])) for rule in configuration['rules']]
+    if mode == MaterialDiscountMode.STEPPED:
+        percent = next((percent for start, percent in reversed(rules) if area >= start), ZERO)
+        return area * price_per_sqm * percent / Decimal('100')
+    # В прогрессивной таблице 2 означает второй метр — участок от 1 до 2 м².
+    rules = [(number - Decimal('1'), percent) for number, percent in rules]
+    discount_area = ZERO
+    for index, (start, percent) in enumerate(rules):
+        end = min(area, rules[index + 1][0]) if index + 1 < len(rules) else area
+        discount_area += max(ZERO, end - start) * percent / Decimal('100')
+    return discount_area * price_per_sqm
 
 
 def calculate_price(data, *, settings=None):
@@ -183,9 +217,7 @@ def calculate_price(data, *, settings=None):
     general_settings = CalculatorSettings.objects.filter(pk=CalculatorSettings.CODE).first()
     if general_settings is None:
         raise CalculatorConfigurationError('Не найдены общие настройки калькулятора.')
-    area_discount_percent = configured_price(general_settings.area_discount_percent, 'Скидка за следующий м²')
-    if area_discount_percent > 100:
-        raise CalculatorConfigurationError('Скидка за следующий м² должна быть от 0 до 100%.')
+    discount_configuration = material_discount_configuration(general_settings)
     marketing_discount_percent = configured_price(general_settings.marketing_discount_percent, 'Маркетинговая скидка')
     if marketing_discount_percent >= 100:
         raise CalculatorConfigurationError('Маркетинговая скидка должна быть от 0 до 99,99%.')
@@ -204,13 +236,13 @@ def calculate_price(data, *, settings=None):
         add_line('glass', f'Стекло: {glass.name}', area, 'м²', glass.price_per_sqm)
         add_line('decoration', f'Декорирование: {decoration.name}', area, 'м²', decoration.price_per_sqm)
         materials_discount = material_discount_amount(
-            area, lines[0].unit_price + lines[1].unit_price, area_discount_percent,
+            area, lines[0].unit_price + lines[1].unit_price, discount_configuration,
         )
         if materials_discount:
             lines.append(PriceLine(
                 'materials_discount', 'Скидка на стекло и декорирование', Decimal('1'), 'заказ',
                 -materials_discount, -materials_discount,
-                description=f'Каждый следующий м² дешевле предыдущего на {area_discount_percent.normalize():f}%. Первый м² — без скидки.',
+                description=MaterialDiscountMode(discount_configuration['mode']).label,
             ))
         if settings.show_stair_lifting:
             if data.stair_floor is not None:
@@ -251,9 +283,13 @@ def calculate_price(data, *, settings=None):
             else:
                 lines.append(PriceLine('standard_lifting', 'Стандартный подъём', Decimal('1'), 'заказ', ZERO, ZERO, included=True))
         selected = {item.service_id: item.quantity for item in data.services}
+        order_discounts = []
         for service in settings.services.filter(is_visible=True).select_related('unit'):
             unit = service.unit.symbol if service.unit_id else ''
-            if not service.has_price:
+            if service.is_order_discount:
+                if service.pk in selected:
+                    order_discounts.append((service.name, configured_discount_percent(service.discount_percent, service.name)))
+            elif not service.has_price:
                 lines.append(PriceLine(service.code, service.name, Decimal('1'), unit, ZERO, ZERO, included=True))
             elif service.pk in selected:
                 if service.fixed_price:
@@ -272,11 +308,26 @@ def calculate_price(data, *, settings=None):
                 add_line(service.code, service.name, quantity, unit, service.price_per_unit)
 
         subtotal = sum((line.amount for line in lines), ZERO)
+        requested_discount = sum((percent for _, percent in order_discounts), ZERO)
+        order_discount_percent = min(Decimal('100'), requested_discount)
+        order_discount = subtotal * order_discount_percent / Decimal('100')
+        if order_discounts:
+            description = '; '.join(f'{name} — {percent.normalize():f}%' for name, percent in order_discounts)
+            if requested_discount > 100:
+                description += '. Общая скидка ограничена 100%.'
+            lines.append(PriceLine(
+                'order_discount', order_discounts[0][0] if len(order_discounts) == 1 else 'Скидки на весь заказ',
+                order_discount_percent, '%', -subtotal / Decimal('100') if subtotal else ZERO,
+                -order_discount if order_discount else ZERO,
+                description=description,
+            ))
+        subtotal -= order_discount
         total = subtotal.quantize(Decimal('1'), rounding=ROUND_CEILING)
         comparison_total = (total * Decimal('100') / (Decimal('100') - marketing_discount_percent)).quantize(
             Decimal('1'), rounding=ROUND_CEILING,
         )
         return CalculationResult(
             data.panels, area, tuple(lines), subtotal, total, total - subtotal,
-            area_discount_percent, materials_discount, marketing_discount_percent, comparison_total,
+            discount_configuration['mode'], materials_discount, marketing_discount_percent, comparison_total,
+            order_discount_percent, order_discount,
         )

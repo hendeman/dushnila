@@ -28,7 +28,11 @@
       {{ item.form.id }}{{ item.form.settings }}
       {{ item.form.position.errors }}{{ item.form.position }}
       <div class="form-row">{{ item.form.is_visible.errors }}{{ item.form.is_visible }} {{ item.form.is_visible.label_tag }}</div>
-      {% if item.original.has_price %}
+      {% if item.original.is_order_discount %}
+      <div class="form-row">{{ item.form.discount_percent.errors }}{{ item.form.discount_percent.label_tag }} {{ item.form.discount_percent }}
+        <div class="help" id="{{ item.form.discount_percent.id_for_label }}_helptext">{{ item.form.discount_percent.help_text }}</div>
+      </div>
+      {% elif item.original.has_price %}
       <div class="form-row">{{ item.form.price_per_unit.errors }}{{ item.form.price_per_unit.label_tag }} {{ item.form.price_per_unit }}
         {% if item.form.price_per_unit.help_text %}<div class="help" id="{{ item.form.price_per_unit.id_for_label }}_helptext">{{ item.form.price_per_unit.help_text }}</div>{% endif %}
       </div>

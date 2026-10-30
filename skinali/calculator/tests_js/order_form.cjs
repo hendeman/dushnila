@@ -21,7 +21,7 @@ async function main() {
     const configuration = {
         max_panels: 10, max_panel_dimension_mm: 6000, area_decimal_places: 2,
         quantity_step: '0.01', quantity_decimal_places: 2,
-        area_discount_percent: '0', area_discount_threshold: '2', marketing_discount_percent: '0',
+        material_discount: {mode: 'none', minimum_area: null, rules: []}, marketing_discount_percent: '0',
         glass_type: {visible: true, options: [{id: 1, name: 'Стекло', price: '100'}]},
         decoration_type: {visible: true, options: [{id: 1, name: 'Декор', price: '20'}]},
         services: [], stairs: null,

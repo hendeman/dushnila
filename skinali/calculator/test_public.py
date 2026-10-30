@@ -12,7 +12,7 @@ from django.urls import reverse
 from sitecontent.models import MenuItem, SitePage
 
 from .calculation import MAX_PANELS, Panel, ServiceSelection, calculate_price
-from .models import CalculatorSettings
+from .models import CalculatorSettings, MaterialDiscountRule
 from .public import public_configuration
 from .test_calculation import CalculationFixture
 
@@ -125,21 +125,24 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
         self.settings.services.filter(code='delivery').update(fixed_price=True)
         self.settings.services.filter(code='installation').update(has_price=False, is_visible=True)
         cases, expected = [], []
-        for percent in ('0', '0.01', '3.33', '10', '100'):
-            self.general.area_discount_percent = Decimal(percent)
+        for mode, percent in ((m, p) for m in ('stepped', 'progressive') for p in ('0', '0.01', '3.33', '10', '100')):
+            self.set_material_discount(mode, (('2', percent), ('3.25', str(min(Decimal('100'), Decimal(percent) * 2)))))
             self.general.marketing_discount_percent = Decimal('12.34')
             self.general.save()
             config = public_configuration(self.settings, self.general)
             for index in range(32):
                 panels = ((Panel(6000, 6000),) * MAX_PANELS if index == 31 else
                           (Panel(generator.randint(1, 6000), generator.randint(1, 1500)), Panel(1000, 1000)))
+                boundaries = (1999, 2000, 2005, 2010, 2500, 3000, 3240, 3250, 3260, 4000, 5000, 6000)
+                if index < len(boundaries):
+                    panels = (Panel(boundaries[index], 1000),)
                 services = (ServiceSelection(self.service_ids['backlight'], Decimal('1.55')),
                             ServiceSelection(self.service_ids['sockets'], 2),
                             ServiceSelection(self.service_ids['hydrophobic']),
                             ServiceSelection(self.service_ids['delivery'], 999))
                 data = self.calculation_input(panels=panels, services=services, stair_floor=5, stair_panel_count=index % 4 + 1)
                 server = calculate_price(data)
-                expected.append((str(server.total), str(server.comparison_total)))
+                expected.append((server.total, server.comparison_total, server.subtotal, server.materials_discount))
                 cases.append({'config': config, 'input': {
                     'panels': [{'width': str(panel.width_mm), 'height': str(panel.height_mm)} for panel in panels],
                     'glass_type': self.glass.pk, 'decoration_type': self.decoration.pk,
@@ -150,25 +153,26 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
         for index, (result, totals) in enumerate(zip(actual, expected)):
             with self.subTest(index=index):
                 self.assertNotIn('error', result)
-                self.assertEqual((result['total'], result['comparison']), totals)
+                self.assertEqual(tuple(Decimal(result[key]) for key in ('total', 'comparison', 'subtotal', 'materials_discount')), totals)
 
     @skipUnless(NODE, 'Для проверки браузерной арифметики нужен Node.js.')
-    def test_browser_and_server_discount_starts_only_above_two_square_metres(self):
+    def test_browser_and_server_discount_starts_from_two_inclusive(self):
         self.glass.price_per_sqm = Decimal('60')
         self.glass.save()
         self.decoration.price_per_sqm = Decimal('40')
         self.decoration.save()
-        self.general.area_discount_percent = Decimal('10')
+        self.set_material_discount()
         self.general.save()
         config = public_configuration(self.settings, self.general)
         cases, expected = [], []
         for panels, subtotal in (
             ((Panel(1500, 1000),), '150'),
-            ((Panel(1999, 1000), Panel(999, 1)), '200'),
-            ((Panel(1000, 1000), Panel(1000, 1000)), '200'),
-            ((Panel(2000, 1000), Panel(1, 1)), '200'),
-            ((Panel(2005, 1000),), '190.81'),
-            ((Panel(2500, 1000),), '230.5'),
+            ((Panel(1990, 1000),), '199'),
+            ((Panel(1999, 1000), Panel(999, 1)), '190'),
+            ((Panel(1000, 1000), Panel(1000, 1000)), '190'),
+            ((Panel(2000, 1000), Panel(1, 1)), '190'),
+            ((Panel(2005, 1000),), '190.9'),
+            ((Panel(2500, 1000),), '235'),
         ):
             server = calculate_price(self.calculation_input(panels=panels))
             self.assertEqual(server.subtotal, Decimal(subtotal))
@@ -183,6 +187,33 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
             self.assertEqual(Decimal(result['materials_discount']), server.materials_discount)
             self.assertEqual(Decimal(result['total']), server.total)
             self.assertEqual(Decimal(result['comparison']), server.comparison_total)
+
+    @skipUnless(NODE, 'Для проверки браузерной арифметики нужен Node.js.')
+    def test_browser_and_server_use_first_active_rule_for_start_including_one(self):
+        cases, expected = [], []
+        for mode in ('stepped', 'progressive'):
+            for first in ('1', '1.5', '3'):
+                self.set_material_discount(mode, ((str(Decimal(first) + 1), '20'), (first, '10')))
+                MaterialDiscountRule.objects.create(
+                    settings=self.general, mode='progressive' if mode == 'stepped' else 'stepped',
+                    area_from='1', discount_percent='99',
+                )
+                config = public_configuration(self.settings, self.general)
+                self.assertEqual(Decimal(config['material_discount']['minimum_area']), Decimal(first))
+                for width in (500, 990, 1000, 1010, 1490, 1500, 1990, 2000, 2990, 3000, 3010, 4000):
+                    server = calculate_price(self.calculation_input(panels=(Panel(width, 1000),)))
+                    expected.append(server)
+                    cases.append({'config': config, 'input': {
+                        'panels': [{'width': str(width), 'height': '1000'}], 'glass_type': self.glass.pk,
+                        'decoration_type': self.decoration.pk, 'services': [],
+                    }})
+        for result, server in zip(browser_results(cases), expected):
+            self.assertNotIn('error', result)
+            self.assertEqual(tuple(Decimal(result[key]) for key in ('total', 'comparison', 'subtotal', 'materials_discount')),
+                             (server.total, server.comparison_total, server.subtotal, server.materials_discount))
+        self.general.material_discount_mode = 'none'
+        self.general.save()
+        self.assertIsNone(public_configuration(self.settings, self.general)['material_discount']['minimum_area'])
 
     @skipUnless(NODE, 'Для проверки браузерной арифметики нужен Node.js.')
     def test_browser_and_server_round_total_area_before_materials_and_area_services(self):
@@ -315,7 +346,7 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
         self.glass.save()
         self.decoration.price_per_sqm = Decimal('40')
         self.decoration.save()
-        self.general.area_discount_percent = Decimal('10')
+        self.set_material_discount()
         self.general.marketing_discount_percent = Decimal('20')
         self.general.save()
         config = public_configuration(self.settings, self.general)
@@ -334,5 +365,5 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
         ]
         results = browser_results([{'config': config, 'input': base}]
                                   + [{'config': config, 'input': {**base, **change}} for change in invalid])
-        self.assertEqual((results[0]['total'], results[0]['comparison']), ('271', '339'))
+        self.assertEqual((results[0]['total'], results[0]['comparison']), ('280', '350'))
         self.assertTrue(all('error' in item for item in results[1:]))

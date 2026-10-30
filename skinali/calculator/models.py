@@ -14,6 +14,15 @@ TARIFF_HINT_FIELDS = ('panels_hint', 'glass_type_hint', 'decoration_type_hint', 
 QUANTITY_DECIMAL_PLACES = 2
 QUANTITY_MAX_DIGITS = 11
 QUANTITY_STEP = Decimal('0.01')
+MIN_DISCOUNT_RULE_START = Decimal('1')
+MAX_DISCOUNT_RULES = 100
+CALCULATION_ENABLED_LABEL = 'Учитывать в расчете'
+
+
+class MaterialDiscountMode(models.TextChoices):
+    NONE = 'none', 'Без скидки'
+    STEPPED = 'stepped', 'Разовая (общая / ступенчатая) скидка'
+    PROGRESSIVE = 'progressive', 'Прогрессивная (скользящая) скидка'
 
 
 def validate_stair_rule_counts(rules):
@@ -67,7 +76,7 @@ class PricedOption(ValidatedCalculatorModel):
     name = models.CharField('Название', max_length=100, unique=True)
     price_per_sqm = price_field('Цена за 1 м²')
     position = models.PositiveIntegerField('Порядок', default=0)
-    is_visible = models.BooleanField('Показывать в калькуляторе', default=True)
+    is_visible = models.BooleanField(CALCULATION_ENABLED_LABEL, default=True)
 
     class Meta:
         abstract = True
@@ -125,14 +134,9 @@ class CalculatorSettings(ValidatedCalculatorModel):
         'Показывать калькулятор на сайте', default=False,
         help_text='Выключите, чтобы полностью скрыть калькулятор на сайте. Проверочный расчёт в админке остаётся доступным.',
     )
-    area_discount_percent = models.DecimalField(
-        'Скидка за каждый следующий м², %', max_digits=5, decimal_places=2, default=Decimal('0'),
-        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
-        help_text=(
-            'Скидка действует только при общей площади больше 2 м². '
-            'Тогда первый м² — по полной цене, каждый следующий дешевле предыдущего на указанный процент. '
-            'Неполный метр считается пропорционально. Только для стекла и декорирования; 0 — без скидки.'
-        ),
+    material_discount_mode = models.CharField(
+        'Вид скидки', max_length=20, choices=MaterialDiscountMode.choices, default=MaterialDiscountMode.NONE,
+        help_text='Действует только выбранный режим. Пороги и проценты задаются в таблицах ниже. Только для стекла и декорирования.',
     )
     marketing_discount_percent = models.DecimalField(
         'Маркетинговая скидка, %', max_digits=5, decimal_places=2, default=Decimal('0'),
@@ -151,8 +155,8 @@ class CalculatorSettings(ValidatedCalculatorModel):
         constraints = [
             models.CheckConstraint(condition=models.Q(code='skinali'), name='calculator_settings_singleton'),
             models.CheckConstraint(
-                condition=models.Q(area_discount_percent__gte=0, area_discount_percent__lte=100),
-                name='calc_area_discount_percent_range',
+                condition=models.Q(material_discount_mode__in=MaterialDiscountMode.values),
+                name='calc_material_discount_mode_valid',
             ),
             models.CheckConstraint(
                 condition=models.Q(marketing_discount_percent__gte=0, marketing_discount_percent__lt=100),
@@ -164,6 +168,37 @@ class CalculatorSettings(ValidatedCalculatorModel):
         return str(self._meta.verbose_name)
 
 
+class MaterialDiscountRule(ValidatedCalculatorModel):
+    settings = models.ForeignKey(CalculatorSettings, on_delete=models.CASCADE, related_name='discount_rules')
+    mode = models.CharField('Режим', max_length=20, choices=[
+        (value, label) for value, label in MaterialDiscountMode.choices if value != MaterialDiscountMode.NONE
+    ])
+    area_from = models.DecimalField(
+        'Площадь от, м²', max_digits=7, decimal_places=2, default=MIN_DISCOUNT_RULE_START,
+        validators=[MinValueValidator(MIN_DISCOUNT_RULE_START)],
+        help_text='Не меньше 1. Первая строка задаёт начало скидки включительно. Для разовой скидки — площадь заказа, для прогрессивной — номер м².',
+    )
+    discount_percent = models.DecimalField(
+        'Скидка от базовой цены, %', max_digits=5, decimal_places=2,
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+    )
+
+    class Meta:
+        verbose_name = 'Ступень скидки'
+        verbose_name_plural = 'Ступени скидки'
+        ordering = ('mode', 'area_from', 'pk')
+        constraints = [
+            models.CheckConstraint(condition=models.Q(area_from__gte=1), name='calc_discount_area_gte1'),
+            models.CheckConstraint(condition=models.Q(discount_percent__gte=0, discount_percent__lte=100),
+                                   name='calc_discount_rule_percent_range'),
+            models.CheckConstraint(condition=models.Q(mode__in=['stepped', 'progressive']), name='calc_discount_rule_mode_valid'),
+            models.UniqueConstraint(fields=('settings', 'mode', 'area_from'), name='calc_discount_rule_unique_area'),
+        ]
+
+    def __str__(self):
+        return f'От {self.area_from} м² — {self.discount_percent}%'
+
+
 class CalculatorTariffs(ValidatedCalculatorModel):
     CODE = 'skinali'
     INCLUDED_SERVICE_LABEL = 'Включено в стоимость'
@@ -173,20 +208,20 @@ class CalculatorTariffs(ValidatedCalculatorModel):
     glass_type_hint = hint_field('Подсказка к выбору стекла')
     decoration_type_hint = hint_field('Подсказка к декорированию')
     stair_lifting_hint = hint_field('Подсказка к подъёму')
-    show_glass_type = models.BooleanField('Показывать выбор стекла', default=True)
+    show_glass_type = models.BooleanField(CALCULATION_ENABLED_LABEL, default=True)
     default_glass_type = models.ForeignKey(
         GlassType, on_delete=models.PROTECT, null=True, blank=True,
         related_name='default_for_settings', verbose_name='Стекло по умолчанию',
         help_text='Применяется также при скрытом выборе стекла. Сначала добавьте варианты стекла.',
     )
-    show_decoration_type = models.BooleanField('Показывать выбор декорирования', default=True)
+    show_decoration_type = models.BooleanField(CALCULATION_ENABLED_LABEL, default=True)
     default_decoration_type = models.ForeignKey(
         DecorationType, on_delete=models.PROTECT, null=True, blank=True,
         related_name='default_for_settings', verbose_name='Декорирование по умолчанию',
         help_text='Применяется также при скрытом выборе. Для варианта без доплаты укажите цену 0.',
     )
 
-    show_stair_lifting = models.BooleanField('Показывать подъём по лестнице', default=False)
+    show_stair_lifting = models.BooleanField(CALCULATION_ENABLED_LABEL, default=False)
     stair_lifting_min_price = price_field(
         'Стандартная стоимость подъёма', optional=True,
         help_text='Базовая стоимость подъёма в пределах включённых этажей. Пустое поле — тариф не задан.',
@@ -279,13 +314,22 @@ class MeasurementUnit(ValidatedCalculatorModel):
 
 
 class CalculatorService(ValidatedCalculatorModel):
+    class CalculationType(models.TextChoices):
+        STANDARD = 'standard', 'Обычная услуга'
+        ORDER_DISCOUNT = 'order_discount', 'Скидка на весь заказ'
+
     settings = models.ForeignKey(CalculatorTariffs, on_delete=models.CASCADE, related_name='services')
     code = models.SlugField(max_length=32, unique=True, default=service_code, editable=False)
     name = models.CharField('Название услуги', max_length=100)
     hint = hint_field()
-    visibility_label = models.CharField('Подпись чекбокса показа', max_length=180, blank=True)
     price_label = models.CharField('Описание тарифа', max_length=200, blank=True)
-    is_visible = models.BooleanField('Показывать услугу', default=False)
+    is_visible = models.BooleanField(CALCULATION_ENABLED_LABEL, default=False)
+    calculation_type = models.CharField('Тип услуги', max_length=20, choices=CalculationType.choices, default=CalculationType.STANDARD)
+    discount_percent = models.DecimalField(
+        'Размер скидки, %', max_digits=5, decimal_places=2, default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0')), MaxValueValidator(Decimal('100'))],
+        help_text='Скидка на всю стоимость заказа. Выбранные скидки складываются; общий процент — не больше 100%.',
+    )
     has_price = models.BooleanField('Указывать стоимость', default=True,
                                    help_text='Выключите, если услуга включена в стоимость.')
     fixed_price = models.BooleanField(
@@ -314,6 +358,8 @@ class CalculatorService(ValidatedCalculatorModel):
         verbose_name = 'Услуга калькулятора'
         verbose_name_plural = 'Дополнительные услуги'
         constraints = [
+            models.CheckConstraint(condition=models.Q(calculation_type__in=['standard', 'order_discount']), name='calc_service_type_valid'),
+            models.CheckConstraint(condition=models.Q(discount_percent__gte=0, discount_percent__lte=100), name='calc_service_discount_range'),
             models.CheckConstraint(
                 condition=models.Q(price_per_unit__gte=0) | models.Q(price_per_unit__isnull=True),
                 name='calc_service_price_gte0',
@@ -328,17 +374,24 @@ class CalculatorService(ValidatedCalculatorModel):
         return self.name
 
     @property
+    def is_order_discount(self):
+        return self.calculation_type == self.CalculationType.ORDER_DISCOUNT
+
+    @property
+    def is_selectable(self):
+        return self.is_order_discount or self.has_price
+
+    @property
     def requires_manual_quantity(self):
-        return self.has_price and not self.fixed_price and not self.use_panel_area
+        return not self.is_order_discount and self.has_price and not self.fixed_price and not self.use_panel_area
 
     def clean(self):
         super().clean()
         self.name = (self.name or '').strip()
-        self.visibility_label = (self.visibility_label or '').strip() or f'Показать: {self.name}'
         self.price_label = (self.price_label or '').strip() or self.name
         if not self.name:
             raise ValidationError({'name': 'Укажите название услуги.'})
-        if self.is_visible and self.has_price and self.price_per_unit is None:
+        if self.is_visible and not self.is_order_discount and self.has_price and self.price_per_unit is None:
             raise ValidationError({'price_per_unit': 'Укажите стоимость перед показом платной услуги.'})
         if self.requires_manual_quantity and self.whole_quantity and isinstance(self.max_quantity, Decimal):
             if self.max_quantity.is_finite() and self.max_quantity != self.max_quantity.to_integral_value():

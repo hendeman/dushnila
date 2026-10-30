@@ -3,10 +3,10 @@ from decimal import Decimal
 from django import forms
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.forms import formset_factory
+from django.forms import BaseInlineFormSet, formset_factory
 
 from .calculation import CalculationInput, DEFAULT_STAIR_FLOOR, MAX_INTEGER, MAX_PANELS, MAX_PANEL_DIMENSION_MM, MAX_STAIR_FLOOR, MIN_STAIR_FLOOR, Panel, ServiceSelection, service_quantity_limit
-from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MAX_STAIR_PANELS, MeasurementUnit, MIN_STAIR_PANELS, QUANTITY_DECIMAL_PLACES, QUANTITY_MAX_DIGITS, QUANTITY_STEP, StairLiftingRule, TARIFF_HINT_FIELDS
+from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MaterialDiscountMode, MaterialDiscountRule, MAX_STAIR_PANELS, MeasurementUnit, MIN_DISCOUNT_RULE_START, MIN_STAIR_PANELS, QUANTITY_DECIMAL_PLACES, QUANTITY_MAX_DIGITS, QUANTITY_STEP, StairLiftingRule, TARIFF_HINT_FIELDS
 from .widgets import QuantityLimitWidget, StairLiftingRulesWidget
 
 
@@ -61,6 +61,79 @@ class CalculatorSettingsAdminForm(forms.ModelForm):
         widgets = {'marketing_discount_description': forms.Textarea(attrs={'rows': 3, 'cols': 80})}
 
 
+class MaterialDiscountRuleForm(forms.ModelForm):
+    class Meta:
+        model = MaterialDiscountRule
+        fields = ('area_from', 'discount_percent')
+
+    def __init__(self, *args, discount_mode, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.mode = discount_mode
+        self.fields['area_from'].widget.attrs['min'] = str(MIN_DISCOUNT_RULE_START)
+        if discount_mode == MaterialDiscountMode.PROGRESSIVE:
+            self.fields['area_from'].label = 'Начиная с м² №'
+            self.fields['area_from'].help_text = (
+                '1 — первый м², 2 — второй, 3 — третий. Скидка включается при общей площади от порога первой строки включительно. '
+                'Процент применяется к базовой цене соответствующего метра.'
+            )
+
+
+class MaterialDiscountRuleFormSet(BaseInlineFormSet):
+    @classmethod
+    def get_default_prefix(cls):
+        return f'{cls.discount_mode}_discounts'
+
+    def get_form_kwargs(self, index):
+        return {**super().get_form_kwargs(index), 'discount_mode': self.discount_mode}
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+        areas = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get('DELETE'):
+                continue
+            area = form.cleaned_data['area_from']
+            if area in areas:
+                raise ValidationError('В одном режиме нельзя повторять пороги площади.')
+            areas.add(area)
+        if self.instance.material_discount_mode == self.discount_mode and not areas:
+            raise ValidationError('Добавьте хотя бы одну ступень для выбранного режима скидки.')
+
+    def save(self, commit=True):
+        if not commit:
+            return super().save(commit=False)
+        with transaction.atomic(using=self.instance._state.db):
+            rows = self.model.objects.using(self.instance._state.db).filter(settings=self.instance, mode=self.discount_mode)
+            rows.filter(pk__in=[form.instance.pk for form in self.deleted_forms]).delete()
+            changed = [form for form in self.initial_forms
+                       if not self._should_delete_form(form) and 'area_from' in form.changed_data]
+            if changed:
+                # SQLite проверяет UNIQUE сразу: освобождаем пороги перед их перестановкой.
+                used = set(rows.values_list('area_from', flat=True)) | {
+                    form.cleaned_data['area_from'] for form in self.forms
+                    if form.cleaned_data and not self._should_delete_form(form)
+                }
+                field = self.model._meta.get_field('area_from')
+                step = Decimal('1').scaleb(-field.decimal_places)
+                temporary = Decimal('10') ** (field.max_digits - field.decimal_places) - step
+                for form in changed:
+                    while temporary in used:
+                        temporary -= step
+                    rows.filter(pk=form.instance.pk).update(area_from=temporary)
+                    used.add(temporary)
+            return super().save(commit=True)
+
+
+class SteppedDiscountRuleFormSet(MaterialDiscountRuleFormSet):
+    discount_mode = MaterialDiscountMode.STEPPED
+
+
+class ProgressiveDiscountRuleFormSet(MaterialDiscountRuleFormSet):
+    discount_mode = MaterialDiscountMode.PROGRESSIVE
+
+
 class CalculatorTariffsAdminForm(forms.ModelForm):
     stair_lifting_rules = StairLiftingRulesField()
 
@@ -106,38 +179,41 @@ class CalculatorServiceForm(forms.ModelForm):
         self.fields['unit'].empty_label = 'Без обозначения'
         if not self.instance.pk and not self.is_bound and not self.initial.get('unit'):
             self.initial['unit'] = MeasurementUnit.objects.filter(symbol='ед.').values_list('pk', flat=True).first()
-        self.fields['is_visible'].label = self.instance.visibility_label or 'Показывать услугу'
         self.fields['price_per_unit'].label = self.instance.price_label or 'Цена за одну единицу'
+        is_discount = self['calculation_type'].value() == CalculatorService.CalculationType.ORDER_DISCOUNT
+        self.fields['discount_percent'].disabled = not is_discount
+        self.fields['discount_percent'].widget.attrs.update(min='0', max='100', step='0.01')
         has_price = forms.BooleanField(required=False).to_python(self['has_price'].value())
         fixed_price = forms.BooleanField(required=False).to_python(self['fixed_price'].value())
         use_panel_area = forms.BooleanField(required=False).to_python(self['use_panel_area'].value())
         whole_quantity = forms.BooleanField(required=False).to_python(self['whole_quantity'].value())
-        if not has_price:
+        if is_discount:
+            for name in ('has_price', 'fixed_price', 'price_label', 'price_per_unit', 'quantity_label',
+                         'unit', 'max_quantity', 'use_panel_area', 'whole_quantity'):
+                self.fields[name].disabled = True
+        elif not has_price:
             self.fields['price_per_unit'].disabled = True
-        if not has_price or fixed_price:
+        if is_discount or not has_price or fixed_price:
             for name in ('quantity_label', 'unit', 'use_panel_area', 'whole_quantity'):
                 self.fields[name].disabled = True
-        self.fields['max_quantity'].disabled = not has_price or fixed_price or use_panel_area
+        self.fields['max_quantity'].disabled = is_discount or not has_price or fixed_price or use_panel_area
         self.fields['max_quantity'].widget.attrs.update(
             min=1 if whole_quantity else str(QUANTITY_STEP), step=1 if whole_quantity else str(QUANTITY_STEP),
         )
         self.fields['max_quantity'].widget.attrs['data-quantity-step'] = str(QUANTITY_STEP)
 
-    class Media:
-        js = ('calculator/js/admin-services.js',)
-
-
 class CalculatorServiceInlineForm(forms.ModelForm):
     class Meta:
         model = CalculatorService
-        fields = ('is_visible', 'price_per_unit', 'position')
+        fields = ('is_visible', 'price_per_unit', 'discount_percent', 'position')
         widgets = {'position': forms.HiddenInput()}
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['is_visible'].label = self.instance.visibility_label
         self.fields['price_per_unit'].label = self.instance.price_label
-        if not self.instance.has_price:
+        self.fields['discount_percent'].disabled = not self.instance.is_order_discount
+        self.fields['discount_percent'].widget.attrs.update(min='0', max='100', step='0.01')
+        if self.instance.is_order_discount or not self.instance.has_price:
             self.fields['price_per_unit'].disabled = True
 
     def _post_clean(self):
@@ -165,7 +241,7 @@ class CalculationForm(forms.Form):
                 )
                 self.field_groups.append((label, (field,)))
         for service in self.services:
-            if not service.has_price:
+            if not service.is_selectable:
                 continue
             selected = f'use_service_{service.pk}'
             self.fields[selected] = forms.BooleanField(label=service.name, required=False)
@@ -223,9 +299,9 @@ class CalculationForm(forms.Form):
     def service_rows(self):
         return [{
             'service': service,
-            'selected': self[f'use_service_{service.pk}'] if service.has_price else None,
+            'selected': self[f'use_service_{service.pk}'] if service.is_selectable else None,
             'quantity': self[f'service_quantity_{service.pk}'] if service.requires_manual_quantity else None,
-            'enabled': forms.BooleanField(required=False).to_python(self[f'use_service_{service.pk}'].value()) if service.has_price else False,
+            'enabled': forms.BooleanField(required=False).to_python(self[f'use_service_{service.pk}'].value()) if service.is_selectable else False,
         } for service in self.services]
 
     def calculation_input(self, panel_forms):
@@ -236,7 +312,7 @@ class CalculationForm(forms.Form):
             glass_type_id=cleaned['glass_type'].pk if cleaned.get('glass_type') else None,
             decoration_type_id=cleaned['decoration_type'].pk if cleaned.get('decoration_type') else None,
             services=tuple(ServiceSelection(service.pk, Decimal(cleaned[f'service_quantity_{service.pk}']) if service.requires_manual_quantity else Decimal('1'))
-                           for service in self.services if service.has_price and cleaned.get(f'use_service_{service.pk}')),
+                           for service in self.services if service.is_selectable and cleaned.get(f'use_service_{service.pk}')),
             stair_floor=cleaned.get('stair_floor') if cleaned.get('lifting_type') == 'stairs' else None,
             stair_panel_count=cleaned.get('stair_panel_count') if cleaned.get('lifting_type') == 'stairs' else None,
         )

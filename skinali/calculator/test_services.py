@@ -28,7 +28,8 @@ class EditableServiceTests(CalculationFixture, TestCase):
 
     def service_data(self, service=None, **changes):
         data = model_to_dict(service) if service else {
-            'name': 'Обработка', 'visibility_label': '', 'price_label': '',
+            'calculation_type': 'standard', 'discount_percent': '0',
+            'name': 'Обработка', 'price_label': '',
             'is_visible': True, 'has_price': True, 'price_per_unit': '12.50',
             'quantity_label': 'Количество', 'unit': MeasurementUnit.objects.get(symbol='ед.').pk, 'position': 15,
         }
@@ -41,10 +42,13 @@ class EditableServiceTests(CalculationFixture, TestCase):
         self.assertEqual(self.client.post(self.add_url, self.service_data()).status_code, 302)
         service = CalculatorService.objects.get(name='Обработка')
         self.assertEqual(service.position, last_position + 1)
-        self.assertEqual(service.visibility_label, 'Показать: Обработка')
+        add_editor = self.client.get(self.add_url)
+        self.assertNotIn('visibility_label', add_editor.context['adminform'].form.fields)
+        self.assertContains(add_editor, 'Учитывать в расчете')
         self.assertEqual(service.price_label, 'Обработка')
         change_url = reverse('admin:calculator_calculatorservice_change', args=[service.pk])
         self.assertNotIn('position', self.client.get(change_url).context['adminform'].form.fields)
+        self.assertNotIn('visibility_label', self.client.get(change_url).context['adminform'].form.fields)
         delete_url = reverse('admin:calculator_calculatorservice_delete', args=[service.pk])
         response = self.client.get(self.card_url)
         self.assertContains(response, change_url)
@@ -57,7 +61,8 @@ class EditableServiceTests(CalculationFixture, TestCase):
         self.assertEqual(service.position, last_position + 1)
         self.assertEqual(service.code, code)
         self.assertEqual(service.price_label, 'Цена за один комплект')
-        self.assertContains(self.client.get(self.card_url), 'Показывать крепёж')
+        self.assertContains(self.client.get(self.card_url), 'Учитывать в расчете')
+        self.assertNotContains(self.client.get(self.card_url), 'Показывать крепёж')
         self.assertEqual(self.client.get(delete_url).status_code, 200)
         self.assertTrue(CalculatorService.objects.filter(pk=service.pk).exists())
         self.assertRedirects(self.client.post(delete_url, {'post': 'yes'}), self.card_url, fetch_redirect_response=False)

@@ -8,9 +8,9 @@ from django.views.decorators.http import require_http_methods
 
 from skinali.admin_mixins import SingletonAdminMixin, SuperuserAdminMixin
 
-from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MeasurementUnit
+from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MaterialDiscountRule, MAX_DISCOUNT_RULES, MeasurementUnit
 from .calculation import calculate_price
-from .forms import CalculationForm, CalculatorServiceForm, CalculatorServiceInlineForm, CalculatorSettingsAdminForm, CalculatorTariffsAdminForm, PanelFormSet
+from .forms import CalculationForm, CalculatorServiceForm, CalculatorServiceInlineForm, CalculatorSettingsAdminForm, CalculatorTariffsAdminForm, MaterialDiscountRuleForm, PanelFormSet, ProgressiveDiscountRuleFormSet, SteppedDiscountRuleFormSet
 
 
 class PricedOptionAdmin(SuperuserAdminMixin, admin.ModelAdmin):
@@ -48,7 +48,7 @@ class CalculatorServiceInline(SuperuserAdminMixin, admin.StackedInline):
     model = CalculatorService
     form = CalculatorServiceInlineForm
     template = 'admin/calculator/service_inline.html'
-    fields = ('is_visible', 'price_per_unit', 'position')
+    fields = ('is_visible', 'price_per_unit', 'discount_percent', 'position')
     extra = 0
     can_delete = False
 
@@ -62,9 +62,13 @@ class CalculatorServiceInline(SuperuserAdminMixin, admin.StackedInline):
 @admin.register(CalculatorService)
 class CalculatorServiceAdmin(SuperuserAdminMixin, admin.ModelAdmin):
     form = CalculatorServiceForm
+    change_form_template = 'admin/calculator/service_change_form.html'
     actions = None
+    radio_fields = {'calculation_type': admin.VERTICAL}
     fieldsets = (
-        (None, {'fields': ('name', 'hint', 'visibility_label', 'price_label', 'is_visible', 'has_price', 'fixed_price', 'price_per_unit')}),
+        ('Тип расчёта', {'fields': ('calculation_type', 'discount_percent')}),
+        ('Название и отображение', {'fields': ('name', 'hint', 'is_visible')}),
+        ('Стоимость услуги', {'fields': ('has_price', 'price_label', 'price_per_unit', 'fixed_price')}),
         ('Поле количества', {
             'fields': ('quantity_label', 'unit', 'max_quantity', 'use_panel_area', 'whole_quantity'),
             'description': 'Стоимость равна цене за единицу, умноженной на количество. Обозначение единицы — только подпись.',
@@ -122,14 +126,57 @@ class CalculatorCardAdmin(SingletonAdminMixin, admin.ModelAdmin):
         })
 
 
+class MaterialDiscountRuleInline(SuperuserAdminMixin, admin.TabularInline):
+    model = MaterialDiscountRule
+    form = MaterialDiscountRuleForm
+    fields = ('area_from', 'discount_percent')
+    extra = 0
+    max_num = MAX_DISCOUNT_RULES
+    template = 'admin/calculator/discount_inline.html'
+
+    def has_add_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def has_delete_permission(self, request, obj=None):
+        return self.has_module_permission(request)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(mode=self.formset.discount_mode)
+
+    def get_formset(self, request, obj=None, **kwargs):
+        return super().get_formset(request, obj, validate_max=True, **kwargs)
+
+
+class SteppedDiscountRuleInline(MaterialDiscountRuleInline):
+    formset = SteppedDiscountRuleFormSet
+    verbose_name_plural = 'Разовая (общая / ступенчатая) скидка'
+    description = ('Процент подходящей ступени применяется ко всей площади заказа. '
+                   'Начало скидки задаёт первая строка таблицы. Все пороги действуют с указанного значения включительно. '
+                   'После последней ступени процент сохраняется.')
+
+
+class ProgressiveDiscountRuleInline(MaterialDiscountRuleInline):
+    formset = ProgressiveDiscountRuleFormSet
+    verbose_name_plural = 'Прогрессивная (скользящая) скидка'
+    description = ('Скидка включается, когда общая площадь достигает порога первой строки таблицы, включительно. '
+                   'До этого вся площадь считается без скидки. Номер 1 означает первый м², номер 2 — второй, номер 3 — третий. '
+                   'Например: со 2-го м² — 10%, с 3-го — 20%: '
+                   'второй метр дешевле базовой цены на 10%, третий и все последующие — на 20%. '
+                   'Неполный метр считается пропорционально. Последний процент фиксируется.')
+
+
 @admin.register(CalculatorSettings)
 class CalculatorSettingsAdmin(CalculatorCardAdmin):
     counterpart_model = CalculatorTariffs
     form = CalculatorSettingsAdminForm
+    change_form_template = 'admin/calculator/settings_change_form.html'
+    inlines = (SteppedDiscountRuleInline, ProgressiveDiscountRuleInline)
+    radio_fields = {'material_discount_mode': admin.VERTICAL}
     fieldsets = (
         ('Отображение на сайте', {'fields': ('is_enabled',)}),
-        ('Акционные настройки', {'fields': (
-            'area_discount_percent', 'marketing_discount_percent', 'marketing_discount_description',
+        ('Скидка на стекло и декорирование', {'fields': ('material_discount_mode',)}),
+        ('Маркетинговая скидка', {'fields': (
+            'marketing_discount_percent', 'marketing_discount_description',
         )}),
     )
 

@@ -72,18 +72,18 @@
             {% if calculator_config.services %}
                 <div class="price-services">
                 {% for service in calculator_config.services %}
-                <div class="price-field price-service{% if not service.has_price %} price-service--included{% endif %}" data-service-id="{{ service.id }}">
+                <div class="price-field price-service{% if not service.selectable %} price-service--included{% endif %}" data-service-id="{{ service.id }}">
                     <div class="price-field__label">
-                        {% if service.has_price %}
+                        {% if service.selectable %}
                         <label for="price-service-{{ service.id }}">{{ service.name }}</label>
                         {% else %}
                         <span class="price-field__name">{{ service.name }}</span>
                         {% endif %}
                         {% include 'calculator/includes/field_help.html' with label=service.name text=service.hint only %}
                     </div>
-                    {% if service.has_price %}
+                    {% if service.selectable %}
                     <input class="price-checkbox" id="price-service-{{ service.id }}" type="checkbox" name="use_service_{{ service.id }}">
-                    {% if not service.fixed_price and not service.use_panel_area %}
+                    {% if service.requires_manual_quantity %}
                     <div class="price-service__details" hidden>
                         <div class="price-field price-field--subrow">
                             <label for="price-quantity-{{ service.id }}">{{ service.quantity_label }}</label>
@@ -172,7 +172,7 @@
             </div>
         </div>
     </template>
-    <script src="{% static 'calculator/js/price-engine.js' %}" defer></script>
+    <script src="{% static 'calculator/js/price-engine.js' %}?rev=4" defer></script>
     <script src="{% static 'calculator/js/price.js' %}?rev=4" defer></script>
     {% else %}
     <div class="price-card"><p>Сейчас стоимость можно уточнить у нас. Поможем подобрать стекло, оформление и необходимые услуги.</p><a class="price-button price-button--primary" href="{% url 'about' %}">Узнать стоимость</a></div>

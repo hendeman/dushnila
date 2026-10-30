@@ -14,11 +14,22 @@ from .calculation import (
     CalculationInput, CalculatorConfigurationError, MAX_PANELS, Panel, ServiceSelection, calculate_price,
 )
 from .forms import CalculationForm, PanelFormSet
-from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MeasurementUnit
+from .models import CalculatorService, CalculatorSettings, CalculatorTariffs, DecorationType, GlassType, MaterialDiscountRule, MeasurementUnit
 from .templatetags.calculator_numbers import exact_decimal
 
 
 class CalculationFixture:
+    def set_material_discount(self, mode='progressive', rules=(('2', '10'),)):
+        general = CalculatorSettings.objects.get(pk=CalculatorSettings.CODE)
+        general.material_discount_mode = mode
+        general.save()
+        general.discount_rules.all().delete()
+        for area, percent in rules:
+            MaterialDiscountRule.objects.create(settings=general, mode=mode, area_from=Decimal(area), discount_percent=Decimal(percent))
+        if hasattr(self, 'general'):
+            self.general.refresh_from_db()
+        return general
+
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
