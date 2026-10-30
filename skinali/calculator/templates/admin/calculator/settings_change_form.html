@@ -1,0 +1,25 @@
+{% extends "admin/calculator/change_form.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script src="{% static 'calculator/js/admin-discounts.js' %}" defer></script>
+{% endblock %}
+
+{% block field_sets %}
+{% for fieldset in adminform %}
+  {% include "admin/includes/fieldset.html" with heading_level=2 prefix="fieldset" id_prefix=0 id_suffix=forloop.counter0 %}
+  {% if forloop.counter == 2 %}
+    {% for inline_admin_formset in inline_admin_formsets %}
+      {% if inline_admin_formset.formset.total_error_count %}
+        <div data-discount-errors="{{ inline_admin_formset.formset.discount_mode }}"{% if adminform.form.material_discount_mode.value == inline_admin_formset.formset.discount_mode %} hidden{% endif %}>
+          <p class="errornote">В таблице «{{ inline_admin_formset.opts.verbose_name_plural }}» есть ошибки. Выберите этот вид скидки, чтобы исправить их.</p>
+        </div>
+      {% endif %}
+      {% include inline_admin_formset.opts.template %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% endblock %}
+
+{% block inline_field_sets %}{% endblock %}

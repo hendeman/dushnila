@@ -1,0 +1,4 @@
+<div data-discount-mode="{{ inline_admin_formset.formset.discount_mode }}"{% if adminform.form.material_discount_mode.value != inline_admin_formset.formset.discount_mode %} hidden{% endif %}>
+<p class="help">{{ inline_admin_formset.opts.description }}</p>
+{% include "admin/edit_inline/tabular.html" %}
+</div>
