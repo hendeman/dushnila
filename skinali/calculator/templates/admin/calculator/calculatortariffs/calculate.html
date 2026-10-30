@@ -99,6 +99,7 @@
 <section class="module" aria-labelledby="calculation-result-title">
   <h2 id="calculation-result-title">Результат расчёта</h2>
   <p>Панелей: <strong>{{ result.panel_count }}</strong>. Общая площадь: <strong>{{ result.area_sqm|area_decimal }} м²</strong>.</p>
+  {% if result.billable_area_sqm > result.area_sqm %}<p>Расчётная площадь с учётом минимального заказа: <strong>{{ result.billable_area_sqm|area_decimal }} м²</strong>.</p>{% endif %}
   <div class="results">
     <table>
       <thead><tr><th>Позиция</th><th>Количество</th><th>Тариф</th><th>Стоимость</th></tr></thead>
@@ -124,7 +125,7 @@
       </tbody>
     </table>
   </div>
-  <p>Общая площадь округляется до двух знаков перед расчётом стоимости. Итоговая стоимость округляется вверх до целого. Минимальная площадь и минимальная стоимость заказа не применяются.</p>
+  <p>Общая площадь округляется до двух знаков перед расчётом стоимости. Для стекла, декорирования и услуг по площади применяется минимальный заказ из настроек калькулятора. Итоговая стоимость округляется вверх до целого.</p>
 </section>
 {% endif %}
 {% endblock %}

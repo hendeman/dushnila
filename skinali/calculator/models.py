@@ -134,6 +134,11 @@ class CalculatorSettings(ValidatedCalculatorModel):
         'Показывать калькулятор на сайте', default=False,
         help_text='Выключите, чтобы полностью скрыть калькулятор на сайте. Проверочный расчёт в админке остаётся доступным.',
     )
+    minimum_order_area_sqm = models.DecimalField(
+        'Общая площадь панелей, м²', max_digits=7, decimal_places=2, default=Decimal('0'),
+        validators=[MinValueValidator(Decimal('0'))],
+        help_text='Минимальная площадь для расчёта стекла, декорирования и услуг по площади. 0 — без минимального заказа.',
+    )
     material_discount_mode = models.CharField(
         'Вид скидки', max_length=20, choices=MaterialDiscountMode.choices, default=MaterialDiscountMode.NONE,
         help_text='Действует только выбранный режим. Пороги и проценты задаются в таблицах ниже. Только для стекла и декорирования.',
@@ -154,6 +159,10 @@ class CalculatorSettings(ValidatedCalculatorModel):
         verbose_name_plural = 'Настройки калькулятора'
         constraints = [
             models.CheckConstraint(condition=models.Q(code='skinali'), name='calculator_settings_singleton'),
+            models.CheckConstraint(
+                condition=models.Q(minimum_order_area_sqm__gte=0),
+                name='calc_minimum_order_area_gte0',
+            ),
             models.CheckConstraint(
                 condition=models.Q(material_discount_mode__in=MaterialDiscountMode.values),
                 name='calc_material_discount_mode_valid',

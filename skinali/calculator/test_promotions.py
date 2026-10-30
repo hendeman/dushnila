@@ -30,7 +30,7 @@ class PromotionTests(CalculationFixture, TestCase):
         self.decoration.save()
 
     def admin_data(self, **values):
-        data = {'material_discount_mode': 'none', 'marketing_discount_percent': '0'}
+        data = {'minimum_order_area_sqm': '0', 'material_discount_mode': 'none', 'marketing_discount_percent': '0'}
         for mode in ('stepped', 'progressive'):
             data.update({f'{mode}_discounts-TOTAL_FORMS': '0', f'{mode}_discounts-INITIAL_FORMS': '0'})
         return {**data, **values}

@@ -349,7 +349,8 @@ class CalculatorAdminTests(TestCase):
         preview_url = reverse('admin:calculator_calculatortariffs_calculate')
         card = self.client.get(self.settings_url)
         self.assertEqual(list(card.context['adminform'].form.fields), [
-            'is_enabled', 'material_discount_mode', 'marketing_discount_percent', 'marketing_discount_description',
+            'is_enabled', 'minimum_order_area_sqm', 'material_discount_mode',
+            'marketing_discount_percent', 'marketing_discount_description',
         ])
         self.assertEqual(len(card.context['inline_admin_formsets']), 2)
         self.assertContains(card, self.list_url)

@@ -1,5 +1,5 @@
 {% extends 'pict/base.html' %}
-{% load static %}
+{% load static calculator_numbers %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'sitecontent/css/price-tables.css' %}">
@@ -9,7 +9,7 @@
 {% block content %}
 <article class="price-page">
     <h1>{{ title }}</h1>
-    <p class="price-page__intro">Укажите размеры и выберите нужные услуги. Стоимость обновляется сразу, с учётом действующих акций.</p>
+    <p class="price-page__intro">Укажите размеры и выберите нужные услуги. Стоимость обновляется сразу, с учётом действующих акций.{% if minimum_order_area_sqm %} Минимальный заказ {{ minimum_order_area_sqm|exact_decimal }}м².{% endif %}</p>
     {% if calculation_share_error %}<p class="site-notice site-notice--warning" role="alert">{{ calculation_share_error }}</p>{% endif %}
     {% if calculation_initial_input %}<p class="site-notice" role="status">Открыт расчёт по ссылке. Стоимость пересчитана по действующим тарифам и акциям. Вы можете изменить параметры и поделиться новым расчётом.</p>{% endif %}
     {% if calculator_config %}
@@ -172,7 +172,7 @@
             </div>
         </div>
     </template>
-    <script src="{% static 'calculator/js/price-engine.js' %}?rev=4" defer></script>
+    <script src="{% static 'calculator/js/price-engine.js' %}?rev=5" defer></script>
     <script src="{% static 'calculator/js/price.js' %}?rev=4" defer></script>
     {% else %}
     <div class="price-card"><p>Сейчас стоимость можно уточнить у нас. Поможем подобрать стекло, оформление и необходимые услуги.</p><a class="price-button price-button--primary" href="{% url 'about' %}">Узнать стоимость</a></div>

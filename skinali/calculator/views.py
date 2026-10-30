@@ -1,5 +1,6 @@
 import json
 import logging
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.http import JsonResponse
@@ -55,6 +56,7 @@ def price(request):
                     share_error, status = UNAVAILABLE_SHARE_MESSAGE, 409
     context = {
         'title': 'Рассчитайте стоимость скинали', 'calculator_config': configuration,
+        'minimum_order_area_sqm': Decimal(configuration['minimum_order_area_sqm']) if configuration else None,
         'favorites_count': len(get_favorite_ids(request)),
         'calculation_initial_input': initial_input, 'calculation_share_error': share_error,
         'calculator_order_form': CalculatorOrderContactForm(prefix='calculator_order') if configuration else None,

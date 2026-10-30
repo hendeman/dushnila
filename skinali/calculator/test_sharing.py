@@ -72,6 +72,23 @@ class CalculationSharingTests(CalculationFixture, TestCase):
         self.assertEqual(set(payload), {'v', 'input'})
         self.assertNotIn('total', payload['input'])
 
+    def test_existing_link_uses_current_minimum_without_accepting_it_from_visitor(self):
+        created = self.create_link()
+        data = read_calculation_share_token(self.token(created))
+        before = calculate_price(data)
+        CalculatorSettings.objects.update(minimum_order_area_sqm=Decimal('2.50'))
+        after = calculate_price(data)
+        self.assertEqual(before.area_sqm, after.area_sqm)
+        self.assertEqual(after.billable_area_sqm, Decimal('2.50'))
+        self.assertGreater(after.total, before.total)
+        received = self.client.get(self.shared_path(created))
+        self.assertEqual(received.status_code, 200)
+        self.assertEqual(received.context['calculator_config']['minimum_order_area_sqm'], '2.50')
+        self.assertEqual(received.context['calculation_initial_input']['panels'], [
+            {'width': 1800, 'height': 600}, {'width': 1200, 'height': 600},
+        ])
+        self.assertEqual(self.create_link({**self.input, 'minimum_order_area_sqm': '0'}).status_code, 400)
+
     def test_existing_link_uses_current_discount_mode_and_rules(self):
         self.input['panels'] = [{'width': '3500', 'height': '1000'}]
         created = self.create_link()

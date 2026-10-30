@@ -56,6 +56,8 @@
         ), 0n);
         const areaStep = SCALE / (10n ** BigInt(config.area_decimal_places));
         const area = (rawArea + areaStep / 2n) / areaStep * areaStep;
+        const minimumArea = decimal(config.minimum_order_area_sqm);
+        const billableArea = area < minimumArea ? minimumArea : area;
         const lines = [];
         const add = (label, amount, included = false) => lines.push({label, amount, included});
         let materialPrice = 0n;
@@ -66,9 +68,9 @@
             if (!option) throw new Error(`Выберите вариант: ${label.toLowerCase()}.`);
             const price = decimal(option.price);
             materialPrice += price;
-            add(`${label}: ${option.name}`, multiply(area, price));
+            add(`${label}: ${option.name}`, multiply(billableArea, price));
         }
-        const discount = materialDiscount(area, materialPrice, config.material_discount);
+        const discount = materialDiscount(billableArea, materialPrice, config.material_discount);
         if (discount > 0n) add('Скидка на стекло и декорирование', -discount);
         if (config.stairs) {
             if (input.stairs) {
@@ -91,7 +93,7 @@
             } else if (selected.has(String(service.id))) {
                 let quantity = SCALE;
                 if (!service.fixed_price) {
-                    if (service.use_panel_area) quantity = area;
+                    if (service.use_panel_area) quantity = billableArea;
                     else if (service.whole_quantity) quantity = integer(selected.get(String(service.id)), config.max_integer) * SCALE;
                     else {
                         const raw = String(selected.get(String(service.id)));
@@ -119,7 +121,8 @@
         const marketing = decimal(config.marketing_discount_percent);
         const comparison = ceil(total * 100n * SCALE, 100n * SCALE - marketing);
         return {
-            area: text(area), subtotal: text(subtotal), total: String(total), comparison: String(comparison),
+            area: text(area), billable_area: text(billableArea),
+            subtotal: text(subtotal), total: String(total), comparison: String(comparison),
             materials_discount: text(discount), panel_count: input.panels.length,
             order_discount_percent: text(orderDiscountPercent), order_discount: text(orderDiscount),
             lines: lines.map((line) => ({...line, amount: text(line.amount)})),

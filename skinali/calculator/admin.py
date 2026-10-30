@@ -174,6 +174,7 @@ class CalculatorSettingsAdmin(CalculatorCardAdmin):
     radio_fields = {'material_discount_mode': admin.VERTICAL}
     fieldsets = (
         ('Отображение на сайте', {'fields': ('is_enabled',)}),
+        ('Минимальный заказ', {'fields': ('minimum_order_area_sqm',)}),
         ('Скидка на стекло и декорирование', {'fields': ('material_discount_mode',)}),
         ('Маркетинговая скидка', {'fields': (
             'marketing_discount_percent', 'marketing_discount_description',

@@ -285,3 +285,7 @@ Data-миграция не пытается автоматически объе�
 ## `calculator/0022_unified_calculation_labels`
 
 Удаляет `CalculatorService.visibility_label`: отдельная редактируемая подпись чекбокса больше не используется. `AlterField` меняет verbose_name на «Учитывать в расчете» для `CalculatorService.is_visible`, `GlassType.is_visible`, `DecorationType.is_visible` и трёх флагов `CalculatorTariffs.show_glass_type/show_decoration_type/show_stair_lifting`. Типы полей, default и сохранённые значения переключателей остаются прежними. Тарифы, проценты, материалы по умолчанию, публикация калькулятора и формула не меняются. При откате текстовое поле возвращается пустым; удалённые индивидуальные подписи не восстанавливаются. [Редактор и подписи](../calculator/overview.md#уникальные-разделы).
+
+## `calculator/0023_minimum_order_area`
+
+Добавляет `CalculatorSettings.minimum_order_area_sqm` (Decimal(7,2), default 0, MinValueValidator 0) и CHECK `calc_minimum_order_area_gte0`. Существующая карточка получает нейтральный ноль: минимум не включается автоматически, тарифы, скидки и флаги сохраняются. Настройка ограничивает снизу расчётную площадь материалов и услуг по площади; фактическая геометрия остаётся отдельной. Откат удаляет поле и ограничение вместе с сохранённым минимумом. [Расчёт и интерфейс](../calculator/overview.md#минимальный-заказ).

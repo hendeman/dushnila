@@ -26,6 +26,7 @@ def public_configuration(tariffs, settings):
     result['quantity_step'] = str(QUANTITY_STEP)
     result['quantity_decimal_places'] = QUANTITY_DECIMAL_PLACES
     result['area_decimal_places'] = AREA_DECIMAL_PLACES
+    result['minimum_order_area_sqm'] = str(configured_price(settings.minimum_order_area_sqm, 'Минимальный заказ'))
     result['max_panel_dimension_mm'] = MAX_PANEL_DIMENSION_MM
     result['max_stair_floor'] = MAX_STAIR_FLOOR
     result['min_stair_floor'] = MIN_STAIR_FLOOR

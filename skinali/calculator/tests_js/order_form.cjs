@@ -20,6 +20,7 @@ function element(values = {}) {
 async function main() {
     const configuration = {
         max_panels: 10, max_panel_dimension_mm: 6000, area_decimal_places: 2,
+        minimum_order_area_sqm: '0',
         quantity_step: '0.01', quantity_decimal_places: 2,
         material_discount: {mode: 'none', minimum_area: null, rules: []}, marketing_discount_percent: '0',
         glass_type: {visible: true, options: [{id: 1, name: 'Стекло', price: '100'}]},

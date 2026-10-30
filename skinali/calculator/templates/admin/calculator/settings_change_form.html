@@ -9,7 +9,7 @@
 {% block field_sets %}
 {% for fieldset in adminform %}
   {% include "admin/includes/fieldset.html" with heading_level=2 prefix="fieldset" id_prefix=0 id_suffix=forloop.counter0 %}
-  {% if forloop.counter == 2 %}
+  {% if 'material_discount_mode' in fieldset.fields %}
     {% for inline_admin_formset in inline_admin_formsets %}
       {% if inline_admin_formset.formset.total_error_count %}
         <div data-discount-errors="{{ inline_admin_formset.formset.discount_mode }}"{% if adminform.form.material_discount_mode.value == inline_admin_formset.formset.discount_mode %} hidden{% endif %}>

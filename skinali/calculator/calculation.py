@@ -110,6 +110,7 @@ class PriceLine:
 class CalculationResult:
     panels: tuple[Panel, ...]
     area_sqm: Decimal
+    billable_area_sqm: Decimal
     lines: tuple[PriceLine, ...]
     subtotal: Decimal
     total: Decimal
@@ -218,6 +219,7 @@ def calculate_price(data, *, settings=None):
     if general_settings is None:
         raise CalculatorConfigurationError('Не найдены общие настройки калькулятора.')
     discount_configuration = material_discount_configuration(general_settings)
+    minimum_order_area = configured_price(general_settings.minimum_order_area_sqm, 'Минимальный заказ')
     marketing_discount_percent = configured_price(general_settings.marketing_discount_percent, 'Маркетинговая скидка')
     if marketing_discount_percent >= 100:
         raise CalculatorConfigurationError('Маркетинговая скидка должна быть от 0 до 99,99%.')
@@ -227,16 +229,17 @@ def calculate_price(data, *, settings=None):
         area = sum((panel.area_sqm for panel in data.panels), ZERO).quantize(
             Decimal('1').scaleb(-AREA_DECIMAL_PLACES), rounding=ROUND_HALF_UP,
         )
+        billable_area = max(area, minimum_order_area)
         lines = []
 
         def add_line(code, label, quantity, unit, price, *, description=''):
             price = configured_price(price, label)
             lines.append(PriceLine(code, label, quantity, unit, price, quantity * price, description=description))
 
-        add_line('glass', f'Стекло: {glass.name}', area, 'м²', glass.price_per_sqm)
-        add_line('decoration', f'Декорирование: {decoration.name}', area, 'м²', decoration.price_per_sqm)
+        add_line('glass', f'Стекло: {glass.name}', billable_area, 'м²', glass.price_per_sqm)
+        add_line('decoration', f'Декорирование: {decoration.name}', billable_area, 'м²', decoration.price_per_sqm)
         materials_discount = material_discount_amount(
-            area, lines[0].unit_price + lines[1].unit_price, discount_configuration,
+            billable_area, lines[0].unit_price + lines[1].unit_price, discount_configuration,
         )
         if materials_discount:
             lines.append(PriceLine(
@@ -295,7 +298,7 @@ def calculate_price(data, *, settings=None):
                 if service.fixed_price:
                     quantity, unit = Decimal('1'), 'заказ'
                 elif service.use_panel_area:
-                    quantity = area
+                    quantity = billable_area
                 else:
                     quantity = selected[service.pk]
                 if service.requires_manual_quantity and (
@@ -327,7 +330,7 @@ def calculate_price(data, *, settings=None):
             Decimal('1'), rounding=ROUND_CEILING,
         )
         return CalculationResult(
-            data.panels, area, tuple(lines), subtotal, total, total - subtotal,
+            data.panels, area, billable_area, tuple(lines), subtotal, total, total - subtotal,
             discount_configuration['mode'], materials_discount, marketing_discount_percent, comparison_total,
             order_discount_percent, order_discount,
         )
