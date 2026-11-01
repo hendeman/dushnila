@@ -45,6 +45,19 @@
         <figcaption>Нажмите на изображение, чтобы открыть оригинал.</figcaption>
       </figure>
 
+      {% if similar_pictures %}
+        <section class="image-detail__similar" aria-labelledby="similar-images-title">
+          <h2 id="similar-images-title">Похожие изображения</h2>
+          <div class="image-detail__similar-grid catalog-gallery">
+            {% for p in similar_pictures %}
+              <div class="item-block">
+                {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
+              </div>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+
       {% if picture.published_finished_works %}
         <section class="image-detail__works" aria-labelledby="image-finished-works-title">
           <h2 id="image-finished-works-title">В реальных кухнях</h2>
@@ -119,17 +132,4 @@
     </div>
   </div>
 </article>
-
-{% if similar_pictures %}
-<section class="image-detail__similar" aria-labelledby="similar-images-title">
-  <h2 id="similar-images-title">Похожие изображения</h2>
-  <div class="container catalog-gallery">
-    {% for p in similar_pictures %}
-      <div class="item-block">
-        {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids show_catalog_favorite=True %}
-      </div>
-    {% endfor %}
-  </div>
-</section>
-{% endif %}
 {% endblock %}

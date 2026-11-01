@@ -1,5 +1,4 @@
 .price-page { max-width: 1088px; margin: 0 auto 48px; }
-.price-page h1 { text-align: center; font-size: clamp(32px, 4vw, 54px); line-height: 1.12; }
 .price-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 .price-page__intro { max-width: 740px; margin: 0 auto 36px; color: #6d736c; line-height: 1.6; text-align: center; }
 .price-calculator { display: grid; gap: 18px; }
@@ -16,6 +15,8 @@
 .price-section__heading > .price-hint { margin-left: auto; }
 .price-field { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; }
 .price-field__label { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.price-service > .price-field__label { display: block; }
+.price-service > .price-field__label > .price-hint { display: inline-block; margin-left: 4px; vertical-align: middle; }
 .price-field__label label { cursor: pointer; }
 .price-field__label label, .price-field__label > [data-panel-title], .price-field__name { min-width: 0; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .price-calculator .site-form-control { min-width: 0; }
@@ -111,7 +112,7 @@
 @media (pointer: coarse) { .calculator-order-status__retry { min-height: 44px; } }
 @media (max-width: 420px) { #calculator-order-dialog .contact-form__submit { width: 100%; padding-inline: 12px; } }
 @media (max-width: 1100px) {
-    .price-page h1, .price-page__intro { text-align: left; }
+    .price-page__intro { text-align: left; }
     .price-page__intro { margin-left: 0; }
     .price-calculator__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row; }
     .price-section--services { grid-column: 1 / -1; }

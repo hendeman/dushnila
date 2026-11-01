@@ -2052,10 +2052,12 @@ ul.mainmenu li a:focus-visible {
 	min-width: 0;
 }
 
+.image-detail__similar,
 .image-detail__works {
 	margin-top: 28px;
 }
 
+.image-detail__similar h2,
 .image-detail__works h2 {
 	margin: 0 0 16px;
 	font-size: clamp(20px, 2vw, 26px);
@@ -2205,14 +2207,23 @@ ul.mainmenu li a:focus-visible {
 	cursor: wait;
 }
 
-.image-detail__similar {
-	margin: 76px 0 20px;
+.image-detail__similar-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
 }
 
-.image-detail__similar h2 {
-	margin-bottom: 24px;
-	font-size: clamp(28px, 4vw, 42px);
-	font-weight: 500;
+.image-detail__similar .item-block {
+	min-width: 0;
+	width: 100%;
+	max-width: none;
+	margin: 0;
+}
+
+.image-detail__similar .item-photo {
+	width: 100%;
+	max-width: none;
+	height: auto;
 }
 
 .catalog-favorite-toggle {
@@ -3710,6 +3721,10 @@ background-color: coral;
 }
 
 @media screen and (max-width: 1250px) {
+	.image-detail__similar-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
 	.site-header {
 		padding-right: 20px;
 		padding-left: 20px;
@@ -4121,7 +4136,7 @@ background-color: coral;
 	}
 
 	.site-content h1 {
-		font-size: clamp(38px, 12vw, 50px);
+		font-size: clamp(19px, 6vw, 25px);
 		line-height: 0.98;
 	}
 
@@ -4178,7 +4193,7 @@ background-color: coral;
 
 	.site-content .home-hero__title {
 		margin-top: 28px;
-		font-size: clamp(40px, 12vw, 56px);
+		font-size: clamp(20px, 6vw, 28px);
 	}
 
 	.home-hero__description {
@@ -4892,10 +4907,6 @@ background-color: coral;
 	.image-detail__meta > div {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 6px;
-	}
-
-	.image-detail__similar {
-		margin-top: 52px;
 	}
 
 	.gallery-modal .fancybox__slide {
