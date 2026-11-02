@@ -54,7 +54,14 @@ class PublicCalculatorTests(CalculationFixture, TestCase):
         self.assertContains(response, '\\u003C/script\\u003E')
         self.assertNotContains(response, self.glass.name)
         self.assertEqual(response.context['favorites_count'], 0)
-        self.assertContains(response, 'href="/price/"', count=2)
+        # Текущая страница отмечена в шапке, подвале и хлебных крошках.
+        self.assertContains(
+            response,
+            '<span aria-current="page">Цена</span>',
+            count=3,
+            html=True,
+        )
+        self.assertNotContains(response, f'href="{reverse("price")}"')
         self.assertIn('no-store', response.headers['Cache-Control'])
         self.assertTrue(MenuItem.objects.filter(title='Цена', url='/price/', is_visible=True).exists())
         self.assertContains(self.client.get(reverse('sitemap')), '/price/</loc>')

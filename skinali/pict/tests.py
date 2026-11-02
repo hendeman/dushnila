@@ -5285,10 +5285,14 @@ class FinishedWorkTests(TestCase):
             styles,
         )
         self.assertNotContains(response, 'class="site-search"')
+        # Текущая страница отмечена в шапке, подвале и хлебных крошках.
         self.assertContains(
             response,
-            f'href="{reverse("finished_works")}"',
+            '<span aria-current="page">Наши работы</span>',
+            count=3,
+            html=True,
         )
+        self.assertNotContains(response, f'href="{reverse("finished_works")}"')
         self.assertIn(
             '.finished-works-grid {\n\tgrid-template-columns: repeat(6, minmax(0, 1fr));',
             styles,
