@@ -10,7 +10,7 @@
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=4" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=9" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -53,20 +53,22 @@
                     aria-controls="mobile-site-menu"
                     aria-expanded="false"
                     aria-label="Открыть главное меню">
-                <span></span>
-                <span></span>
+                <span class="mobile-menu-toggle__icon" aria-hidden="true">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </span>
+                <span class="mobile-menu-toggle__label">МЕНЮ</span>
             </button>
 
             <nav class="main-navigation" id="mobile-site-menu" aria-label="Главное меню">
                 <ul class="mainmenu">
                 {% for menu_item in site_menu_items %}
-                    <li><a href="{{ menu_item.url }}"{% if menu_item.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ menu_item.title }}</a></li>
+                    <li>{% include 'pict/includes/menu_item.html' with current_path=request.path item_url=menu_item.url item_title=menu_item.title item_new_tab=menu_item.open_in_new_tab only %}</li>
                 {% endfor %}
                     <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
-                        <a href="{% url 'favorites' %}">
-                            Избранное
-                            <span class="mainmenu__favorites-count" data-favorites-count>{{ favorites_count|default:0 }}</span>
-                        </a>
+                        {% url 'favorites' as favorites_url %}
+                        {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=favorites_url item_title='Избранное' show_favorites_count=True favorites_count=favorites_count only %}
                     </li>
                     {% if not suppress_callback_dialog %}<li class="mainmenu__callback">
                         <button class="mainmenu__callback-button"
@@ -187,7 +189,7 @@
         <nav class="site-footer__nav" aria-label="Навигация в подвале">
             <strong>Навигация</strong>
             {% for menu_item in site_menu_items %}
-                <a href="{{ menu_item.url }}"{% if menu_item.open_in_new_tab %} target="_blank" rel="noopener noreferrer"{% endif %}>{{ menu_item.title }}</a>
+                {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=menu_item.url item_title=menu_item.title item_new_tab=menu_item.open_in_new_tab only %}
             {% endfor %}
         </nav>
         <div class="site-footer__contacts">
@@ -212,7 +214,7 @@
 {% endblock footer %}
 
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
-    <script src="{% static 'skinali/js/site-menu.js' %}" defer></script>
+    <script src="{% static 'skinali/js/site-menu.js' %}?rev=6" defer></script>
     <script src="{% static 'skinali/js/contact-forms.js' %}?rev=2" defer></script>
     {% if site_quiz %}<script src="{% static 'quiz/js/quiz.js' %}" defer></script>{% endif %}
     <script src="{% static 'skinali/js/image-sharing.js' %}?rev=2" defer></script>

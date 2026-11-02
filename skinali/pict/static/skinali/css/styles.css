@@ -64,6 +64,7 @@ body {
 
 .main-navigation {
 	width: 100%;
+	min-width: 0;
 }
 
 .site-navigation-panel {
@@ -73,6 +74,7 @@ body {
 }
 
 .site-navigation-panel__inner {
+	--navigation-inline-padding: 32px;
 	display: flex;
 	align-items: center;
 	box-sizing: border-box;
@@ -80,11 +82,12 @@ body {
 	max-width: 1360px;
 	min-height: 56px;
 	margin: 0 auto;
-	padding: 0 32px;
+	padding: 0 var(--navigation-inline-padding);
 }
 
 ul.mainmenu {
 	display: flex;
+	flex-wrap: wrap;
 	align-items: center;
 	justify-content: center;
 	gap: 24px;
@@ -93,6 +96,16 @@ ul.mainmenu {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+}
+
+ul.mainmenu.mainmenu--measure {
+	position: fixed;
+	top: 0;
+	left: 0;
+	flex-wrap: nowrap;
+	width: max-content;
+	visibility: hidden;
+	pointer-events: none;
 }
 
 ul.mainmenu li {
@@ -104,7 +117,8 @@ ul.mainmenu li[hidden] {
 	display: none;
 }
 
-ul.mainmenu li a {
+ul.mainmenu li a,
+ul.mainmenu li > [aria-current="page"] {
 	position: relative;
 	display: inline-flex;
 	align-items: center;
@@ -118,7 +132,8 @@ ul.mainmenu li a {
 }
 
 ul.mainmenu li a:hover,
-ul.mainmenu li a:focus-visible {
+ul.mainmenu li a:focus-visible,
+ul.mainmenu li > [aria-current="page"] {
 	color: #6f8a68;
 }
 
@@ -210,6 +225,108 @@ ul.mainmenu li a:focus-visible {
 
 .mobile-menu-toggle {
 	display: none;
+}
+
+.site-navigation-panel__inner.is-collapsed {
+	justify-content: flex-end;
+	flex-wrap: wrap;
+	min-height: 50px;
+}
+
+.is-collapsed .mobile-menu-toggle {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 42px;
+	height: 42px;
+	/* Вместе с кнопкой отступы сохраняют высоту её строки 50px при раскрытии. */
+	margin: 4px 0 4px auto;
+	padding: 0 10px;
+	gap: 10px;
+	border: 1px solid transparent;
+	border-radius: 3px;
+	color: #1f231f;
+	background: transparent;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.mobile-menu-toggle__icon {
+	display: flex;
+	flex: 0 0 21px;
+	flex-direction: column;
+	gap: 5px;
+}
+
+.mobile-menu-toggle__icon > span {
+	display: block;
+	width: 21px;
+	height: 2px;
+	background: currentColor;
+	transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.is-collapsed .mobile-menu-toggle[aria-expanded="true"] {
+	border-color: #1f231f;
+}
+
+.mobile-menu-toggle[aria-expanded="true"] .mobile-menu-toggle__icon > span:first-child {
+	transform: translateY(7px) rotate(45deg);
+}
+
+.mobile-menu-toggle[aria-expanded="true"] .mobile-menu-toggle__icon > span:nth-child(2) {
+	opacity: 0;
+}
+
+.mobile-menu-toggle[aria-expanded="true"] .mobile-menu-toggle__icon > span:last-child {
+	transform: translateY(-7px) rotate(-45deg);
+}
+
+.is-collapsed .main-navigation {
+	display: none;
+	order: 3;
+	flex-basis: calc(100% + 2 * var(--navigation-inline-padding));
+	margin: 0 calc(-1 * var(--navigation-inline-padding));
+	border-top: 1px solid #e2e3dc;
+	background: #fff;
+}
+
+.is-collapsed .main-navigation.is-open {
+	display: block;
+}
+
+.is-collapsed .main-navigation ul.mainmenu {
+	align-items: stretch;
+	flex-direction: column;
+	gap: 0;
+}
+
+.is-collapsed .main-navigation ul.mainmenu li {
+	border-bottom: 1px solid #e2e3dc;
+}
+
+.is-collapsed .main-navigation ul.mainmenu li a,
+.is-collapsed .main-navigation ul.mainmenu li > [aria-current="page"] {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 50px;
+	padding: 12px var(--navigation-inline-padding);
+	white-space: normal;
+	overflow-wrap: anywhere;
+	font-size: 15px;
+}
+
+.is-collapsed .main-navigation ul.mainmenu li.mainmenu__callback {
+	padding: 10px var(--navigation-inline-padding);
+}
+
+.is-collapsed .main-navigation .mainmenu__callback-button {
+	width: 100%;
+	min-height: 46px;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .site-main {
@@ -1857,7 +1974,8 @@ ul.mainmenu li a:focus-visible {
 }
 
 .site-footer a:hover,
-.site-footer a:focus-visible {
+.site-footer a:focus-visible,
+.site-footer__nav > [aria-current="page"] {
 	color: #c9e64d;
 }
 
@@ -3732,8 +3850,7 @@ background-color: coral;
 	}
 
 	.site-navigation-panel__inner {
-		padding-right: 20px;
-		padding-left: 20px;
+		--navigation-inline-padding: 20px;
 	}
 
 	.site-content {
@@ -3805,89 +3922,6 @@ background-color: coral;
 	.site-header__phone {
 		margin-left: auto;
 		font-size: 14px;
-	}
-
-	.site-navigation-panel__inner {
-		justify-content: flex-end;
-		flex-wrap: wrap;
-		min-height: 50px;
-		padding: 0 20px;
-	}
-
-	.mobile-menu-toggle {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		flex-direction: column;
-		width: 42px;
-		height: 42px;
-		margin-left: auto;
-		padding: 0;
-		gap: 7px;
-		border: 1px solid transparent;
-		border-radius: 3px;
-		background: transparent;
-		cursor: pointer;
-	}
-
-	.mobile-menu-toggle span {
-		display: block;
-		width: 21px;
-		height: 2px;
-		background: #1f231f;
-		transition: transform 160ms ease;
-	}
-
-	.mobile-menu-toggle[aria-expanded="true"] {
-		border-color: #1f231f;
-	}
-
-	.mobile-menu-toggle[aria-expanded="true"] span:first-child {
-		transform: translateY(4.5px) rotate(45deg);
-	}
-
-	.mobile-menu-toggle[aria-expanded="true"] span:last-child {
-		transform: translateY(-4.5px) rotate(-45deg);
-	}
-
-	.main-navigation {
-		display: none;
-		order: 3;
-		flex-basis: calc(100% + 40px);
-		margin: 0 -20px;
-		border-top: 1px solid #e2e3dc;
-		background: #fff;
-	}
-
-	.main-navigation.is-open {
-		display: block;
-	}
-
-	ul.mainmenu {
-		align-items: stretch;
-		flex-direction: column;
-		gap: 0;
-	}
-
-	ul.mainmenu li {
-		border-bottom: 1px solid #e2e3dc;
-	}
-
-	ul.mainmenu li a {
-		box-sizing: border-box;
-		width: 100%;
-		min-height: 50px;
-		padding: 12px 20px;
-		font-size: 15px;
-	}
-
-	ul.mainmenu li.mainmenu__callback {
-		padding: 10px 20px;
-	}
-
-	.mainmenu__callback-button {
-		width: 100%;
-		min-height: 46px;
 	}
 
 	.site-content {
@@ -4120,14 +4154,7 @@ background-color: coral;
 	}
 
 	.site-navigation-panel__inner {
-		padding-right: 14px;
-		padding-left: 14px;
-	}
-
-	.main-navigation {
-		flex-basis: calc(100% + 28px);
-		margin-right: -14px;
-		margin-left: -14px;
+		--navigation-inline-padding: 14px;
 	}
 
 	.site-content {

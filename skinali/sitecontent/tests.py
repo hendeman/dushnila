@@ -156,7 +156,13 @@ class SiteMenuRenderingTests(TestCase):
             html=True,
         )
         self.assertLess(content.index('Внутренний раздел'), content.index('Внешний раздел'))
-        self.assertNotContains(response, 'class="is-active"')
+        self.assertContains(
+            response,
+            '<span aria-current="page">Внутренний раздел</span>',
+            count=2,
+            html=True,
+        )
+        self.assertNotContains(response, '<a href="/">Внутренний раздел</a>', html=True)
         self.assertContains(response, 'data-favorites-menu')
         self.assertContains(response, 'class="mainmenu__callback-button"')
 

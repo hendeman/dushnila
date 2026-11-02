@@ -357,7 +357,7 @@ class PopularTagsTests(TestCase):
         self.assertContains(response, 'data-mobile-menu-open')
         self.assertContains(response, 'id="mobile-site-menu"')
         self.assertNotContains(response, 'data-mobile-menu-close')
-        self.assertContains(response, 'src="/static/skinali/js/site-menu.js"')
+        self.assertContains(response, 'src="/static/skinali/js/site-menu.js')
         self.assertContains(response, 'data-mobile-filter-open="mobile-category-filter"')
         self.assertContains(response, 'data-mobile-filter-open="mobile-color-filter"')
         self.assertContains(response, 'id="mobile-category-filter"')
