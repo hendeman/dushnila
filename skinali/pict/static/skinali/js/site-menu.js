@@ -8,6 +8,17 @@
     return;
   }
 
+  const movedItems = [
+    {
+      shortcut: container.querySelector('[data-header-shortcut]'),
+      menuItem: menu.querySelector('[data-header-shortcut-item]'),
+    },
+    {
+      shortcut: container.querySelector('[data-header-favorites]'),
+      menuItem: menu.querySelector('[data-favorites-menu]'),
+    },
+  ].filter(({ shortcut, menuItem }) => shortcut && menuItem);
+
   function setExpanded(isExpanded) {
     trigger.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
     trigger.setAttribute(
@@ -48,10 +59,16 @@
     setExpanded(false);
     container.classList.toggle('is-collapsed', shouldCollapse);
 
+    const movedItem = movedItems.find(({ shortcut, menuItem }) => (
+      shouldCollapse ? menuItem : shortcut
+    ).contains(focusedElement));
     if (shouldCollapse && navigation.contains(focusedElement)) {
-      trigger.focus({ preventScroll: true });
-    } else if (!shouldCollapse && focusedElement === trigger) {
-      navigation.querySelector('li:not([hidden]) a, li:not([hidden]) button')
+      const replacement = movedItem?.shortcut.querySelector('a');
+      (replacement || trigger).focus({ preventScroll: true });
+    } else if (!shouldCollapse && (focusedElement === trigger || movedItem)) {
+      const replacement = movedItem && !movedItem.menuItem.hidden
+        ? movedItem.menuItem.querySelector('a') : null;
+      (replacement || navigation.querySelector('li:not([hidden]) a, li:not([hidden]) button'))
         ?.focus({ preventScroll: true });
     }
   }

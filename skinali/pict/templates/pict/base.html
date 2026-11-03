@@ -10,7 +10,7 @@
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=9" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=16" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -34,10 +34,7 @@
                      alt="{{ site_identity.name }} — скинали и арт">
             </a>
 
-            <span class="site-header__schedule">
-                <small>ПН–ВС · ПРИЁМ ЗАКАЗОВ</small>
-                <span>10:00–21:00</span>
-            </span>
+            {% if site_header_settings.header_schedule %}<span class="site-header__schedule">{{ site_header_settings.header_schedule }}</span>{% endif %}
             <a class="site-header__phone" href="tel:{{ site_identity.phone }}">
                 <span class="site-header__phone-icon" aria-hidden="true">☎</span>
                 <span>{{ site_identity.phone_display }}</span>
@@ -47,6 +44,13 @@
 
     <div class="site-navigation-panel">
         <div class="site-navigation-panel__inner">
+            {% if site_header_menu_item %}<div class="site-navigation-shortcut" data-header-shortcut>
+                {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=site_header_menu_item.url item_title=site_header_menu_item.title item_new_tab=site_header_menu_item.open_in_new_tab show_catalog_icon=True only %}
+            </div>{% endif %}
+            {% url 'favorites' as favorites_url %}
+            <div class="site-navigation-favorites" data-header-favorites>
+                {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=favorites_url item_title='Избранное' show_favorites_icon=True show_favorites_count=True favorites_count=favorites_count only %}
+            </div>
             <button class="mobile-menu-toggle"
                     type="button"
                     data-mobile-menu-open
@@ -64,10 +68,9 @@
             <nav class="main-navigation" id="mobile-site-menu" aria-label="Главное меню">
                 <ul class="mainmenu">
                 {% for menu_item in site_menu_items %}
-                    <li>{% include 'pict/includes/menu_item.html' with current_path=request.path item_url=menu_item.url item_title=menu_item.title item_new_tab=menu_item.open_in_new_tab only %}</li>
+                    <li{% if menu_item.pk == site_header_menu_item.pk %} class="mainmenu__shortcut" data-header-shortcut-item{% endif %}>{% include 'pict/includes/menu_item.html' with current_path=request.path item_url=menu_item.url item_title=menu_item.title item_new_tab=menu_item.open_in_new_tab only %}</li>
                 {% endfor %}
                     <li class="mainmenu__favorites" data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
-                        {% url 'favorites' as favorites_url %}
                         {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=favorites_url item_title='Избранное' show_favorites_count=True favorites_count=favorites_count only %}
                     </li>
                     {% if not suppress_callback_dialog %}<li class="mainmenu__callback">
@@ -214,7 +217,7 @@
 {% endblock footer %}
 
 <!--    <script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.umd.js"></script>-->
-    <script src="{% static 'skinali/js/site-menu.js' %}?rev=6" defer></script>
+    <script src="{% static 'skinali/js/site-menu.js' %}?rev=8" defer></script>
     <script src="{% static 'skinali/js/contact-forms.js' %}?rev=2" defer></script>
     {% if site_quiz %}<script src="{% static 'quiz/js/quiz.js' %}" defer></script>{% endif %}
     <script src="{% static 'skinali/js/image-sharing.js' %}?rev=2" defer></script>

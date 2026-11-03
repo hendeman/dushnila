@@ -1832,7 +1832,8 @@ class NotFoundPageTests(TestCase):
             status_code=404,
         )
         self.assertContains(response, 'class="site-topbar"', status_code=404)
-        self.assertContains(response, 'Каталог скинали', status_code=404, count=2)
+        self.assertContains(response, 'Каталог скинали', status_code=404, count=3)
+        self.assertContains(response, 'data-header-shortcut>', status_code=404, count=1)
         self.assertContains(response, 'skinali/images/404.png', status_code=404)
         self.assertContains(response, 'Страница не найдена', status_code=404)
         self.assertTemplateUsed(response, 'pict/base.html')
@@ -4854,7 +4855,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(
             response,
             '<span class="mainmenu__favorites-count" data-favorites-count>1</span>',
-            count=1,
+            count=2,
             html=True,
         )
         self.assertGreater(

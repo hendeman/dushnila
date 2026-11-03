@@ -362,3 +362,7 @@ class SiteMenuAdminTests(TestCase):
             object_id=str(self.menu.pk),
             user=self.superuser,
         ).exists())
+        public = self.client.get(reverse('home'))
+        self.assertNotContains(public, edited_item.url)
+        self.assertNotContains(public, deleted_item.url)
+        self.assertContains(public, 'mailto:hello@example.com', count=2)

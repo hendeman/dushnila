@@ -36,7 +36,9 @@ body {
 }
 
 .site-header {
-	display: flex;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-areas: "logo schedule phone";
 	align-items: center;
 	justify-content: space-between;
 	box-sizing: border-box;
@@ -49,6 +51,7 @@ body {
 }
 
 .site-header__logo {
+	grid-area: logo;
 	display: inline-flex;
 	align-items: center;
 	flex: 0 0 auto;
@@ -118,7 +121,11 @@ ul.mainmenu li[hidden] {
 }
 
 ul.mainmenu li a,
-ul.mainmenu li > [aria-current="page"] {
+ul.mainmenu li > [aria-current="page"],
+.site-navigation-shortcut a,
+.site-navigation-shortcut > [aria-current="page"],
+.site-navigation-favorites a,
+.site-navigation-favorites > [aria-current="page"] {
 	position: relative;
 	display: inline-flex;
 	align-items: center;
@@ -133,7 +140,15 @@ ul.mainmenu li > [aria-current="page"] {
 
 ul.mainmenu li a:hover,
 ul.mainmenu li a:focus-visible,
-ul.mainmenu li > [aria-current="page"] {
+ul.mainmenu li > [aria-current="page"],
+.site-navigation-shortcut a:hover,
+.site-navigation-shortcut a:focus-visible,
+.site-navigation-shortcut > [aria-current="page"],
+.site-navigation-favorites a:hover,
+.site-navigation-favorites a:focus-visible,
+.site-navigation-favorites > [aria-current="page"],
+.is-collapsed .mobile-menu-toggle:hover,
+.is-collapsed .mobile-menu-toggle:focus-visible {
 	color: #6f8a68;
 }
 
@@ -142,15 +157,14 @@ ul.mainmenu li > [aria-current="page"] {
 	align-items: center;
 	justify-content: center;
 	box-sizing: border-box;
-	min-width: 24px;
-	height: 24px;
+	min-width: 26px;
+	height: 26px;
 	margin-left: 6px;
 	padding: 0 7px;
-	border: 1px solid #1f2722;
-	border-radius: 8px;
-	color: #fff;
-	background: #1f2722;
-	font-size: 13px;
+	border-radius: 999px;
+	color: #5d7757;
+	background: #edf1e7;
+	font-size: 12px;
 	font-weight: 700;
 	line-height: 1;
 }
@@ -186,22 +200,19 @@ ul.mainmenu li > [aria-current="page"] {
 }
 
 .site-header__schedule {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 10px;
+	grid-area: schedule;
+	min-width: 0;
 	color: #777b75;
-	white-space: nowrap;
-}
-
-.site-header__schedule small,
-.site-header__schedule span {
+	text-align: center;
+	overflow-wrap: anywhere;
 	font-size: 18px;
 	font-weight: 600;
 	letter-spacing: 0.03em;
+	line-height: 1.35;
 }
 
 .site-header__phone {
+	grid-area: phone;
 	display: inline-flex;
 	align-items: center;
 	gap: 7px;
@@ -227,10 +238,69 @@ ul.mainmenu li > [aria-current="page"] {
 	display: none;
 }
 
+.site-navigation-shortcut,
+.site-navigation-favorites {
+	display: none;
+}
+
 .site-navigation-panel__inner.is-collapsed {
 	justify-content: flex-end;
 	flex-wrap: wrap;
 	min-height: 50px;
+}
+
+.is-collapsed .site-navigation-shortcut {
+	display: flex;
+	flex: 1 1 0;
+	align-items: center;
+	min-width: 0;
+	margin: 4px 0;
+}
+
+.site-navigation-shortcut a,
+.site-navigation-shortcut > [aria-current="page"] {
+	min-height: 42px;
+	gap: 8px;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+.site-navigation-shortcut__icon {
+	flex: 0 0 19px;
+	width: 19px;
+	height: 19px;
+}
+
+.site-navigation-shortcut__title {
+	min-width: 0;
+}
+
+.is-collapsed .site-navigation-favorites {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	margin: 4px 0 4px auto;
+}
+
+.is-collapsed .site-navigation-shortcut + .site-navigation-favorites {
+	margin-left: 16px;
+}
+
+.site-navigation-favorites a,
+.site-navigation-favorites > [aria-current="page"] {
+	min-height: 42px;
+	gap: 8px;
+}
+
+.site-navigation-favorites__icon {
+	flex: 0 0 19px;
+	width: 19px;
+	height: 19px;
+}
+
+.site-navigation-favorites .mainmenu__favorites-count {
+	margin-left: 0;
+	transform: translateY(1px);
 }
 
 .is-collapsed .mobile-menu-toggle {
@@ -251,6 +321,14 @@ ul.mainmenu li > [aria-current="page"] {
 	font-size: 14px;
 	font-weight: 600;
 	cursor: pointer;
+	transition: color 160ms ease;
+}
+
+.is-collapsed .site-navigation-favorites + .mobile-menu-toggle {
+	margin-left: 16px;
+	padding-left: 18px;
+	border-left-color: #e2e3dc;
+	border-radius: 0;
 }
 
 .mobile-menu-toggle__icon {
@@ -266,10 +344,6 @@ ul.mainmenu li > [aria-current="page"] {
 	height: 2px;
 	background: currentColor;
 	transition: transform 160ms ease, opacity 160ms ease;
-}
-
-.is-collapsed .mobile-menu-toggle[aria-expanded="true"] {
-	border-color: #1f231f;
 }
 
 .mobile-menu-toggle[aria-expanded="true"] .mobile-menu-toggle__icon > span:first-child {
@@ -305,6 +379,11 @@ ul.mainmenu li > [aria-current="page"] {
 
 .is-collapsed .main-navigation ul.mainmenu li {
 	border-bottom: 1px solid #e2e3dc;
+}
+
+.is-collapsed .main-navigation .mainmenu__shortcut,
+.is-collapsed .main-navigation .mainmenu__favorites {
+	display: none;
 }
 
 .is-collapsed .main-navigation ul.mainmenu li a,
@@ -3907,8 +3986,9 @@ background-color: coral;
 	}
 
 	.site-header {
-		min-height: 64px;
-		padding: 0 20px;
+		padding-right: 16px;
+		padding-left: 16px;
+		gap: 12px;
 	}
 
 	.site-header__logo-image {
@@ -3916,11 +3996,11 @@ background-color: coral;
 	}
 
 	.site-header__schedule {
-		display: none;
+		font-size: clamp(12px, 1.8vw, 16px);
+		letter-spacing: 0.01em;
 	}
 
 	.site-header__phone {
-		margin-left: auto;
 		font-size: 14px;
 	}
 
@@ -4001,6 +4081,64 @@ background-color: coral;
 
 	.site-footer__inner {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 600px) {
+	.site-navigation-favorites__label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.is-collapsed .site-navigation-shortcut + .site-navigation-favorites {
+		margin-left: 8px;
+	}
+
+	.is-collapsed .site-navigation-favorites + .mobile-menu-toggle {
+		margin-left: 8px;
+		padding-left: 12px;
+		gap: 8px;
+	}
+
+	.site-navigation-shortcut a,
+	.site-navigation-shortcut > [aria-current="page"] {
+		gap: 6px;
+	}
+
+	.site-navigation-shortcut__icon {
+		flex-basis: 18px;
+		width: 18px;
+		height: 18px;
+	}
+
+	.site-header {
+		grid-template-columns: auto minmax(0, 1fr);
+		grid-template-areas: "logo phone" "logo schedule";
+		min-height: 82px;
+		padding-top: 12px;
+		padding-bottom: 12px;
+		row-gap: 4px;
+	}
+
+	.site-header__schedule {
+		justify-self: end;
+		align-self: start;
+		max-width: 220px;
+		text-align: right;
+		font-size: 11px;
+		font-weight: 500;
+		letter-spacing: 0;
+	}
+
+	.site-header__phone {
+		justify-self: end;
+		align-self: end;
 	}
 }
 
@@ -4146,7 +4284,7 @@ background-color: coral;
 	.site-header {
 		padding-right: 14px;
 		padding-left: 14px;
-		gap: 10px;
+		column-gap: 10px;
 	}
 
 	.site-header__phone {

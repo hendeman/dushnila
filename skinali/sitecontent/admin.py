@@ -27,6 +27,7 @@ from .article_media import prepare_article_image
 @admin.register(CatalogSearchSettings)
 class CatalogSearchSettingsAdmin(SingletonSiteContentAdminMixin, admin.ModelAdmin):
     fieldsets = (
+        ('Шапка сайта', {'fields': ('header_schedule', 'header_menu_item')}),
         ('Поиск по каталогу', {'fields': ('use_lemmatization',)}),
     )
     actions = None

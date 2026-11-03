@@ -80,7 +80,24 @@ class CatalogSearchSettings(models.Model):
     """Единая системная карточка настроек сайта с типизированными полями."""
 
     CODE = 'catalog'
+    DEFAULT_HEADER_SCHEDULE = 'ПН–ВС · ПРИЁМ ЗАКАЗОВ 10:00–21:00'
     code = models.CharField(max_length=20, primary_key=True, default=CODE, editable=False)
+    header_schedule = models.CharField(
+        'Текст в шапке', max_length=40, blank=True, default=DEFAULT_HEADER_SCHEDULE,
+        help_text=(
+            'До 40 символов: режим работы, акция или другая короткая информация. '
+            'Общий текст для всех размеров экрана. Пустое поле скрывает подпись.'
+        ),
+    )
+    header_menu_item = models.ForeignKey(
+        'MenuItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='+',
+        limit_choices_to={'menu__code': 'main'},
+        verbose_name='Пункт рядом с меню',
+        help_text=(
+            'Ссылка с иконкой в свёрнутой шапке. Название и адрес берутся из выбранного пункта '
+            'и не зависят от порядка меню. Скрытый пункт не показывается в шапке.'
+        ),
+    )
     use_lemmatization = models.BooleanField(
         'Учитывать словоформы при поиске', default=True,
         help_text=(

@@ -62,18 +62,25 @@ class CatalogSearchSettingsAdminTests(TestCase):
     def setUp(self):
         self.client.force_login(self.superuser)
 
-    def test_settings_link_opens_single_card_with_one_checkbox(self):
+    def test_settings_link_opens_single_card_with_header_fields_and_search_checkbox(self):
         response = self.client.get(self.list_url)
         self.assertRedirects(response, self.card_url, fetch_redirect_response=False)
         editor = self.client.get(self.card_url)
-        self.assertEqual(list(editor.context['adminform'].form.fields), ['use_lemmatization'])
+        self.assertEqual(list(editor.context['adminform'].form.fields), [
+            'header_schedule', 'header_menu_item', 'use_lemmatization',
+        ])
         self.assertContains(editor, 'Учитывать словоформы при поиске')
         self.assertContains(editor, 'поиск по фрагментам слов в тегах и синонимах')
 
     def test_setting_can_be_disabled_and_enabled_with_admin_history(self):
         for enabled in (False, True):
             with self.subTest(enabled=enabled):
-                data = {'_save': 'Сохранить'}
+                settings = CatalogSearchSettings.objects.get(pk=CatalogSearchSettings.CODE)
+                data = {
+                    '_save': 'Сохранить',
+                    'header_schedule': settings.header_schedule,
+                    'header_menu_item': settings.header_menu_item_id or '',
+                }
                 if enabled:
                     data['use_lemmatization'] = 'on'
                 response = self.client.post(self.card_url, data)
