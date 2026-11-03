@@ -70,6 +70,10 @@ body {
 	min-width: 0;
 }
 
+.site-navigation-panel__inner.is-menu-pending > .main-navigation {
+	display: none;
+}
+
 .site-navigation-panel {
 	width: 100%;
 	background: rgba(255, 255, 255, 0.96);
@@ -273,6 +277,16 @@ ul.mainmenu li > [aria-current="page"],
 
 .site-navigation-shortcut__title {
 	min-width: 0;
+}
+
+.site-navigation-shortcut.is-measuring > :is(a, [aria-current="page"]) {
+	flex: none;
+	width: max-content;
+	white-space: nowrap;
+}
+
+.site-navigation-shortcut.is-icon-hidden:not(.is-measuring) .site-navigation-shortcut__icon {
+	display: none;
 }
 
 .is-collapsed .site-navigation-favorites:not([hidden]) {

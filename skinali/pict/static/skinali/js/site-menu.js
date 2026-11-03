@@ -8,9 +8,11 @@
     return;
   }
 
+  const sectionShortcut = container.querySelector('[data-header-shortcut]');
+  const sectionControl = sectionShortcut?.firstElementChild;
   const movedItems = [
     {
-      shortcut: container.querySelector('[data-header-shortcut]'),
+      shortcut: sectionShortcut,
       menuItem: menu.querySelector('[data-header-shortcut-item]'),
     },
     {
@@ -51,6 +53,19 @@
     measurement.remove();
 
     const shouldCollapse = requiredWidth > availableWidth;
+    updateMenuMode(shouldCollapse);
+
+    if (shouldCollapse && sectionControl) {
+      const availableShortcutWidth = sectionShortcut.getBoundingClientRect().width;
+      // Проверяем ширину полной подписи с иконкой, даже если иконка уже скрыта.
+      sectionShortcut.classList.add('is-measuring');
+      const requiredShortcutWidth = sectionControl.getBoundingClientRect().width;
+      sectionShortcut.classList.remove('is-measuring');
+      sectionShortcut.classList.toggle('is-icon-hidden', requiredShortcutWidth > availableShortcutWidth);
+    }
+  }
+
+  function updateMenuMode(shouldCollapse) {
     if (container.classList.contains('is-collapsed') === shouldCollapse) {
       return;
     }
@@ -127,5 +142,9 @@
     document.fonts.addEventListener('loadingdone', scheduleLayout);
   }
 
-  updateLayout();
+  try {
+    updateLayout();
+  } finally {
+    container.classList.remove('is-menu-pending');
+  }
 })();

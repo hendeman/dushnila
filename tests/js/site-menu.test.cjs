@@ -17,6 +17,7 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
     const values = new Set();
     return {
       add: (name) => values.add(name),
+      remove: (name) => values.delete(name),
       contains: (name) => values.has(name),
       toggle(name, enabled) { enabled ? values.add(name) : values.delete(name); },
     };
@@ -36,6 +37,12 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
   const favorites = control('favorites');
   const quickFavorites = control('favorites-shortcut');
   const shortcut = {
+    classList: classes(),
+    width: 180,
+    firstElementChild: {
+      getBoundingClientRect: () => ({ width: 160 }),
+    },
+    getBoundingClientRect: () => ({ width: shortcut.width }),
     contains: (element) => element === quickLink,
     querySelector: () => quickLink,
   };
@@ -77,8 +84,12 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
     classList: classes(),
     querySelector: (selector) => selector === '[data-header-favorites]'
       ? favoritesShortcut : withShortcut ? shortcut : null,
-    appendChild: (clone) => measurements.push(clone),
+    appendChild(clone) {
+      clone.menuPending = container.classList.contains('is-menu-pending');
+      measurements.push(clone);
+    },
   };
+  container.classList.add('is-menu-pending');
   const trigger = control('trigger');
   const attributes = new Map([['aria-expanded', 'false']]);
   trigger.closest = () => container;
@@ -100,7 +111,7 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
   const flush = () => { while (frames.length) frames.shift()(); };
   return {
     trigger, container, navigation, menu, document, catalog, first, quickLink, focuses, measurements,
-    favorites, quickFavorites,
+    favorites, quickFavorites, shortcut,
     resize(nextWidth) { container.clientWidth = nextWidth; events.get('window:resize')(); flush(); },
     changeRequired(nextRequired) { menu.required = nextRequired; mutations(); flush(); },
     collapsed: () => container.classList.contains('is-collapsed'),
@@ -110,7 +121,9 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
 
 test('menu capacity always measures the complete desktop row and preserves an open menu on recalculation', () => {
   const env = environment({ width: 700 });
+  assert.equal(env.measurements[0].menuPending, true);
   assert.equal(env.collapsed(), true);
+  assert.equal(env.container.classList.contains('is-menu-pending'), false);
   env.trigger.click();
   assert.equal(env.expanded(), true);
   env.resize(700);
@@ -139,6 +152,22 @@ test('catalog focus moves between the normal menu and shortcut when layout chang
   assert.equal(env.focuses.at(-1), 'trigger');
   env.resize(1000);
   assert.equal(env.focuses.at(-1), 'first');
+});
+
+test('section icon hides and returns as available space changes within the collapsed layout', () => {
+  const env = environment({ width: 700 });
+  env.trigger.click();
+  assert.equal(env.shortcut.classList.contains('is-icon-hidden'), false);
+
+  env.shortcut.width = 140;
+  env.changeRequired(850);
+  assert.equal(env.shortcut.classList.contains('is-icon-hidden'), true);
+
+  env.shortcut.width = 160;
+  env.resize(740);
+  assert.equal(env.shortcut.classList.contains('is-icon-hidden'), false);
+  assert.equal(env.shortcut.classList.contains('is-measuring'), false);
+  assert.equal(env.expanded(), true);
 });
 
 test('unselected or hidden shortcut preserves normal menu focus behavior', () => {
