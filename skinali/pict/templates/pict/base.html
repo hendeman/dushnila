@@ -10,7 +10,7 @@
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=16" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=17" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
@@ -48,7 +48,7 @@
                 {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=site_header_menu_item.url item_title=site_header_menu_item.title item_new_tab=site_header_menu_item.open_in_new_tab show_catalog_icon=True only %}
             </div>{% endif %}
             {% url 'favorites' as favorites_url %}
-            <div class="site-navigation-favorites" data-header-favorites>
+            <div class="site-navigation-favorites" data-header-favorites data-favorites-menu{% if not favorites_count %} hidden{% endif %}>
                 {% include 'pict/includes/menu_item.html' with current_path=request.path item_url=favorites_url item_title='Избранное' show_favorites_icon=True show_favorites_count=True favorites_count=favorites_count only %}
             </div>
             <button class="mobile-menu-toggle"

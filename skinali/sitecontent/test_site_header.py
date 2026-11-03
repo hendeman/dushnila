@@ -59,21 +59,17 @@ class SiteHeaderTests(TestCase):
         self.assertIn('site-navigation-shortcut__icon', shortcut)
         self.assertNotIn('<a ', shortcut)
 
-    def test_empty_favorites_have_separate_header_link_and_zero_counter(self):
+    def test_empty_favorites_hide_both_menu_entries(self):
         response = self.client.get(reverse('home'))
         html = response.content.decode()
-        favorites = html.split('data-header-favorites>', 1)[1].split('</div>', 1)[0]
-        self.assertIn(f'href="{reverse("favorites")}"', favorites)
-        self.assertIn('site-navigation-favorites__icon', favorites)
-        self.assertIn('site-navigation-favorites__label">Избранное</span>', favorites)
-        self.assertIn('data-favorites-count>0</span>', favorites)
-        self.assertNotIn('hidden', favorites.replace('aria-hidden="true"', ''))
-        self.assertLess(html.index('data-header-shortcut>'), html.index('data-header-favorites>'))
-        self.assertLess(html.index('data-header-favorites>'), html.index('data-mobile-menu-open'))
+        self.assertContains(response, 'data-favorites-menu hidden', count=2)
+        self.assertContains(response, 'data-header-favorites data-favorites-menu hidden>')
+        self.assertLess(html.index('data-header-shortcut>'), html.index('data-header-favorites'))
+        self.assertLess(html.index('data-header-favorites'), html.index('data-mobile-menu-open'))
 
-    def test_current_favorites_shortcut_is_accessible_text_without_self_link(self):
+    def test_current_favorites_shortcut_has_no_self_link(self):
         response = self.client.get(reverse('favorites'))
-        favorites = response.content.decode().split('data-header-favorites>', 1)[1].split('</div>', 1)[0]
+        favorites = response.content.decode().split('data-header-favorites data-favorites-menu hidden>', 1)[1].split('</div>', 1)[0]
         self.assertIn('<span aria-current="page">', favorites)
         self.assertIn('site-navigation-favorites__label">Избранное</span>', favorites)
         self.assertIn('data-favorites-count>0</span>', favorites)

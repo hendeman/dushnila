@@ -4837,7 +4837,8 @@ class SessionFavoritesTests(TestCase):
 
         self.assertContains(
             empty_response,
-            'class="mainmenu__favorites" data-favorites-menu hidden',
+            'data-favorites-menu hidden',
+            count=2,
         )
         self.client.post(reverse(
             'favorite_toggle',
@@ -4859,7 +4860,7 @@ class SessionFavoritesTests(TestCase):
             html=True,
         )
         self.assertGreater(
-            response_html.index('data-favorites-menu'),
+            response_html.index('class="mainmenu__favorites" data-favorites-menu'),
             response_html.index('Связаться с нами'),
         )
         self.assertContains(
@@ -4905,6 +4906,9 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, "'Carousel.selectSlide': (fancybox, carousel, slide)")
         self.assertContains(response, '!fancybox.isCurrentSlide(slide)')
         self.assertContains(response, 'resize: (fancybox) => prepareGallerySlide')
+
+        self.client.post(reverse('favorite_toggle', kwargs={'pict_id': self.first_picture.pk}))
+        self.assertContains(self.client.get(reverse('skinali')), 'data-favorites-menu hidden', count=2)
 
     def test_toggle_accepts_only_post_and_unknown_picture_returns_404(self):
         valid_url = reverse(

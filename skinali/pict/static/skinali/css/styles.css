@@ -275,7 +275,7 @@ ul.mainmenu li > [aria-current="page"],
 	min-width: 0;
 }
 
-.is-collapsed .site-navigation-favorites {
+.is-collapsed .site-navigation-favorites:not([hidden]) {
 	display: flex;
 	flex: 0 0 auto;
 	align-items: center;
@@ -324,7 +324,7 @@ ul.mainmenu li > [aria-current="page"],
 	transition: color 160ms ease;
 }
 
-.is-collapsed .site-navigation-favorites + .mobile-menu-toggle {
+.is-collapsed :is(.site-navigation-shortcut, .site-navigation-favorites:not([hidden])) ~ .mobile-menu-toggle {
 	margin-left: 16px;
 	padding-left: 18px;
 	border-left-color: #e2e3dc;
@@ -4100,7 +4100,7 @@ background-color: coral;
 		margin-left: 8px;
 	}
 
-	.is-collapsed .site-navigation-favorites + .mobile-menu-toggle {
+	.is-collapsed :is(.site-navigation-shortcut, .site-navigation-favorites:not([hidden])) ~ .mobile-menu-toggle {
 		margin-left: 8px;
 		padding-left: 12px;
 		gap: 8px;
