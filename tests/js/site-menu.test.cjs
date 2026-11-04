@@ -103,6 +103,8 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
     observe() {}
   }
   const window = {
+    innerWidth: width,
+    innerHeight: 800,
     getComputedStyle: () => ({ paddingLeft: '16', paddingRight: '16' }),
     requestAnimationFrame(callback) { frames.push(callback); return frames.length; },
     addEventListener: (name, listener) => events.set(`window:${name}`, listener),
@@ -112,7 +114,13 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
   return {
     trigger, container, navigation, menu, document, catalog, first, quickLink, focuses, measurements,
     favorites, quickFavorites, shortcut,
-    resize(nextWidth) { container.clientWidth = nextWidth; events.get('window:resize')(); flush(); },
+    resize(nextWidth, nextHeight = window.innerHeight) {
+      window.innerWidth = nextWidth;
+      window.innerHeight = nextHeight;
+      container.clientWidth = nextWidth;
+      events.get('window:resize')();
+      flush();
+    },
     changeRequired(nextRequired) { menu.required = nextRequired; mutations(); flush(); },
     collapsed: () => container.classList.contains('is-collapsed'),
     expanded: () => trigger.getAttribute('aria-expanded') === 'true',
@@ -126,7 +134,10 @@ test('menu capacity always measures the complete desktop row and preserves an op
   assert.equal(env.container.classList.contains('is-menu-pending'), false);
   env.trigger.click();
   assert.equal(env.expanded(), true);
-  env.resize(700);
+  env.resize(700, 750);
+  assert.equal(env.measurements.length, 1);
+  env.resize(740, 750);
+  assert.equal(env.measurements.length, 2);
   assert.equal(env.collapsed(), true);
   assert.equal(env.expanded(), true);
   env.resize(1000);

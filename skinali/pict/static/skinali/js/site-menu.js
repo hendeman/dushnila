@@ -117,7 +117,14 @@
     }
   });
 
-  window.addEventListener('resize', scheduleLayout);
+  let previousWindowWidth = window.innerWidth;
+  window.addEventListener('resize', () => {
+    const width = window.innerWidth;
+    if (width !== previousWindowWidth) {
+      previousWindowWidth = width;
+      scheduleLayout();
+    }
+  });
 
   if (typeof ResizeObserver === 'function') {
     let previousWidth = null;
