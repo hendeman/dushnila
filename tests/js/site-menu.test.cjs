@@ -12,6 +12,7 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
   const events = new Map();
   const frames = [];
   const measurements = [];
+  const shortcutMeasurements = [];
   const focuses = [];
   const classes = () => {
     const values = new Set();
@@ -41,6 +42,16 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
     width: 180,
     firstElementChild: {
       getBoundingClientRect: () => ({ width: 160 }),
+    },
+    cloneNode() {
+      return {
+        classList: classes(),
+        setAttribute() {},
+        removeAttribute() {},
+        querySelectorAll: () => [],
+        getBoundingClientRect: () => ({ width: 160 }),
+        remove() { this.removed = true; },
+      };
     },
     getBoundingClientRect: () => ({ width: shortcut.width }),
     contains: (element) => element === quickLink,
@@ -84,9 +95,14 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
     classList: classes(),
     querySelector: (selector) => selector === '[data-header-favorites]'
       ? favoritesShortcut : withShortcut ? shortcut : null,
+    appendChild() { assert.fail('Измерение не должно изменять закреплённую шапку'); },
+  };
+  document.body = {
     appendChild(clone) {
       clone.menuPending = container.classList.contains('is-menu-pending');
-      measurements.push(clone);
+      const target = clone.classList.contains('mainmenu--measure')
+        ? measurements : shortcutMeasurements;
+      target.push(clone);
     },
   };
   container.classList.add('is-menu-pending');
@@ -113,7 +129,7 @@ function environment({ width = 1000, required = 800, withShortcut = true, favori
   const flush = () => { while (frames.length) frames.shift()(); };
   return {
     trigger, container, navigation, menu, document, catalog, first, quickLink, focuses, measurements,
-    favorites, quickFavorites, shortcut,
+    favorites, quickFavorites, shortcut, shortcutMeasurements,
     resize(nextWidth, nextHeight = window.innerHeight) {
       window.innerWidth = nextWidth;
       window.innerHeight = nextHeight;
@@ -178,6 +194,7 @@ test('section icon hides and returns as available space changes within the colla
   env.resize(740);
   assert.equal(env.shortcut.classList.contains('is-icon-hidden'), false);
   assert.equal(env.shortcut.classList.contains('is-measuring'), false);
+  assert.ok(env.shortcutMeasurements.every(clone => clone.removed && clone.inert));
   assert.equal(env.expanded(), true);
 });
 

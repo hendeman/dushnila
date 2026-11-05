@@ -105,14 +105,23 @@ ul.mainmenu {
 	list-style: none;
 }
 
-ul.mainmenu.mainmenu--measure {
+ul.mainmenu.mainmenu--measure,
+.site-navigation-shortcut.is-measuring {
 	position: fixed;
 	top: 0;
 	left: 0;
-	flex-wrap: nowrap;
 	width: max-content;
+	transform: translateX(-100%);
 	visibility: hidden;
 	pointer-events: none;
+}
+
+ul.mainmenu.mainmenu--measure {
+	flex-wrap: nowrap;
+}
+
+.site-navigation-shortcut.is-measuring {
+	display: flex;
 }
 
 ul.mainmenu li {

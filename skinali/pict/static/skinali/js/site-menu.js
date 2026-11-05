@@ -34,33 +34,34 @@
     return trigger.getAttribute('aria-expanded') === 'true';
   }
 
-  function updateLayout() {
-    const style = window.getComputedStyle(container);
-    const availableWidth = container.clientWidth
-      - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-
-    // Отдельная невидимая строка измеряет пункты, не меняя раскрытое меню и фокус.
-    const measurement = menu.cloneNode(true);
-    measurement.classList.add('mainmenu--measure');
+  function measureWidth(element, measurementClass) {
+    const measurement = element.cloneNode(true);
+    measurement.classList.add(measurementClass);
     measurement.setAttribute('aria-hidden', 'true');
     measurement.inert = true;
     measurement.removeAttribute('id');
     measurement.querySelectorAll('[id]').forEach((element) => {
       element.removeAttribute('id');
     });
-    container.appendChild(measurement);
-    const requiredWidth = measurement.getBoundingClientRect().width;
+    // Измеряем вне закреплённой шапки, чтобы её перерасчёт не влиял на прокрутку.
+    document.body.appendChild(measurement);
+    const width = measurement.getBoundingClientRect().width;
     measurement.remove();
+    return width;
+  }
+
+  function updateLayout() {
+    const style = window.getComputedStyle(container);
+    const availableWidth = container.clientWidth
+      - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    const requiredWidth = measureWidth(menu, 'mainmenu--measure');
 
     const shouldCollapse = requiredWidth > availableWidth;
     updateMenuMode(shouldCollapse);
 
     if (shouldCollapse && sectionControl) {
       const availableShortcutWidth = sectionShortcut.getBoundingClientRect().width;
-      // Проверяем ширину полной подписи с иконкой, даже если иконка уже скрыта.
-      sectionShortcut.classList.add('is-measuring');
-      const requiredShortcutWidth = sectionControl.getBoundingClientRect().width;
-      sectionShortcut.classList.remove('is-measuring');
+      const requiredShortcutWidth = measureWidth(sectionShortcut, 'is-measuring');
       sectionShortcut.classList.toggle('is-icon-hidden', requiredShortcutWidth > availableShortcutWidth);
     }
   }
