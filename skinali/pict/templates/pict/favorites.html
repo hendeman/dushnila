@@ -4,10 +4,6 @@
 <h1>{{ title }}</h1>
 <p class="favorites-notice">В избранное можно добавить не более {{ max_favorites }} изображений. Всего добавлено изображений: <span data-favorites-current-count>{{ favorites_count }}</span></p>
 
-{% for message in messages %}
-  <span hidden data-site-toast-message data-site-toast-kind="{{ message.level_tag }}">{{ message }}</span>
-{% endfor %}
-
 {% if pending_favorites_token %}
   <div data-favorites-import-pending>
     <p class="favorites-notice favorites-notice--warning">Подборка не добавлена. Удалите лишние изображения и повторите добавление.<br>
@@ -17,25 +13,57 @@
   </div>
 {% endif %}
 
-{% if pending_favorites_token or favorites_count %}
-  <div class="favorites-actions" data-favorites-actions>
-    {% if pending_favorites_token %}
-      {% include 'pict/includes/favorites_import_form.html' with token=pending_favorites_token automatic=False %}
-    {% endif %}
-    <form method="post" action="{% url 'favorites_clear' %}">
-      {% csrf_token %}
-      <button type="submit" class="favorites-clear__submit is-active" data-favorites-clear{% if not favorites_count %} disabled{% endif %}>Удалить все из избранного</button>
-    </form>
-  </div>
-{% endif %}
-
 <div class="favorites-list" data-favorites-list>
+  {% if pending_favorites_token or favorites_count %}
+    <div class="favorites-toolbar" data-favorites-actions>
+      <div class="favorites-share"
+           data-share
+           data-share-kind="favorites"
+           data-share-url="{{ favorites_share_url }}"
+           data-share-unavailable-message="{{ favorites_share_unavailable_message }}"
+           data-favorites-share
+           {% if not favorite_pictures %}hidden{% endif %}>
+        <button type="button"
+                class="share-toggle"
+                data-share-toggle
+                aria-expanded="false"
+                aria-controls="favorites-share-services">
+          <svg class="favorites-share__icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="18" cy="5" r="3"></circle>
+            <circle cx="6" cy="12" r="3"></circle>
+            <circle cx="18" cy="19" r="3"></circle>
+            <path d="m8.6 13.5 6.8 4m0-11-6.8 4"></path>
+          </svg>
+          <span class="favorites-share__label">Поделиться подборкой</span>
+        </button>
+        <div class="share-services favorites-share__services"
+             id="favorites-share-services"
+             data-share-services
+             role="group"
+             aria-label="Выберите сервис"
+             hidden>
+          {% include 'pict/includes/share_service_links.html' only %}
+        </div>
+      </div>
+      <div class="favorites-actions">
+        {% if pending_favorites_token %}
+          {% include 'pict/includes/favorites_import_form.html' with token=pending_favorites_token automatic=False %}
+        {% endif %}
+        <form method="post" action="{% url 'favorites_clear' %}">
+          {% csrf_token %}
+          <button type="submit" class="favorites-clear__submit is-active" data-favorites-clear{% if not favorites_count %} disabled{% endif %}>Очистить избранное</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="favorites-grid">
   {% for p in favorite_pictures %}
     <article class="favorite-card"
              data-favorite-row
              data-pict-id="{{ p.pk }}"
              data-image-number="{{ p.name }}">
-      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids use_catalog_modal=True gallery_link_class='favorite-card__preview' gallery_image_class='favorite-card__image' %}
+      {% include 'pict/includes/gallery_item.html' with p=p favorite_ids=favorite_ids use_catalog_modal=True hide_image_number=True gallery_link_class='favorite-card__preview' gallery_image_class='favorite-card__image' %}
       <div class="favorite-card__content">
         <h2>Изображение № {{ p.name }}</h2>
         {% if p.alt %}
@@ -48,39 +76,19 @@
                 data-favorite-toggle
                 data-pict-id="{{ p.pk }}"
                 data-favorite-url="{% url 'favorite_toggle' p.pk %}"
-                aria-pressed="true">
-          <span class="favorite-toggle__label" data-favorite-label>
+                aria-pressed="true"
+                aria-label="Убрать изображение № {{ p.name }} из избранного">
+          <svg class="favorite-card__remove-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m18 6-12 12M6 6l12 12"></path>
+          </svg> <span class="favorite-toggle__label" data-favorite-label>
             <span class="favorite-toggle__label-add">В избранное</span>
-            <span class="favorite-toggle__label-remove">Удалить из избранного</span>
+            <span class="favorite-toggle__label-remove">Убрать</span>
             <span class="favorite-toggle__label-error">Не удалось сохранить</span>
           </span>
         </button>
       </div>
     </article>
   {% endfor %}
-
-  <div class="favorites-share"
-       data-share
-       data-share-kind="favorites"
-       data-share-url="{{ favorites_share_url }}"
-       data-share-unavailable-message="{{ favorites_share_unavailable_message }}"
-       data-favorites-share
-       {% if not favorite_pictures %}hidden{% endif %}>
-    <button type="button"
-            class="share-toggle"
-            data-share-toggle
-            aria-expanded="false"
-            aria-controls="favorites-share-services">
-      Поделиться изображениями
-    </button>
-    <div class="share-services favorites-share__services"
-         id="favorites-share-services"
-         data-share-services
-         role="group"
-         aria-label="Выберите сервис"
-         hidden>
-      {% include 'pict/includes/share_service_links.html' only %}
-    </div>
   </div>
 
   <p class="favorites-list__empty" data-favorites-empty{% if favorite_pictures %} hidden{% endif %}>

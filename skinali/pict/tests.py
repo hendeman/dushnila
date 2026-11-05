@@ -4776,7 +4776,7 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, self.first_picture.alt)
         self.assertContains(response, 'data-favorite-row')
         self.assertContains(response, 'class="catalog-thumbnail favorite-card__preview"')
-        self.assertContains(
+        self.assertNotContains(
             response,
             '<span class="catalog-thumbnail__image-number">'
             '<span class="catalog-thumbnail__image-number-text">№ 301</span>'
@@ -4791,12 +4791,12 @@ class SessionFavoritesTests(TestCase):
         self.assertContains(response, 'class="catalog-modal__purchase"')
         self.assertContains(response, 'data-image-purchase-open')
         self.assertContains(response, 'data-share-kind="favorites"')
-        self.assertContains(response, 'Поделиться изображениями')
+        self.assertContains(response, 'Поделиться подборкой')
         self.assertContains(response, 'data-image-number="302"')
         response_html = response.content.decode()
-        self.assertGreater(
+        self.assertLess(
             response_html.index('class="favorites-share"'),
-            response_html.rindex('class="favorite-card"'),
+            response_html.index('class="favorite-card"'),
         )
         self.assertContains(response, '#Тег избранного')
         self.assertContains(response, 'Категория избранного')

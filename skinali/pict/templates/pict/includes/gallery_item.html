@@ -30,9 +30,11 @@
            loading="lazy"
            decoding="async">
     {% endthumbnail %}
+    {% if not hide_image_number %}
     <span class="catalog-thumbnail__image-number">
       <span class="catalog-thumbnail__image-number-text">№ {{ p.name }}</span>
     </span>
+    {% endif %}
 </a>
 {% if show_catalog_favorite or use_catalog_modal %}
   <template id="catalog-gallery-caption-{{ p.pk }}">

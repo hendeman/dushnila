@@ -21,6 +21,9 @@
 {% for integration in site_integration_list %}{{ integration.head_html|safe }}{% endfor %}
 </head>
 <body>
+{% for message in messages %}
+  <span hidden data-site-toast-message data-site-toast-kind="{{ message.level_tag }}">{{ message }}</span>
+{% endfor %}
 {% for integration in site_integration_list %}{{ integration.body_start_html|safe }}{% endfor %}
 {% block mainmenu %}
 <header class="site-topbar">
@@ -602,7 +605,7 @@
                 favoritesShare.hidden = !hasFavoriteRows;
               }
               if (!hasFavoriteRows) {
-                document.querySelector('[data-favorites-empty]').hidden = false;
+                window.location.replace("{% url 'skinali' %}");
               }
             }
           }

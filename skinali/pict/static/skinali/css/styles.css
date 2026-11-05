@@ -1441,6 +1441,8 @@ ul.mainmenu li > [aria-current="page"],
 .favorites-import__submit:focus-visible,
 .contact-form__submit:hover,
 .contact-form__submit:focus-visible {
+	color: #fff;
+	border-color: transparent;
 	background: #5d7757;
 }
 
@@ -3586,9 +3588,7 @@ background-color: coral;
 	pointer-events: auto;
 }
 
-.gallery-modal__favorite,
-.favorite-card__remove,
-.favorites-clear__submit {
+.gallery-modal__favorite {
 	box-sizing: border-box;
 	min-height: 38px;
 	padding: 8px 18px;
@@ -3600,29 +3600,15 @@ background-color: coral;
 	font-size: 15px;
 }
 
-.gallery-modal__favorite:hover,
-.favorite-card__remove:hover,
-.favorites-clear__submit:hover {
+.gallery-modal__favorite:hover {
 	color: #fff;
 	background: #d47b11;
 }
 
-.gallery-modal__favorite.is-active,
-.favorite-card__remove.is-active,
-.favorites-clear__submit.is-active {
+.gallery-modal__favorite.is-active {
 	border-color: #888;
 	color: #555;
 	background: #f2f2f2;
-}
-
-.favorite-card__remove.is-active:hover,
-.favorite-card__remove.is-active:focus-visible,
-.favorites-clear__submit.is-active:hover,
-.favorites-clear__submit.is-active:focus-visible {
-	border-color: transparent;
-	background:
-		linear-gradient(#e6e6e6, #e6e6e6) padding-box,
-		linear-gradient(135deg, #b9b9b9, #777, #c9c9c9) border-box;
 }
 
 .gallery-modal__favorite:disabled,
@@ -3769,23 +3755,28 @@ background-color: coral;
 .favorites-list {
 	max-width: 1100px;
 	margin: 0 auto;
-	padding: 10px 24px 40px;
+	padding: 0 0 40px;
+}
+
+.favorites-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 18px;
 }
 
 .favorite-card {
-	display: grid;
-	grid-template-columns: minmax(280px, 48%) 1fr;
-	gap: 30px;
-	align-items: center;
-	margin-bottom: 24px;
-	padding: 20px;
-	border: 1px solid #ddd;
-	border-radius: 6px;
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	border: 1px solid #dedfd4;
+	border-radius: 10px;
 	background: #fff;
+	overflow: hidden;
 }
 
 .favorite-card__preview {
 	display: block;
+	flex: none;
 	line-height: 0;
 }
 
@@ -3793,19 +3784,116 @@ background-color: coral;
 	display: block;
 	width: 100%;
 	height: auto;
-	border-radius: 3px;
+	border-radius: 0;
+}
+
+.favorite-card__content {
+	display: grid;
+	flex: 1 1 auto;
+	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-rows: auto 1fr;
+	align-items: start;
+	gap: 5px 12px;
+	min-width: 0;
+	padding: 15px 16px 16px;
 }
 
 .favorite-card__content h2 {
-	margin: 0 0 12px;
-	font-size: 24px;
+	grid-column: 1 / -1;
+	margin: 0;
+	color: #222820;
+	font-size: 16px;
+	font-weight: 650;
+	line-height: 1.45;
+	overflow-wrap: anywhere;
 }
 
 .favorite-card__content p {
-	margin: 0 0 20px;
-	color: #555;
-	font-size: 17px;
+	grid-column: 1;
+	grid-row: 2;
+	margin: 0;
+	color: #697064;
+	font-size: 13px;
 	line-height: 1.45;
+	overflow-wrap: anywhere;
+}
+
+.favorite-card__remove {
+	position: relative;
+	z-index: 0;
+	isolation: isolate;
+	grid-column: 2;
+	grid-row: 2;
+	align-self: end;
+	justify-self: end;
+	padding: 0;
+	border: 0;
+	border-radius: 6px;
+	color: #697064;
+	background: transparent;
+	cursor: pointer;
+	font: inherit;
+	font-size: 13px;
+	line-height: 1.45;
+	text-align: right;
+	white-space: nowrap;
+	transition: color .14s;
+}
+
+.favorite-card__remove::after {
+	position: absolute;
+	z-index: -1;
+	inset: -5px -7px;
+	border: 1px solid transparent;
+	border-radius: inherit;
+	content: "";
+	transition: border-color .14s;
+}
+
+.favorite-card__remove:not(:disabled):hover,
+.favorite-card__remove:focus-visible {
+	color: #4d6644;
+}
+
+.favorite-card__remove:not(:disabled):hover::after,
+.favorite-card__remove:focus-visible::after {
+	border-color: #91a286;
+}
+
+.favorite-card__remove-icon {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.6;
+	stroke-linecap: round;
+	vertical-align: -3px;
+}
+
+.favorite-card__remove .favorite-toggle__label > span {
+	display: none;
+}
+
+.favorite-card__remove:not(.is-active):not(.has-error) .favorite-toggle__label-add,
+.favorite-card__remove.is-active:not(.has-error) .favorite-toggle__label-remove,
+.favorite-card__remove.has-error .favorite-toggle__label-error {
+	display: inline;
+}
+
+@media (pointer: coarse) {
+	.favorite-card__remove::before {
+		position: absolute;
+		inset: -13px -7px;
+		content: "";
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.favorite-card__remove,
+	.favorite-card__remove::after {
+		transition: none;
+	}
 }
 
 .favorite-card__empty-description {
@@ -3845,17 +3933,26 @@ background-color: coral;
 	text-align: center;
 }
 
-.favorites-actions {
+.favorites-toolbar {
 	display: flex;
 	align-items: center;
-	justify-content: center;
-	gap: 12px;
+	justify-content: space-between;
 	flex-wrap: wrap;
+	gap: 12px 24px;
 	margin-bottom: 24px;
 }
 
-.favorites-actions[hidden] {
+.favorites-toolbar[hidden],
+.favorites-share[hidden] {
 	display: none;
+}
+
+.favorites-actions {
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	flex-wrap: wrap;
+	gap: 12px;
 }
 
 .favorites-actions .favorites-import {
@@ -3863,34 +3960,75 @@ background-color: coral;
 }
 
 .favorites-clear__submit {
-	min-height: 48px;
+	min-height: 44px;
+	padding: 0;
+	border: 0;
+	color: #697064;
+	background: transparent;
+	cursor: pointer;
 	font: inherit;
-	font-size: 15px;
+	font-size: 13px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+.favorites-clear__submit:not(:disabled):hover,
+.favorites-clear__submit:focus-visible {
+	color: #222820;
 }
 
 .favorites-share {
 	position: relative;
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	margin-top: 32px;
-}
-
-.favorites-share[hidden] {
-	display: none;
+	display: inline-flex;
+	max-width: 100%;
 }
 
 .favorites-share .share-toggle {
-	min-width: 250px;
-	background: #fff;
+	justify-content: flex-start;
+	gap: 8px;
+	padding: 9px 0;
+	border: 0;
+	border-radius: 0;
+	color: #4d6644;
+	background: transparent;
+	font-weight: 500;
+}
+
+.favorites-share .share-toggle::before {
+	display: none;
+}
+
+.favorites-share .share-toggle:hover,
+.favorites-share .share-toggle:focus-visible,
+.favorites-share .share-toggle[aria-expanded="true"] {
+	color: #4d6644;
+	background: transparent;
+}
+
+.favorites-share .share-toggle:hover .favorites-share__label,
+.favorites-share .share-toggle:focus-visible .favorites-share__label,
+.favorites-share .share-toggle[aria-expanded="true"] .favorites-share__label {
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 4px;
+}
+
+.favorites-share__icon {
+	flex: 0 0 16px;
+	width: 16px;
+	height: 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.7;
+	stroke-linecap: round;
+	stroke-linejoin: round;
 }
 
 .favorites-share__services {
 	position: absolute;
-	z-index: 2;
-	left: 50%;
-	bottom: calc(100% + 10px);
-	transform: translateX(-50%);
+	z-index: 8;
+	top: calc(100% + 10px);
+	left: 0;
 }
 
 .favorites-list__empty {
@@ -5128,27 +5266,8 @@ background-color: coral;
 		background: transparent !important;
 	}
 
-	.favorites-list {
-		padding-right: 0;
-		padding-left: 0;
-	}
-
-	.favorite-card {
+	.favorites-grid {
 		grid-template-columns: minmax(0, 1fr);
-		gap: 18px;
-		padding: 20px 12px;
-	}
-
-	.favorite-card__content {
-		text-align: center;
-	}
-
-	.favorite-card__content h2 {
-		font-size: 18px;
-	}
-
-	.favorite-card__content p {
-		font-size: 16px;
 	}
 
 }

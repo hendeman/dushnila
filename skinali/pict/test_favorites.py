@@ -433,7 +433,7 @@ class FavoritesSharingTests(TestCase):
         self.client.cookies[settings.SESSION_COOKIE_NAME] = session.session_key
         with CaptureQueriesContext(connection) as queries:
             response = self.client.post(reverse('favorites_clear'))
-        self.assertRedirects(response, reverse('favorites'), fetch_redirect_response=False)
+        self.assertRedirects(response, reverse('skinali'), fetch_redirect_response=False)
         self.assertEqual(self.client.session[FAVORITES_SESSION_KEY], [])
         self.assertEqual(self.client.session['other_session_data'], 'keep')
         self.assertEqual(other_browser.session[FAVORITES_SESSION_KEY], self.picture_ids[2:4])
@@ -442,6 +442,17 @@ class FavoritesSharingTests(TestCase):
             ('INSERT', 'UPDATE', 'DELETE', 'REPLACE'),
         )]
         self.assertEqual(writes, [])
+
+    def test_clear_opens_catalog_with_confirmation_instead_of_empty_favorites(self):
+        self.seed_favorites(self.picture_ids[:2])
+
+        response = self.client.post(reverse('favorites_clear'), follow=True)
+
+        self.assertEqual(response.redirect_chain, [(reverse('skinali'), 302)])
+        self.assertEqual(response.context['favorites_count'], 0)
+        self.assertContains(response, 'Избранное очищено')
+        self.assertContains(response, 'data-site-toast-message')
+        self.assertNotContains(response, 'В избранном пока нет изображений')
 
     def test_clear_preserves_pending_selection_for_retry(self):
         self.seed_favorites(self.picture_ids[:MAX_FAVORITES - 3])
@@ -468,7 +479,7 @@ class FavoritesSharingTests(TestCase):
         page = self.client.get(reverse('favorites'))
         actions = page.content.decode().split('<div class="favorites-actions"', 1)[1].split('</div>', 1)[0]
         self.assertIn('Добавить всё в моё избранное', actions)
-        self.assertIn('Удалить все из избранного', actions)
+        self.assertIn('Очистить избранное', actions)
         self.assertIn(f'action="{reverse("favorites_shared")}"', actions)
         self.assertIn(f'action="{reverse("favorites_clear")}"', actions)
         self.assertEqual(actions.count('name="csrfmiddlewaretoken"'), 2)
@@ -497,7 +508,7 @@ class FavoritesSharingTests(TestCase):
     def test_clearing_empty_favorites_is_idempotent(self):
         for _ in range(2):
             response = self.client.post(reverse('favorites_clear'))
-            self.assertEqual(response.status_code, 302)
+            self.assertRedirects(response, reverse('skinali'), fetch_redirect_response=False)
             self.assertEqual(self.client.session[FAVORITES_SESSION_KEY], [])
 
     def test_full_favorites_allow_import_containing_only_existing_images(self):

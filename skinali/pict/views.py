@@ -908,7 +908,7 @@ def favorites_shared(request):
 def clear_favorites(request):
     request.session[FAVORITES_SESSION_KEY] = []
     messages.success(request, 'Избранное очищено')
-    return redirect('favorites')
+    return redirect('skinali')
 
 
 @require_POST
