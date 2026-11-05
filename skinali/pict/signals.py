@@ -2,7 +2,7 @@ from django.db.models.signals import m2m_changed, post_delete, post_save, pre_de
 from django.db import transaction
 from django.dispatch import receiver
 from django.utils import timezone
-from sitecontent.models import Article, ArticleImage, PriceTable, PriceTableRow, SitePage
+from sitecontent.models import Article, ArticleImage, MenuItem, PriceTable, PriceTableRow, SitePage
 
 from .models import Category, Color, FinishedWork, Pict, TagPict
 from .services.photo_cleanup import schedule_photo_cleanup
@@ -72,6 +72,19 @@ def touch_site_pages(page_codes, *, changed_at, using):
     SitePage.objects.using(using).filter(code__in=page_codes).update(
         updated_at=changed_at,
     )
+
+
+@receiver(post_save, sender=MenuItem)
+@receiver(pre_delete, sender=MenuItem)
+def menu_item_content_changed(sender, instance, using, signal, raw=False, **kwargs):
+    if not raw:
+        changed_at = timezone.now()
+        if signal is post_save:
+            SitePage.bind_unlinked_menu_item(instance, using=using, changed_at=changed_at)
+        # До SET_NULL сохраняем время смены публичного названия на стандартное.
+        SitePage.objects.using(using).filter(menu_item_id=instance.pk).update(
+            updated_at=changed_at,
+        )
 
 
 @receiver(post_save, sender=PriceTable)

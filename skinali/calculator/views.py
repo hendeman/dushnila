@@ -65,13 +65,13 @@ def price(request):
         ).distinct().prefetch_related('rows'),
     }
     page_title, description = resolve_site_page_metadata(
-        SitePage.Code.PRICE, default_page_title='Цена скинали — калькулятор стоимости | ОДИУМ',
+        SitePage.Code.PRICE, request, default_page_title='Цена скинали — калькулятор стоимости | ОДИУМ',
         default_meta_description='Рассчитайте стоимость скинали по размерам вашей кухни: стекло, декорирование, услуги и подъём с учётом действующих акций.',
     )
     set_page_metadata(
         context, request, page_title=page_title, meta_description=description,
         canonical_path=reverse('price'),
-        breadcrumbs=(('Главная', reverse('home')), ('Цена', None)),
+        breadcrumbs=((SitePage.Code.HOME, reverse('home')), (SitePage.Code.PRICE, None)),
     )
     if is_shared:
         context['meta_robots'] = 'noindex,follow'

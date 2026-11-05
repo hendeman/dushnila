@@ -90,9 +90,15 @@ def set_page_metadata(
     context['meta_description'] = meta_description
     context['canonical_url'] = public_url(canonical_path)
     context['meta_robots'] = 'noindex,follow' if noindex else ''
+    def breadcrumb_name(name):
+        if isinstance(name, SitePage.Code):
+            page = SitePage.for_request(request).get(name)
+            return page.navigation_title if page is not None else name.label
+        return name
+
     context['breadcrumbs'] = tuple(
         {
-            'name': name,
+            'name': breadcrumb_name(name),
             'url': path or canonical_path,
             'absolute_url': public_url(path or canonical_path),
         }
@@ -103,18 +109,14 @@ def set_page_metadata(
 
 def resolve_site_page_metadata(
     page_code,
+    request,
     *,
     default_page_title,
     default_meta_description,
     page_number=1,
 ):
     """Подставляет управляемые SEO-поля постоянной страницы при их наличии."""
-    site_page = (
-        SitePage.objects
-        .only('seo_title', 'seo_description')
-        .filter(pk=page_code)
-        .first()
-    )
+    site_page = SitePage.for_request(request).get(page_code)
     if site_page is None:
         return default_page_title, default_meta_description
 
@@ -215,6 +217,7 @@ class PictHome(FavoritesContextMixin, TemplateView):
         context['recent_finished_works'] = get_finished_work_gallery_queryset()[:3]
         page_title, meta_description = resolve_site_page_metadata(
             SitePage.Code.HOME,
+            self.request,
             default_page_title='Скинали из стекла для кухни | ОДИУМ',
             default_meta_description=(
                 'Скинали из стекла для кухни: каталог изображений, '
@@ -470,14 +473,15 @@ class SkinaliMix(ColorFilterMixin, FavoritesContextMixin, ListView):
         if not selected_category:
             full_page_title, meta_description = resolve_site_page_metadata(
                 SitePage.Code.CATALOG,
+                self.request,
                 default_page_title=full_page_title,
                 default_meta_description=meta_description,
                 page_number=page_number,
             )
         breadcrumbs = [
-            ('Главная', reverse('home')),
+            (SitePage.Code.HOME, reverse('home')),
             (
-                'Каталог',
+                SitePage.Code.CATALOG,
                 None if not selected_category and not is_search else reverse('skinali'),
             ),
         ]
@@ -577,8 +581,8 @@ class PictDetail(FavoritesContextMixin, DetailView):
             meta_description=picture.get_meta_description(),
             canonical_path=picture.get_absolute_url(),
             breadcrumbs=(
-                ('Главная', reverse('home')),
-                ('Каталог', reverse('skinali')),
+                (SitePage.Code.HOME, reverse('home')),
+                (SitePage.Code.CATALOG, reverse('skinali')),
                 (f'Изображение №{picture.name}', None),
             ),
         )
@@ -646,8 +650,8 @@ class PictTag(ColorFilterMixin, FavoritesContextMixin, ListView):
             page_number=metadata_page_number,
             noindex=bool(selected_color_slugs) or result_count == 0,
             breadcrumbs=(
-                ('Главная', reverse('home')),
-                ('Каталог', reverse('skinali')),
+                (SitePage.Code.HOME, reverse('home')),
+                (SitePage.Code.CATALOG, reverse('skinali')),
                 (tag.tag, None),
             ),
         )
@@ -763,9 +767,9 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
             if canonical_page > 1 else ''
         )
         breadcrumbs = [
-            ('Главная', reverse('home')),
+            (SitePage.Code.HOME, reverse('home')),
             (
-                'Наши работы',
+                SitePage.Code.FINISHED_WORKS,
                 reverse('finished_works') if is_filtered else None,
             ),
         ]
@@ -778,6 +782,7 @@ class FinishedWorkList(FavoritesContextMixin, ListView):
             )
         page_title, meta_description = resolve_site_page_metadata(
             SitePage.Code.FINISHED_WORKS,
+            self.request,
             default_page_title=(
                 f'Фото скинали из стекла — наши работы{page_suffix} | ОДИУМ'
             ),
@@ -833,7 +838,7 @@ def favorites(request):
         canonical_path=reverse('favorites'),
         noindex=True,
         breadcrumbs=(
-            ('Главная', reverse('home')),
+            (SitePage.Code.HOME, reverse('home')),
             ('Избранное', None),
         ),
     )
@@ -1030,6 +1035,7 @@ def about(request):
     }
     page_title, meta_description = resolve_site_page_metadata(
         SitePage.Code.ABOUT,
+        request,
         default_page_title='Контакты ОДИУМ — заказать скинали из стекла',
         default_meta_description=(
             'Свяжитесь с ОДИУМ, чтобы заказать скинали из стекла, '
@@ -1043,8 +1049,8 @@ def about(request):
         meta_description=meta_description,
         canonical_path=reverse('about'),
         breadcrumbs=(
-            ('Главная', reverse('home')),
-            ('Связаться с нами', None),
+            (SitePage.Code.HOME, reverse('home')),
+            (SitePage.Code.ABOUT, None),
         ),
     )
     return render(request, 'pict/about.html', context)
@@ -1058,6 +1064,7 @@ def designer(request):
     }
     page_title, meta_description = resolve_site_page_metadata(
         SitePage.Code.DESIGNER,
+        request,
         default_page_title='Услуги дизайнера для скинали | ОДИУМ',
         default_meta_description=(
             'Подготовка изображения и индивидуальный дизайн '
@@ -1071,8 +1078,8 @@ def designer(request):
         meta_description=meta_description,
         canonical_path=reverse('designer'),
         breadcrumbs=(
-            ('Главная', reverse('home')),
-            ('Услуги дизайнера', None),
+            (SitePage.Code.HOME, reverse('home')),
+            (SitePage.Code.DESIGNER, None),
         ),
     )
     return render(request, 'pict/designer.html', context)

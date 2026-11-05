@@ -2,9 +2,13 @@ from django.contrib.auth import get_user_model
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth.models import Permission
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.template import RequestContext, Template
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
+from django.utils import timezone
+
+from pict.views import resolve_site_page_metadata, set_page_metadata
 
 from .admin import SitePageAdmin
 from .models import MenuItem, SiteMenu, SitePage
@@ -45,6 +49,215 @@ class SitePageModelTests(TestCase):
             page.resolve_seo_value('seo_description', 'Стандартное описание'),
             'Стандартное описание',
         )
+
+
+class SitePageMenuLinkTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.superuser = get_user_model().objects.create_superuser(
+            username='page-menu-owner', email='page-menu@example.com', password='test-password',
+        )
+
+    def setUp(self):
+        self.page = SitePage.objects.select_related('menu_item').get(pk=SitePage.Code.PRICE)
+        self.item = self.page.menu_item
+
+    def assert_price_title(self, expected):
+        response = self.client.get(reverse('price'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['breadcrumbs'][-1]['name'], expected)
+        self.assertContains(response, f'https://odium.by{reverse("price")}')
+        self.assertEqual(str(SitePage.objects.get(pk=self.page.pk)), expected)
+        data = json.loads(response.content.decode().split(
+            '<script id="breadcrumb-structured-data" type="application/ld+json">',
+        )[1].split('</script>')[0])
+        self.assertEqual(data['itemListElement'][-1]['name'], expected)
+        return response
+
+    def test_migration_links_all_pages_to_existing_menu_items(self):
+        for page in SitePage.objects.select_related('menu_item'):
+            with self.subTest(code=page.code):
+                self.assertIsNotNone(page.menu_item_id)
+                self.assertEqual(page.menu_item.url, reverse(page.code))
+
+    def test_rename_through_menu_admin_updates_public_and_admin_titles(self):
+        self.client.force_login(self.superuser)
+        items = list(self.item.menu.items.all())
+        data = {
+            'items-TOTAL_FORMS': str(len(items)), 'items-INITIAL_FORMS': str(len(items)),
+            'items-MIN_NUM_FORMS': '0', 'items-MAX_NUM_FORMS': '1000', '_save': 'Сохранить',
+        }
+        for index, item in enumerate(items):
+            prefix = f'items-{index}-'
+            data.update({
+                prefix + 'id': str(item.pk), prefix + 'menu': str(item.menu_id),
+                prefix + 'position': str(item.position), prefix + 'url': item.url,
+                prefix + 'title': 'Рассчитать стоимость' if item.pk == self.item.pk else item.title,
+                prefix + 'is_visible': 'on',
+            })
+        response = self.client.post(
+            reverse('admin:sitecontent_sitemenu_change', args=[self.item.menu_id]), data,
+        )
+        self.assertEqual(response.status_code, 302)
+        public = self.assert_price_title('Рассчитать стоимость')
+        self.assertEqual(public.context['title'], 'Рассчитайте стоимость скинали')
+        self.assertEqual(public.context['page_title'], 'Цена скинали — калькулятор стоимости | ОДИУМ')
+        self.assertEqual(public.context['canonical_url'], 'https://odium.by/price/')
+        listing = self.client.get(reverse('admin:sitecontent_sitepage_changelist'))
+        self.assertContains(listing, 'Рассчитать стоимость')
+        editor = self.client.get(reverse('admin:sitecontent_sitepage_change', args=[self.page.pk]))
+        self.assertContains(editor, '<h2>Рассчитать стоимость</h2>', html=True)
+
+    def test_saving_renamed_menu_item_restores_missing_link(self):
+        SitePage.objects.filter(pk=self.page.pk).update(menu_item=None)
+        self.assert_price_title(SitePage.Code.PRICE.label)
+
+        self.item.title = 'Получить цену'
+        self.item.save(update_fields=['title'])
+
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.menu_item_id, self.item.pk)
+        self.assert_price_title('Получить цену')
+        self.client.force_login(self.superuser)
+        listing = self.client.get(reverse('admin:sitecontent_sitepage_changelist'))
+        self.assertContains(listing, 'Получить цену')
+
+    def test_saving_menu_items_restores_missing_links_for_all_sections(self):
+        pages = list(SitePage.objects.select_related('menu_item'))
+        SitePage.objects.update(menu_item=None)
+        for page in pages:
+            with self.subTest(code=page.code):
+                item = page.menu_item
+                item.title = f'Название {page.code}'
+                item.save(update_fields=['title'])
+                page.refresh_from_db()
+                self.assertEqual(page.menu_item_id, item.pk)
+                self.assertEqual(str(page), item.title)
+
+    def test_creating_menu_item_restores_link_after_previous_item_deleted(self):
+        self.item.delete()
+        item = MenuItem.objects.create(
+            menu=self.item.menu, title='Новый расчёт', url='/price/', is_visible=False,
+        )
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.menu_item_id, item.pk)
+        self.assert_price_title(item.title)
+
+    def test_missing_link_uses_first_exact_match_even_when_another_duplicate_saved(self):
+        item = MenuItem.objects.create(
+            menu=self.item.menu, title='Первый пункт', url='/price/', position=0, is_visible=False,
+        )
+        SitePage.objects.filter(pk=self.page.pk).update(menu_item=None)
+        self.item.title = 'Второй пункт'
+        self.item.save(update_fields=['title'])
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.menu_item_id, item.pk)
+        self.assert_price_title(item.title)
+
+    def test_external_or_query_links_do_not_bind_unlinked_page(self):
+        SitePage.objects.filter(pk=self.page.pk).update(menu_item=None)
+        for url in ('https://example.com/price/', '/price/?source=menu', '/price/#form', '/custom/'):
+            with self.subTest(url=url):
+                MenuItem.objects.create(menu=self.item.menu, title='Произвольная ссылка', url=url)
+                self.page.refresh_from_db()
+                self.assertIsNone(self.page.menu_item_id)
+        self.assert_price_title(SitePage.Code.PRICE.label)
+
+    def test_link_survives_hiding_reordering_url_change_and_duplicate(self):
+        self.item.title = 'Расчёт'
+        self.item.is_visible = False
+        self.item.position = 999
+        self.item.url = 'https://example.com/calculation'
+        self.item.save()
+        MenuItem.objects.create(menu=self.item.menu, title='Другая ссылка', url='/price/', position=0)
+        response = self.assert_price_title('Расчёт')
+        self.assertNotContains(response, self.item.url)
+
+    def test_deleting_linked_item_uses_default_without_selecting_duplicate(self):
+        MenuItem.objects.create(menu=self.item.menu, title='Дубликат', url='/price/', position=0)
+        old_timestamp = timezone.now() - timedelta(days=1)
+        SitePage.objects.filter(pk=self.page.pk).update(updated_at=old_timestamp)
+        self.item.delete()
+        self.page.refresh_from_db()
+        self.assertIsNone(self.page.menu_item_id)
+        self.assertGreater(self.page.updated_at, old_timestamp)
+        self.assert_price_title(SitePage.Code.PRICE.label)
+
+    def test_missing_page_uses_default_breadcrumb_and_seo(self):
+        self.page.delete()
+        response = self.client.get(reverse('price'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['breadcrumbs'][-1]['name'], SitePage.Code.PRICE.label)
+        self.assertEqual(response.context['page_title'], 'Цена скинали — калькулятор стоимости | ОДИУМ')
+
+    def test_editing_seo_cannot_change_internal_menu_link(self):
+        item = MenuItem.objects.create(menu=self.item.menu, title='Другая ссылка', url='/price/')
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            reverse('admin:sitecontent_sitepage_change', args=[self.page.pk]),
+            {'menu_item': item.pk, 'seo_title': '', 'seo_description': 'Описание', '_save': 'Сохранить'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.menu_item_id, self.item.pk)
+        self.assertEqual(self.page.seo_description, 'Описание')
+        self.assert_price_title(self.item.title)
+
+    def test_all_sections_and_parent_breadcrumbs_use_linked_titles(self):
+        for page in SitePage.objects.select_related('menu_item'):
+            page.menu_item.title = f'Раздел {page.code}'
+            page.menu_item.save(update_fields=['title'])
+        for code in SitePage.Code:
+            if code == SitePage.Code.HOME:
+                continue
+            with self.subTest(code=code):
+                response = self.client.get(reverse(code))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(
+                    tuple(item['name'] for item in response.context['breadcrumbs']),
+                    ('Раздел home', f'Раздел {code}'),
+                )
+
+    def test_names_are_escaped_in_html_and_remain_valid_in_json_ld(self):
+        self.item.title = 'Расчёт </script><script>alert(1)</script>'
+        self.item.save(update_fields=['title'])
+        response = self.assert_price_title(self.item.title)
+        self.assertNotIn(self.item.title, response.content.decode())
+
+    def test_one_query_for_metadata_and_breadcrumbs_and_fresh_names_next_request(self):
+        def metadata(request):
+            title, description = resolve_site_page_metadata(
+                SitePage.Code.PRICE, request, default_page_title='Цена', default_meta_description='',
+            )
+            return set_page_metadata(
+                {}, request, page_title=title, meta_description=description, canonical_path='/price/',
+                breadcrumbs=((SitePage.Code.HOME, '/'), (SitePage.Code.PRICE, None)),
+            )
+
+        with self.assertNumQueries(1):
+            context = metadata(RequestFactory().get('/price/'))
+        self.assertEqual(context['breadcrumbs'][-1]['name'], 'Цена')
+        self.item.title = 'Новое название'
+        self.item.save(update_fields=['title'])
+        with self.assertNumQueries(1):
+            context = metadata(RequestFactory().get('/price/'))
+        self.assertEqual(context['breadcrumbs'][-1]['name'], 'Новое название')
+
+    def test_data_migration_preserves_renamed_hidden_items_and_existing_links(self):
+        self.item.title = 'Рассчитать стоимость'
+        self.item.is_visible = False
+        self.item.save()
+        SitePage.objects.filter(pk=self.page.pk).update(menu_item=None)
+        unrelated = MenuItem.objects.create(menu=self.item.menu, title='Внешняя ссылка', url='https://example.com')
+        SitePage.objects.filter(pk=SitePage.Code.ABOUT).update(menu_item=unrelated)
+        migrate = import_module('sitecontent.migrations.0014_sitepage_menu_item').link_existing_menu_items
+        migrate(apps, SimpleNamespace(connection=connection))
+        self.page.refresh_from_db()
+        self.assertEqual(self.page.menu_item_id, self.item.pk)
+        self.assertEqual(str(self.page), 'Рассчитать стоимость')
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.is_visible)
+        self.assertEqual(SitePage.objects.get(pk=SitePage.Code.ABOUT).menu_item_id, unrelated.pk)
 
 
 class SiteMenuModelTests(TestCase):
@@ -276,6 +489,9 @@ class SiteMenuAdminTests(TestCase):
         for page_name in dict(SitePage.Code.choices).values():
             self.assertContains(changelist, page_name)
         self.assertEqual(SitePageAdmin.fields, ('seo_title', 'seo_description'))
+        self.assertEqual(set(editor.context['adminform'].form.fields), {'seo_title', 'seo_description'})
+        self.assertNotContains(editor, 'name="menu_item"')
+        self.assertNotContains(editor, 'Пункт меню')
         self.assertContains(editor, 'SEO-title')
         self.assertContains(editor, 'Meta description')
         self.assertNotContains(editor, 'Системный код')
@@ -295,6 +511,7 @@ class SiteMenuAdminTests(TestCase):
         page = SitePage.objects.get(pk=SitePage.Code.HOME)
         self.assertEqual(page.seo_title, 'Новый SEO-title')
         self.assertEqual(page.seo_description, 'Новое описание страницы')
+        self.assertIsNotNone(page.menu_item_id)
 
     def test_staff_cannot_open_menu_even_with_model_permissions(self):
         self.client.force_login(self.staff_user)
@@ -366,3 +583,9 @@ class SiteMenuAdminTests(TestCase):
         self.assertNotContains(public, edited_item.url)
         self.assertNotContains(public, deleted_item.url)
         self.assertContains(public, 'mailto:hello@example.com', count=2)
+import json
+from datetime import timedelta
+from importlib import import_module
+from types import SimpleNamespace
+
+from django.apps import apps

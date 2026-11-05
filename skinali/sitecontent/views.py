@@ -26,14 +26,14 @@ class ArticleList(FavoritesContextMixin, ListView):
         if number > 1:
             default_title += f' — страница {number}'
         page_title, description = resolve_site_page_metadata(
-            SitePage.Code.ARTICLES, default_page_title=f'{default_title} | ОДИУМ',
+            SitePage.Code.ARTICLES, self.request, default_page_title=f'{default_title} | ОДИУМ',
             default_meta_description='Полезные статьи о выборе, оформлении и уходе за скинали из стекла.',
             page_number=number,
         )
         return set_page_metadata(
             context, self.request, page_title=page_title, meta_description=description,
             canonical_path=reverse('article_list'), page_number=number,
-            breadcrumbs=(('Главная', reverse('home')), ('Полезно знать', '')),
+            breadcrumbs=((SitePage.Code.HOME, reverse('home')), (SitePage.Code.ARTICLES, '')),
         )
 
 
@@ -57,6 +57,6 @@ class ArticleDetail(FavoritesContextMixin, DetailView):
             page_title=f'{article.resolve_seo_value("seo_title", article.title)} | ОДИУМ',
             meta_description=article.resolve_seo_value('seo_description', article.summary),
             canonical_path=article.get_absolute_url(),
-            breadcrumbs=(('Главная', reverse('home')), ('Полезно знать', reverse('article_list')),
+            breadcrumbs=((SitePage.Code.HOME, reverse('home')), (SitePage.Code.ARTICLES, reverse('article_list')),
                          (article.title, '')),
         )

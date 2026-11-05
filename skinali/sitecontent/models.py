@@ -49,7 +49,7 @@ class SeoMetadataFields(models.Model):
 
 
 class SitePage(SeoMetadataFields):
-    """SEO-настройки постоянной внутренней страницы сайта."""
+    """Название и SEO-настройки постоянной внутренней страницы сайта."""
 
     class Code(models.TextChoices):
         HOME = 'home', 'Главная страница'
@@ -67,13 +67,55 @@ class SitePage(SeoMetadataFields):
         primary_key=True,
         editable=False,
     )
+    menu_item = models.ForeignKey(
+        'MenuItem', on_delete=models.SET_NULL, null=True, blank=True, related_name='site_pages',
+        editable=False,
+    )
+
+    @property
+    def navigation_title(self):
+        if self.menu_item_id:
+            title = self.menu_item.title.strip()
+            if title:
+                return title
+        return self.get_code_display()
+
+    @classmethod
+    def bind_unlinked_menu_item(cls, item, *, using, changed_at):
+        """Восстанавливает только пустую связь при сохранении точного пути раздела."""
+        code = next((code for code in cls.Code if item.url == reverse(code)), None)
+        if code is None:
+            return 0
+        candidates = MenuItem.objects.using(using).filter(
+            menu_id=item.menu_id, menu__code=SiteMenu.MAIN_CODE, url=item.url,
+        ).order_by('position', 'pk')
+        return (
+            cls.objects.using(using).filter(pk=code, menu_item__isnull=True)
+            .filter(models.Exists(candidates))
+            .update(
+                menu_item_id=models.Subquery(candidates.values('pk')[:1]),
+                updated_at=changed_at,
+            )
+        )
+
+    @classmethod
+    def for_request(cls, request):
+        """Один общий запрос названий и SEO-полей на время HTTP-запроса."""
+        if not hasattr(request, '_sitecontent_pages'):
+            request._sitecontent_pages = {
+                page.code: page
+                for page in cls.objects.select_related('menu_item').only(
+                    'code', 'seo_title', 'seo_description', 'menu_item__title',
+                )
+            }
+        return request._sitecontent_pages
 
     class Meta:
         verbose_name = 'Страница сайта'
         verbose_name_plural = 'Страницы сайта'
 
     def __str__(self):
-        return self.get_code_display()
+        return self.navigation_title
 
 
 class CatalogSearchSettings(models.Model):
@@ -159,7 +201,10 @@ class MenuItem(models.Model):
         related_name='items',
         verbose_name='Меню',
     )
-    title = models.CharField('Название', max_length=100)
+    title = models.CharField(
+        'Название', max_length=100,
+        help_text='Для связанной страницы также задаёт название в хлебных крошках и «Страницах сайта».',
+    )
     url = models.CharField(
         'Ссылка',
         max_length=500,

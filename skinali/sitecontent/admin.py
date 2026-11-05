@@ -47,7 +47,7 @@ class MenuItemInline(admin.TabularInline):
 class SitePageAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAdmin):
     fields = ('seo_title', 'seo_description')
     list_display = ('page_name', 'seo_title', 'seo_description')
-    search_fields = ('seo_title', 'seo_description')
+    search_fields = ('menu_item__title', 'seo_title', 'seo_description')
     actions = None
 
     class Media:
@@ -55,7 +55,10 @@ class SitePageAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAd
 
     @admin.display(description='Страница', ordering='code')
     def page_name(self, obj):
-        return obj.get_code_display()
+        return obj.navigation_title
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('menu_item')
 
     def has_add_permission(self, request):
         return False

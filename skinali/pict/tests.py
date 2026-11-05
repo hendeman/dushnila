@@ -1413,32 +1413,32 @@ class TagPageAndSitemapTests(TestCase):
         cases = (
             (
                 reverse('skinali'),
-                ('Главная', 'Каталог'),
+                ('Главная страница', 'Каталог скинали'),
                 (reverse('home'), reverse('skinali')),
             ),
             (
                 self.category.get_absolute_url(),
-                ('Главная', 'Каталог', self.category.cat),
+                ('Главная страница', 'Каталог скинали', self.category.cat),
                 (reverse('home'), reverse('skinali'), self.category.get_absolute_url()),
             ),
             (
                 self.tag.get_absolute_url(),
-                ('Главная', 'Каталог', self.tag.tag),
+                ('Главная страница', 'Каталог скинали', self.tag.tag),
                 (reverse('home'), reverse('skinali'), self.tag.get_absolute_url()),
             ),
             (
                 reverse('finished_works'),
-                ('Главная', 'Наши работы'),
+                ('Главная страница', 'Наши работы'),
                 (reverse('home'), reverse('finished_works')),
             ),
             (
                 reverse('designer'),
-                ('Главная', 'Услуги дизайнера'),
+                ('Главная страница', 'Услуги дизайнера'),
                 (reverse('home'), reverse('designer')),
             ),
             (
                 reverse('about'),
-                ('Главная', 'Связаться с нами'),
+                ('Главная страница', 'Связаться с нами'),
                 (reverse('home'), reverse('about')),
             ),
         )
@@ -3165,7 +3165,7 @@ class PictDetailPageTests(TestCase):
         )
         self.assertEqual(
             tuple(item['name'] for item in response.context['breadcrumbs']),
-            ('Главная', 'Каталог', 'Изображение №810'),
+            ('Главная страница', 'Каталог скинали', 'Изображение №810'),
         )
         image_data = get_json_ld(response, 'image-structured-data')
         self.assertEqual(image_data['@type'], 'ImageObject')
