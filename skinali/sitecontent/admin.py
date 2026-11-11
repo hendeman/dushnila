@@ -1,8 +1,8 @@
 from django import forms
-from django.contrib import admin, messages
+from django.contrib import admin
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Count, Max
 from django.http import HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.response import TemplateResponse
@@ -14,16 +14,14 @@ from skinali.admin_mixins import (
     SuperuserAdminMixin as SuperuserSiteContentAdminMixin,
 )
 from skinali.admin_order import reorder_admin_objects
-from pict.services.contact_delivery import enqueue_connection_test, retry_failed_deliveries
-from pict.services.delivery_errors import DeliveryConfigurationError
 
 from .admin_seo import SeoAdminMixin
 from .article_media import prepare_article_image
 from .forms import (
-    ArticleAdminForm, IntegrationAdminForm, LeadConnectionForm, PriceTableRowForm, PriceTableRowFormSet,
+    ArticleAdminForm, IntegrationAdminForm, PriceTableRowForm, PriceTableRowFormSet,
 )
 from .models import (
-    Article, ArticleImage, CatalogSearchSettings, Integration, IntegrationRevision, LeadConnection, MenuItem, PriceTable,
+    Article, ArticleImage, CatalogSearchSettings, Integration, IntegrationRevision, MenuItem, PriceTable,
     PriceTableRow, SiteMenu, SitePage,
 )
 
@@ -218,125 +216,6 @@ class ArticleAdmin(SuperuserSiteContentAdminMixin, SeoAdminMixin, admin.ModelAdm
             return JsonResponse({'error': ' '.join(error.messages)}, status=400)
         image = ArticleImage.objects.create(image=prepared)
         return JsonResponse({'url': image.image.url}, status=201)
-
-
-@admin.register(LeadConnection)
-class LeadConnectionAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
-    form = LeadConnectionForm
-    change_form_template = 'admin/sitecontent/leadconnection/change_form.html'
-    list_display = ('name', 'provider', 'recipient_summary', 'is_enabled', 'connection_status', 'pending_count', 'failed_count', 'last_success')
-    list_filter = ('provider', 'is_enabled')
-    search_fields = ('name',)
-    readonly_fields = ('connection_status', 'delivery_summary', 'last_test_result', 'updated_at')
-    list_per_page = 50
-
-    class Media:
-        js = ('sitecontent/js/lead-connection.js',)
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).annotate(
-            _pending=Count('deliveries', filter=Q(deliveries__status__in=['pending', 'processing', 'retry'])),
-            _failed=Count('deliveries', filter=Q(deliveries__status='failed', deliveries__contact_request__isnull=False)),
-            _last_success=Max('deliveries__sent_at'),
-        )
-
-    def get_readonly_fields(self, request, obj=None):
-        return (*self.readonly_fields, 'provider') if obj else self.readonly_fields
-
-    def get_fieldsets(self, request, obj=None):
-        fieldsets = [
-            ('Основное', {'fields': ('name', 'provider', 'is_enabled')}),
-            ('Получатели и правила', {'fields': ('recipients', 'all_request_types', 'request_types')}),
-        ]
-        if obj is None or obj.provider == LeadConnection.Provider.TELEGRAM:
-            fieldsets.append(('Telegram', {'fields': ('use_environment', 'telegram_token', 'proxy_url', 'clear_proxy'), 'classes': ('lead-telegram',)}))
-        if obj is None or obj.provider == LeadConnection.Provider.EMAIL:
-            fieldsets.append(('Email', {'fields': ('smtp_host', 'smtp_port', 'smtp_security', 'smtp_username', 'smtp_password', 'clear_smtp_password', 'from_email', 'from_name'), 'classes': ('lead-email',)}))
-        fieldsets.extend([
-            ('Дополнительные настройки', {'fields': ('connect_timeout', 'read_timeout'), 'classes': ('collapse',), 'description': 'Для SMTP используется тайм-аут ответа. Настройки Telegram из окружения имеют собственные тайм-ауты.'}),
-            ('Проверка и состояние', {'fields': ('connection_status', 'delivery_summary', 'last_test_result', 'updated_at')}),
-        ])
-        return fieldsets
-
-    def has_delete_permission(self, request, obj=None):
-        return self.has_module_permission(request) and (obj is None or not obj.deliveries.exists())
-
-    def save_model(self, request, obj, form, change):
-        obj.configuration_error = ''
-        super().save_model(request, obj, form, change)
-
-    @admin.display(description='Получатели')
-    def recipient_summary(self, obj):
-        return ', '.join(obj.get_recipients()) or 'Не указаны'
-
-    @admin.display(description='Состояние')
-    def connection_status(self, obj):
-        if obj.configuration_error:
-            return obj.configuration_error
-        if not obj.is_enabled:
-            return 'Выключено; обычные отправки приостановлены'
-        if getattr(obj, '_failed', 0):
-            return 'Есть ошибки отправки'
-        if getattr(obj, '_last_success', None):
-            return 'Есть успешные отправки'
-        return 'Ожидает отправки или проверки'
-
-    @admin.display(description='В очереди', ordering='_pending')
-    def pending_count(self, obj):
-        return obj._pending
-
-    @admin.display(description='Ошибок', ordering='_failed')
-    def failed_count(self, obj):
-        return obj._failed
-
-    @admin.display(description='Последняя успешная отправка', ordering='_last_success')
-    def last_success(self, obj):
-        return timezone.localtime(obj._last_success).strftime('%d.%m.%Y %H:%M') if obj._last_success else '—'
-
-    @admin.display(description='Доставки')
-    def delivery_summary(self, obj):
-        if not obj.pk:
-            return 'Сохраните подключение.'
-        return format_html(
-            'В очереди: {}. Ошибок: {}. Последняя успешная отправка: {}. <a href="{}?deliveries__connection__id__exact={}">Открыть заявки</a>',
-            obj._pending, obj._failed, self.last_success(obj), reverse('admin:pict_contactrequest_changelist'), obj.pk,
-        )
-
-    @admin.display(description='Последняя проверка')
-    def last_test_result(self, obj):
-        if not obj.pk:
-            return 'Проверка ещё не выполнялась.'
-        latest = obj.deliveries.filter(test_batch_id__isnull=False).order_by('-created_at', '-pk').first()
-        if latest is None:
-            return 'Проверка ещё не выполнялась.'
-        return format_html_join('', '<div>{} — {} ({}) {}</div>', (
-            (delivery.recipient, delivery.get_status_display(), timezone.localtime(delivery.updated_at).strftime('%d.%m.%Y %H:%M'), delivery.last_error)
-            for delivery in obj.deliveries.filter(test_batch_id=latest.test_batch_id).order_by('pk')
-        ))
-
-    def handle_delivery_action(self, request, obj):
-        if '_test_connection' in request.POST:
-            try:
-                count = enqueue_connection_test(obj)
-            except (ValidationError, DeliveryConfigurationError) as error:
-                text = '; '.join(error.messages) if isinstance(error, ValidationError) else str(error)
-                self.message_user(request, text, level=messages.ERROR)
-            else:
-                self.log_change(request, obj, 'Запрошена тестовая отправка.')
-                self.message_user(request, f'Тестовых сообщений в очереди: {count}. Результат появится после запуска обработчика; обновите страницу.')
-        elif '_retry_deliveries' in request.POST:
-            count = retry_failed_deliveries(obj.deliveries.filter(contact_request__isnull=False))
-            self.log_change(request, obj, f'Повторно поставлено доставок: {count}.')
-            self.message_user(request, f'Повторно поставлено доставок: {count}. Выключенные подключения ожидают включения.')
-        else:
-            return None
-        return redirect('admin:sitecontent_leadconnection_change', obj.pk)
-
-    def response_add(self, request, obj, post_url_continue=None):
-        return self.handle_delivery_action(request, obj) or super().response_add(request, obj, post_url_continue)
-
-    def response_change(self, request, obj):
-        return self.handle_delivery_action(request, obj) or super().response_change(request, obj)
 
 
 class SuperuserIntegrationAdminMixin(SuperuserSiteContentAdminMixin):

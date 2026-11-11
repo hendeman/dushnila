@@ -5,7 +5,8 @@ from django import forms
 from django.core import signing
 from django.core.exceptions import ValidationError
 
-from pict.models import ContactRequest, FinishedWork, Pict
+from leads.models import ContactRequest
+from pict.models import FinishedWork, Pict
 from pict.search import (
     SEARCH_IMAGE_NUMBER_MAX,
     SEARCH_QUERY_MAX_LENGTH,

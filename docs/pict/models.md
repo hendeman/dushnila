@@ -18,7 +18,7 @@ Category  *───*  Pict  *───*  Color
 
 Pict  1───*  ContactRequest (только заявки покупки)
 
-ContactRequest  0..1───*  ContactRequestDelivery  *───1  sitecontent.LeadConnection
+leads.ContactRequest  0..1───*  leads.ContactRequestDelivery  *───1  leads.LeadConnection
 
 ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 ```
@@ -185,6 +185,8 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 
 ## `ContactRequest`
 
+Заявки и доставки описаны в `leads/models.py`. Заявка на покупку связана с `pict.Pict`, а ответы квиза — с `leads.ContactRequest`.
+
 | Поле | Тип | Ограничения и смысл |
 |---|---|---|
 | `request_type` | `CharField(20)` | тип формы: `callback`, `question`, `email_message`, `image_purchase`, `quiz` или `calculator_order` |
@@ -214,7 +216,7 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 | Поле | Тип | Ограничения и смысл |
 |---|---|---|
 | `contact_request` | `ForeignKey(ContactRequest)` | заявка; `CASCADE`, `related_name='deliveries'`; `NULL` только у теста подключения |
-| `connection` | `ForeignKey(sitecontent.LeadConnection)` | обязательное подключение, `PROTECT`, `related_name='deliveries'` |
+| `connection` | `ForeignKey(leads.LeadConnection)` | обязательное подключение, `PROTECT`, `related_name='deliveries'` |
 | `recipient` | `CharField(254)` | снимок адреса получателя; историческая доставка может не содержать адрес |
 | `test_batch_id` | `UUIDField` | группа тестовых отправок, для обычной доставки `NULL` |
 | `message_key` | `UUIDField` | уникальный идентификатор доставки, стабильный при повторах; используется в email Message-ID |

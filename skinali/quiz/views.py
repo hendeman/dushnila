@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
-from pict.models import ContactRequest
+from leads.models import ContactRequest
 from pict.services.contact_delivery import enqueue_contact_request
 
 from .forms import QuizContactForm

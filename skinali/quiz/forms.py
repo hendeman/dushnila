@@ -1,7 +1,7 @@
 from django import forms
 
 from pict.forms import PhoneContactForm
-from pict.models import ContactRequest
+from leads.models import ContactRequest
 
 from .models import QuizQuestion
 

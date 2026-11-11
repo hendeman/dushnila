@@ -31,13 +31,14 @@ from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
 from sitecontent.forms import IntegrationAdminForm
-from sitecontent.models import Integration, IntegrationRevision, LeadConnection, SitePage
+from sitecontent.models import Integration, IntegrationRevision, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
+
+from leads.admin import ContactRequestAdmin, ContactRequestDeliveryInline
+from leads.models import ContactRequest, ContactRequestDelivery, LeadConnection
 
 from .admin import (
     CategoryAdmin,
-    ContactRequestAdmin,
-    ContactRequestDeliveryInline,
     FinishedWorkAdmin,
     PictAdmin,
     TagPictAdmin,
@@ -57,8 +58,6 @@ from .forms import (
 from .models import (
     Category,
     Color,
-    ContactRequest,
-    ContactRequestDelivery,
     FinishedWork,
     Pict,
     TagAlias,
@@ -4200,7 +4199,7 @@ class ContactFormSubmissionTests(TestCase):
 
         self.assertIsNone(contact_request.viewed_at)
         change_url = reverse(
-            'admin:pict_contactrequest_change',
+            'admin:leads_contactrequest_change',
             args=[contact_request.pk],
         )
         self.assertHTMLEqual(
@@ -4252,6 +4251,23 @@ class ContactRequestAdminUnreadTests(TestCase):
     def setUp(self):
         self.client.force_login(self.admin_user)
 
+    def test_leads_admin_groups_requests_and_delivery_settings(self):
+        group_url = reverse('admin:app_list', args=['leads'])
+        response = self.client.get(group_url)
+        self.assertContains(response, 'Работа с заявками')
+        self.assertEqual(
+            {model['object_name'] for model in response.context['app_list'][0]['models']},
+            {'ContactRequest', 'LeadConnection'},
+        )
+
+        for route in (
+            'leads_contactrequest_changelist', 'pict_contactrequest_changelist',
+            'leads_leadconnection_changelist', 'sitecontent_leadconnection_changelist',
+        ):
+            with self.subTest(route=route):
+                response = self.client.get(reverse(f'admin:{route}'))
+                self.assertContains(response, f'<a href="{group_url}">Работа с заявками</a>', html=True)
+
     def test_sidebar_hides_zero_count(self):
         ContactRequest.objects.update(viewed_at=timezone.now())
 
@@ -4272,7 +4288,7 @@ class ContactRequestAdminUnreadTests(TestCase):
         index = self.client.get(reverse('admin:index'))
         self.assertContains(index, 'Заявки (2)')
 
-        change_url = reverse('admin:pict_contactrequest_change', args=[self.first.pk])
+        change_url = reverse('admin:leads_contactrequest_change', args=[self.first.pk])
         change = self.client.get(change_url)
         self.assertContains(change, 'Заявки (1)')
 
@@ -4282,7 +4298,7 @@ class ContactRequestAdminUnreadTests(TestCase):
         self.assertContains(self.client.get(change_url), 'Заявки (1)')
 
     def test_bulk_action_marks_only_selected_unviewed_requests(self):
-        changelist_url = reverse('admin:pict_contactrequest_changelist')
+        changelist_url = reverse('admin:leads_contactrequest_changelist')
         self.assertContains(
             self.client.get(changelist_url),
             'Просмотреть выбранные заявки',

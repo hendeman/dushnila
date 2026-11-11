@@ -15,10 +15,9 @@ from django.test import Client, TestCase
 from django.urls import reverse
 
 from pict.forms import CONTACT_FORM_TOKEN_SALT
-from pict.models import ContactRequest, ContactRequestDelivery
+from leads.models import ContactRequest, ContactRequestDelivery, LeadConnection
 from pict.services import email_delivery, telegram_delivery
 from pict.services.delivery_messages import format_contact_request_message
-from sitecontent.models import LeadConnection
 
 from .models import CalculatorSettings
 from .test_calculation import CalculationFixture
@@ -174,7 +173,7 @@ class CalculatorOrderTests(CalculationFixture, TestCase):
         self.assertEqual(self.submit().status_code, 200)
         order = ContactRequest.objects.get()
         self.client.force_login(self.owner)
-        url = reverse('admin:pict_contactrequest_change', args=[order.pk])
+        url = reverse('admin:leads_contactrequest_change', args=[order.pk])
         response = self.client.get(url)
         self.assertContains(response, 'Заказ из калькулятора')
         self.assertContains(response, 'Открыть расчёт')

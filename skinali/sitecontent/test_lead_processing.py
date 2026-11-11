@@ -18,15 +18,14 @@ from django.urls import reverse
 from django.utils import timezone
 
 from pict.forms import CONTACT_FORM_TOKEN_SALT
-from pict.models import ContactRequest, ContactRequestDelivery
+from leads.forms import LeadConnectionForm
+from leads.models import ContactRequest, ContactRequestDelivery, LeadConnection
 from pict.services.email_delivery import create_backend
 from pict.services.contact_delivery import (
     claim_delivery, enqueue_connection_test, enqueue_contact_request,
     mark_delivery_sent, process_pending_deliveries, recover_stale_deliveries,
     retry_failed_deliveries,
 )
-from .forms import LeadConnectionForm
-from .models import LeadConnection
 from .secrets import decrypt_secret, encrypt_secret
 
 
@@ -314,11 +313,11 @@ class LeadConnectionAdminTests(TestCase):
     def setUpTestData(cls):
         cls.owner = get_user_model().objects.create_superuser('delivery-owner', 'owner@example.com', 'password')
         cls.staff = get_user_model().objects.create_user('delivery-staff', password='password', is_staff=True)
-        cls.staff.user_permissions.set(Permission.objects.filter(content_type__app_label='sitecontent'))
+        cls.staff.user_permissions.set(Permission.objects.filter(content_type__app_label='leads', content_type__model='leadconnection'))
 
     def test_admin_supports_both_providers_and_hides_stored_secrets(self):
         self.client.force_login(self.owner)
-        add_url = reverse('admin:sitecontent_leadconnection_add')
+        add_url = reverse('admin:leads_leadconnection_add')
         response = self.client.post(add_url, {
             'name': 'Рабочая почта', 'provider': 'email', 'is_enabled': 'on', 'all_request_types': 'on',
             'recipients': 'manager@example.com', 'smtp_host': 'smtp.example.com', 'smtp_port': '587',
@@ -327,19 +326,19 @@ class LeadConnectionAdminTests(TestCase):
         })
         self.assertEqual(response.status_code, 302)
         connection = LeadConnection.objects.get(provider='email')
-        editor = self.client.get(reverse('admin:sitecontent_leadconnection_change', args=[connection.pk]))
+        editor = self.client.get(reverse('admin:leads_leadconnection_change', args=[connection.pk]))
         self.assertEqual(editor.status_code, 200)
         self.assertNotContains(editor, 'hidden-password')
         self.assertNotContains(editor, 'name="telegram_token"')
         self.assertContains(editor, 'Сохранить и отправить тест')
-        self.assertContains(self.client.get(reverse('admin:app_list', args=['sitecontent'])), 'Обработка заявок')
-        self.assertEqual(self.client.get(reverse('admin:sitecontent_leadconnection_changelist')).status_code, 200)
+        self.assertContains(self.client.get(reverse('admin:app_list', args=['leads'])), 'Обработка заявок')
+        self.assertEqual(self.client.get(reverse('admin:leads_leadconnection_changelist')).status_code, 200)
         legacy = LeadConnection.objects.get(use_environment=True)
-        self.assertEqual(self.client.get(reverse('admin:sitecontent_leadconnection_change', args=[legacy.pk])).status_code, 200)
+        self.assertEqual(self.client.get(reverse('admin:leads_leadconnection_change', args=[legacy.pk])).status_code, 200)
 
     def test_admin_shows_every_request_form_with_all_checked_by_default(self):
         self.client.force_login(self.owner)
-        response = self.client.get(reverse('admin:sitecontent_leadconnection_add'))
+        response = self.client.get(reverse('admin:leads_leadconnection_add'))
         self.assertEqual(response.status_code, 200)
         form = response.context['adminform'].form
         self.assertTrue(form['all_request_types'].value())
@@ -350,7 +349,7 @@ class LeadConnectionAdminTests(TestCase):
         )
         self.assertContains(response, 'Сообщение по email (форма снята с сайта)')
         legacy = LeadConnection.objects.get(use_environment=True)
-        legacy_response = self.client.get(reverse('admin:sitecontent_leadconnection_change', args=[legacy.pk]))
+        legacy_response = self.client.get(reverse('admin:leads_leadconnection_change', args=[legacy.pk]))
         self.assertEqual(
             set(legacy_response.context['adminform'].form['request_types'].value()),
             set(ContactRequest.RequestType.values),
@@ -364,8 +363,8 @@ class LeadConnectionAdminTests(TestCase):
             test_batch_id=uuid.uuid4(), status='failed', last_error='Ошибка теста',
         )
         model_admin = admin.site._registry[LeadConnection]
-        changelist_url = reverse('admin:sitecontent_leadconnection_changelist')
-        change_url = reverse('admin:sitecontent_leadconnection_change', args=[connection.pk])
+        changelist_url = reverse('admin:leads_leadconnection_changelist')
+        change_url = reverse('admin:leads_leadconnection_change', args=[connection.pk])
         response = self.client.get(changelist_url)
         item = next(item for item in response.context['cl'].result_list if item.pk == connection.pk)
         self.assertEqual(model_admin.failed_count(item), 0)
@@ -388,22 +387,22 @@ class LeadConnectionAdminTests(TestCase):
     def test_staff_cannot_read_change_or_test_connections_even_with_permissions(self):
         self.client.force_login(self.staff)
         connection = LeadConnection.objects.get(use_environment=True)
-        url = reverse('admin:sitecontent_leadconnection_change', args=[connection.pk])
+        url = reverse('admin:leads_leadconnection_change', args=[connection.pk])
         self.assertEqual(self.client.get(url).status_code, 403)
         self.assertEqual(self.client.post(url, {'_test_connection': '1'}).status_code, 403)
-        self.assertEqual(self.client.get(reverse('admin:sitecontent_leadconnection_add')).status_code, 403)
+        self.assertEqual(self.client.get(reverse('admin:leads_leadconnection_add')).status_code, 403)
         self.assertFalse(ContactRequestDelivery.objects.exists())
 
     def test_test_button_is_csrf_protected(self):
         client = Client(enforce_csrf_checks=True)
         client.force_login(self.owner)
         connection = LeadConnection.objects.get(use_environment=True)
-        self.assertEqual(client.post(reverse('admin:sitecontent_leadconnection_change', args=[connection.pk]), {'_test_connection': '1'}).status_code, 403)
+        self.assertEqual(client.post(reverse('admin:leads_leadconnection_change', args=[connection.pk]), {'_test_connection': '1'}).status_code, 403)
 
     @patch('pict.services.telegram_delivery.requests.Session')
     def test_admin_test_button_only_enqueues_and_result_page_renders(self, session):
         self.client.force_login(self.owner)
-        response = self.client.post(reverse('admin:sitecontent_leadconnection_add'), {
+        response = self.client.post(reverse('admin:leads_leadconnection_add'), {
             'name': 'Тест Telegram', 'provider': 'telegram', 'all_request_types': 'on',
             'recipients': '123456', 'telegram_token': '123:admin-token', 'smtp_port': '587',
             'smtp_security': 'starttls', 'connect_timeout': '3', 'read_timeout': '5', '_test_connection': '1',

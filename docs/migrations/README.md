@@ -362,3 +362,14 @@ SEO-поля; название продолжает автоматически �
 идентификаторы, связанные разрешения и записи журнала Django Admin. Откат обеих
 миграций через `manage.py migrate pict 0039` возвращает метки и состояние моделей
 в `pict`, а данные остаются в исходных таблицах. [Контракт интеграций](../pict/integrations.md).
+
+
+## Перенос заявок и подключений в приложение `leads`
+
+`leads/0001_initial` регистрирует модели с исходными таблицами
+`pict_contactrequest`, `pict_contactrequestdelivery` и `sitecontent_leadconnection`.
+`quiz/0006_alter_quizsubmission_contact_request` переключает связь квиза в состоянии Django.
+`pict/0041_move_contactrequest_state` и `sitecontent/0018_move_leadconnection_state` убирают прежние определения.
+Таблицы, строки и ограничения сохраняются. Перенос записей `django_content_type`
+на новый `app_label` сохраняет их ID, права и записи журнала admin.
+Откат `manage.py migrate leads zero` возвращает метки и состояние моделей, сохраняя данные.

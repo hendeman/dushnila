@@ -1,6 +1,6 @@
 from html import escape
 from django.utils import timezone
-from pict.models import ContactRequest
+from leads.models import ContactRequest
 
 
 TELEGRAM_REQUEST_ICON_BY_TYPE = {

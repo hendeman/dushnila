@@ -10,9 +10,9 @@ from django.forms import modelform_factory
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from pict.admin import ContactRequestAdmin
+from leads.admin import ContactRequestAdmin
 from pict.forms import CONTACT_FORM_TOKEN_SALT, PhoneContactForm
-from pict.models import ContactRequest, ContactRequestDelivery
+from leads.models import ContactRequest, ContactRequestDelivery
 from pict.services.contact_delivery import format_contact_request_message
 
 from .admin import QuizAdmin

@@ -6,9 +6,8 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import F, Q
 from django.utils import timezone
-from sitecontent.models import LeadConnection
+from leads.models import ContactRequestDelivery, LeadConnection
 
-from pict.models import ContactRequestDelivery
 from . import email_delivery, telegram_delivery
 from .delivery_errors import DeliveryConfigurationError, DeliveryError
 from .delivery_messages import format_contact_request_message

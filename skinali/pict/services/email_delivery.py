@@ -7,7 +7,7 @@ import certifi
 from django.core.mail import EmailMultiAlternatives
 from django.core.mail.backends.smtp import EmailBackend
 from django.utils.html import strip_tags
-from sitecontent.models import LeadConnection
+from leads.models import LeadConnection
 from sitecontent.secrets import decrypt_secret
 
 from .delivery_errors import DeliveryConfigurationError, DeliveryError

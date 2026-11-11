@@ -256,7 +256,7 @@ class QuizSubmission(models.Model):
         verbose_name='Квиз',
     )
     contact_request = models.OneToOneField(
-        'pict.ContactRequest',
+        'leads.ContactRequest',
         on_delete=models.CASCADE,
         related_name='quiz_submission',
         verbose_name='Заявка',
