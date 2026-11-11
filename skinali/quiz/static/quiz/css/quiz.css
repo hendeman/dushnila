@@ -967,6 +967,10 @@ body.site-quiz-is-open {
 		padding: 18px 58px 15px 18px;
 	}
 
+	.site-quiz-dialog__header h2 {
+		font-size: 9.6px;
+	}
+
 	.site-quiz-dialog__close {
 		top: 12px;
 		right: 12px;
@@ -980,6 +984,11 @@ body.site-quiz-is-open {
 
 	.site-quiz-question {
 		margin-bottom: 22px;
+	}
+
+	.site-quiz-question h2,
+	.site-quiz-success h2 {
+		font-size: 14.4px;
 	}
 
 	.site-quiz-image-carousel__button {

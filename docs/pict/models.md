@@ -266,7 +266,7 @@ ContactRequest  1───0..1  QuizSubmission  *───1  Quiz
 
 ## Интеграции
 
-`Integration` хранит название, описание, включение, порядок, точные пути страниц и три поля кода. `IntegrationRevision` связан с интеграцией (1:N) и автором через `AUTH_USER_MODEL`; сохраняет JSON-снимок настроек, дату и действие. Валидация и атомарное версионирование описаны в [integrations.md](integrations.md).
+`Integration` и `IntegrationRevision` определены в `sitecontent/models.py`. Таблицы `pict_integration` и `pict_integrationrevision` используются по прежним именам. [Поля, связи и версионирование](integrations.md).
 
 ## Общая публикация со статьями
 

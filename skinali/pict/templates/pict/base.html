@@ -10,12 +10,12 @@
 	{% if meta_robots %}<meta name="robots" content="{{ meta_robots }}">{% endif %}
 	{% block structured_data %}{% endblock %}
 	<meta name="csrf-token" content="{{ csrf_token }}">
-    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=20" rel="stylesheet" />
+    <link type="text/css" href="{% static 'skinali/css/styles.css' %}?rev=22" rel="stylesheet" />
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<link rel="shortcut icon" href="{% static 'skinali/images/logo.ico' %}" type="image/x-icon"/>
     <link type="text/css" href="{% static 'skinali/css/fancybox.css' %}" rel="stylesheet" />
     {% block extra_css %}{% endblock %}
-    {% if site_quiz %}<link type="text/css" href="{% static 'quiz/css/quiz.css' %}" rel="stylesheet" />{% endif %}
+    {% if site_quiz %}<link type="text/css" href="{% static 'quiz/css/quiz.css' %}?rev=2" rel="stylesheet" />{% endif %}
 <!--    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@5.0/dist/fancybox/fancybox.css"/>-->
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 {% for integration in site_integration_list %}{{ integration.head_html|safe }}{% endfor %}
@@ -116,7 +116,6 @@
         <h2 id="image-purchase-dialog-title">
             Купить изображение №<span data-image-purchase-number>—</span>
         </h2>
-        <p>Оставьте контактные данные, и мы свяжемся с вами для оформления покупки.</p>
         {% include 'pict/includes/contact_form.html' with form=image_purchase_form form_kind='image_purchase' submit_label='Купить' %}
     </div>
 </dialog>

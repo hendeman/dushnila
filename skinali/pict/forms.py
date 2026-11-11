@@ -5,7 +5,7 @@ from django import forms
 from django.core import signing
 from django.core.exceptions import ValidationError
 
-from pict.models import ContactRequest, FinishedWork, Integration, Pict
+from pict.models import ContactRequest, FinishedWork, Pict
 from pict.search import (
     SEARCH_IMAGE_NUMBER_MAX,
     SEARCH_QUERY_MAX_LENGTH,
@@ -62,16 +62,6 @@ class CatalogSearchForm(forms.Form):
 
         self.parsed_query = parsed_query
         return parsed_query.normalized
-
-
-class IntegrationAdminForm(forms.ModelForm):
-    class Meta:
-        model = Integration
-        fields = Integration.SNAPSHOT_FIELDS
-        widgets = {
-            field: forms.Textarea(attrs={'rows': 12, 'cols': 100, 'spellcheck': 'false', 'style': 'font-family: monospace; max-width: 100%;'})
-            for field in ('head_html', 'body_start_html', 'body_end_html')
-        }
 
 
 CONTACT_FORM_TOKEN_SALT = 'pict.contact-form'

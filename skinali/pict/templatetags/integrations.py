@@ -1,6 +1,6 @@
 from django import template
 
-from pict.models import Integration
+from sitecontent.models import Integration
 
 
 register = template.Library()

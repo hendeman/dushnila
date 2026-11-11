@@ -1649,12 +1649,6 @@ ul.mainmenu li > [aria-current="page"],
 	line-height: 1.08;
 }
 
-.contact-dialog__panel > p {
-	margin: -8px 0 28px;
-	color: #596059;
-	font-size: 17px;
-}
-
 .contact-dialog .contact-form {
 	grid-template-columns: minmax(0, 1fr);
 }
@@ -1688,6 +1682,11 @@ ul.mainmenu li > [aria-current="page"],
 
 .contact-dialog--purchase {
 	width: min(520px, calc(100vw - 32px));
+}
+
+.contact-dialog--purchase .contact-form__field textarea {
+	height: calc(146px / 1.5);
+	min-height: 84px;
 }
 
 .contact-form-fallback {
@@ -4414,6 +4413,10 @@ background-color: coral;
 		padding: 28px 20px 22px;
 	}
 
+	.contact-dialog__panel h2 {
+		font-size: calc(28px / 1.5);
+	}
+
 	.contact-dialog__close {
 		top: 12px;
 		right: 12px;
@@ -4769,6 +4772,10 @@ background-color: coral;
 		color: #161616;
 		font-size: 22px;
 		font-weight: 700;
+	}
+
+	#mobile-color-filter .mobile-filter-dialog__header h2 {
+		font-size: calc(22px / 1.5);
 	}
 
 	.mobile-filter-dialog__close {

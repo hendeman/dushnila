@@ -30,7 +30,8 @@ from django.test.utils import CaptureQueriesContext
 from django.urls import NoReverseMatch, reverse
 from django.utils import timezone
 from django.utils.html import escape
-from sitecontent.models import LeadConnection, SitePage
+from sitecontent.forms import IntegrationAdminForm
+from sitecontent.models import Integration, IntegrationRevision, LeadConnection, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
 
 from .admin import (
@@ -50,7 +51,6 @@ from .forms import (
     EmailCommentContactForm,
     FinishedWorkAdminForm,
     ImagePurchaseContactForm,
-    IntegrationAdminForm,
     PhoneContactForm,
     QuestionContactForm,
 )
@@ -60,8 +60,6 @@ from .models import (
     ContactRequest,
     ContactRequestDelivery,
     FinishedWork,
-    Integration,
-    IntegrationRevision,
     Pict,
     TagAlias,
     TagPict,
@@ -5794,37 +5792,56 @@ class IntegrationTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('is_enabled', form.errors)
 
+    def test_admin_lists_integrations_and_builds_breadcrumbs_in_sitecontent(self):
+        self.client.force_login(self.owner)
+        sitecontent_url = reverse('admin:app_list', args=['sitecontent'])
+        integration_url = reverse('admin:sitecontent_integration_changelist')
+
+        response = self.client.get(sitecontent_url)
+        self.assertContains(response, f'<a href="{integration_url}">Интеграции</a>', html=True)
+        response = self.client.get(reverse('admin:app_list', args=['pict']))
+        self.assertNotContains(response, f'href="{integration_url}"')
+
+        for url in (
+            integration_url,
+            reverse('admin:sitecontent_integration_change', args=[self.integration.pk]),
+            reverse('admin:sitecontent_integration_history', args=[self.integration.pk]),
+        ):
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertContains(response, f'<a href="{sitecontent_url}">Управление сайтом</a>', html=True)
+
     def test_admin_save_records_author_and_escapes_code(self):
         self.client.force_login(self.owner)
         code = '</textarea><script>window.adminInjection = true;</script>'
         data = {field: getattr(self.integration, field) for field in Integration.SNAPSHOT_FIELDS}
-        url = reverse('admin:pict_integration_change', args=[self.integration.pk])
+        url = reverse('admin:sitecontent_integration_change', args=[self.integration.pk])
         response = self.client.post(url, {**data, 'head_html': code, '_save': 'Сохранить'})
         self.assertEqual(response.status_code, 302)
         revision = self.integration.revisions.first()
         self.assertEqual(revision.author, self.owner)
         self.assertEqual(revision.snapshot['head_html'], code)
-        for page in (url, reverse('admin:pict_integrationrevision_change', args=[revision.pk]),
-                     reverse('admin:pict_integrationrevision_restore', args=[revision.pk])):
+        for page in (url, reverse('admin:sitecontent_integrationrevision_change', args=[revision.pk]),
+                     reverse('admin:sitecontent_integrationrevision_restore', args=[revision.pk])):
             response = self.client.get(page)
             self.assertContains(response, escape(code))
             self.assertNotContains(response, code)
         self.assertNotContains(self.client.get(reverse('admin:index')), self.integration.body_end_html)
-        self.assertEqual(self.client.get(reverse('admin:pict_integrationrevision_changelist') +
+        self.assertEqual(self.client.get(reverse('admin:sitecontent_integrationrevision_changelist') +
                                         f'?integration__id__exact={self.integration.pk}').status_code, 200)
 
     def test_regular_staff_cannot_read_write_or_restore_even_with_model_permissions(self):
         self.client.force_login(self.staff)
         revision = self.integration.revisions.first()
-        urls = [reverse('admin:pict_integration_changelist'), reverse('admin:pict_integration_add'),
-                reverse('admin:pict_integration_change', args=[self.integration.pk]),
-                reverse('admin:pict_integrationrevision_changelist'),
-                reverse('admin:pict_integrationrevision_change', args=[revision.pk]),
-                reverse('admin:pict_integrationrevision_restore', args=[revision.pk])]
-        for url in urls:
-            for method in ('get', 'post'):
-                with self.subTest(url=url, method=method):
-                    self.assertEqual(getattr(self.client, method)(url).status_code, 403)
+        routes = [('integration_changelist', []), ('integration_add', []),
+                  ('integration_change', [self.integration.pk]), ('integrationrevision_changelist', []),
+                  ('integrationrevision_change', [revision.pk]), ('integrationrevision_restore', [revision.pk])]
+        for app_label in ('sitecontent', 'pict'):
+            for route, args in routes:
+                url = reverse(f'admin:{app_label}_{route}', args=args)
+                for method in ('get', 'post'):
+                    with self.subTest(url=url, method=method):
+                        self.assertEqual(getattr(self.client, method)(url).status_code, 403)
         self.assertNotContains(self.client.get(reverse('admin:index')), 'Интеграции')
 
     def test_restore_requires_csrf_and_post_and_creates_new_revision(self):
@@ -5848,7 +5865,7 @@ class IntegrationTests(TestCase):
 
     def test_revision_write_failure_rolls_back_settings(self):
         self.integration.name = 'Не должно сохраниться'
-        with patch('pict.models.IntegrationRevision.objects.create', side_effect=RuntimeError('failure')):
+        with patch('sitecontent.models.IntegrationRevision.objects.create', side_effect=RuntimeError('failure')):
             with self.assertRaises(RuntimeError):
                 self.integration.save_with_revision(self.owner)
         self.integration.refresh_from_db()

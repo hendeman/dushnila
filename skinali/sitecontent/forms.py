@@ -4,7 +4,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from pict.models import ContactRequest
 
-from .models import Article, LeadConnection, PriceTableRow
+from .models import Article, Integration, LeadConnection, PriceTableRow
 from .rich_text import MAX_ARTICLE_HTML_LENGTH, sanitize_article_html
 from .widgets import QuillWidget
 from .secrets import encrypt_secret
@@ -158,3 +158,13 @@ class LeadConnectionForm(forms.ModelForm):
             else:
                 self.instance.smtp_password_encrypted = ''
         return cleaned
+
+
+class IntegrationAdminForm(forms.ModelForm):
+    class Meta:
+        model = Integration
+        fields = Integration.SNAPSHOT_FIELDS
+        widgets = {
+            field: forms.Textarea(attrs={'rows': 12, 'cols': 100, 'spellcheck': 'false', 'style': 'font-family: monospace; max-width: 100%;'})
+            for field in ('head_html', 'body_start_html', 'body_end_html')
+        }

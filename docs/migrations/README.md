@@ -348,3 +348,17 @@ SEO-поля; название продолжает автоматически �
 схему БД не меняет. Откат — no-op, чтобы не разрывать действующие связи.
 Дальнейшее восстановление при сохранении пункта выполняет `SitePage.bind_unlinked_menu_item()`.
 [Поведение и проверки](../sitecontent/overview.md).
+
+## `pict/0040_remove_integration_state` и `sitecontent/0017_move_integrations`
+
+`pict/0040_remove_integration_state` зависит от `pict/0039` и `sitecontent/0016`.
+Она убирает `Integration` и `IntegrationRevision` из состояния моделей приложения
+`pict`. Следующая миграция, `sitecontent/0017_move_integrations`, описывает обе
+модели в `sitecontent` с прежними таблицами `pict_integration` и
+`pict_integrationrevision`. Операции со схемой касаются только состояния Django,
+поэтому таблицы, связи, строки и первичные ключи сохраняются на месте.
+
+Записи `django_content_type` меняют `app_label` на `sitecontent`, сохраняя свои
+идентификаторы, связанные разрешения и записи журнала Django Admin. Откат обеих
+миграций через `manage.py migrate pict 0039` возвращает метки и состояние моделей
+в `pict`, а данные остаются в исходных таблицах. [Контракт интеграций](../pict/integrations.md).

@@ -1,10 +1,12 @@
 from django import forms
 from django.contrib import admin, messages
 from django.core.exceptions import PermissionDenied, ValidationError
+from django.db import transaction
 from django.db.models import Count, Max, Q
-from django.shortcuts import redirect
+from django.http import HttpResponseNotAllowed, JsonResponse
+from django.shortcuts import get_object_or_404, redirect
+from django.template.response import TemplateResponse
 from django.urls import path, reverse
-from django.http import JsonResponse, HttpResponseNotAllowed
 from django.utils.html import format_html, format_html_join
 from django.utils import timezone
 from skinali.admin_mixins import (
@@ -15,13 +17,15 @@ from skinali.admin_order import reorder_admin_objects
 from pict.services.contact_delivery import enqueue_connection_test, retry_failed_deliveries
 from pict.services.delivery_errors import DeliveryConfigurationError
 
-from .forms import ArticleAdminForm, LeadConnectionForm, PriceTableRowForm, PriceTableRowFormSet
 from .admin_seo import SeoAdminMixin
+from .article_media import prepare_article_image
+from .forms import (
+    ArticleAdminForm, IntegrationAdminForm, LeadConnectionForm, PriceTableRowForm, PriceTableRowFormSet,
+)
 from .models import (
-    Article, ArticleImage, CatalogSearchSettings, LeadConnection, MenuItem, PriceTable,
+    Article, ArticleImage, CatalogSearchSettings, Integration, IntegrationRevision, LeadConnection, MenuItem, PriceTable,
     PriceTableRow, SiteMenu, SitePage,
 )
-from .article_media import prepare_article_image
 
 
 @admin.register(CatalogSearchSettings)
@@ -333,3 +337,106 @@ class LeadConnectionAdmin(SuperuserSiteContentAdminMixin, admin.ModelAdmin):
 
     def response_change(self, request, obj):
         return self.handle_delivery_action(request, obj) or super().response_change(request, obj)
+
+
+class SuperuserIntegrationAdminMixin(SuperuserSiteContentAdminMixin):
+    def has_delete_permission(self, request, obj=None):
+        # Отключение сохраняет историю и позволяет вернуть интеграцию позже.
+        return False
+
+
+@admin.register(Integration)
+class IntegrationAdmin(SuperuserIntegrationAdminMixin, admin.ModelAdmin):
+    form = IntegrationAdminForm
+    list_display = ['name', 'is_enabled', 'position', 'updated_at', 'versions_link']
+    list_filter = ['is_enabled']
+    search_fields = ['name', 'description']
+    list_per_page = 30
+    readonly_fields = ['updated_at', 'versions_link']
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'description', 'is_enabled', 'position', 'page_paths'),
+            'description': 'Код применяется к публичным страницам сразу после сохранения включённой интеграции. '
+                           'Вставляйте код только доверенных сервисов. Меньшее число порядка подключается раньше.',
+        }),
+        ('Код в head', {'fields': ('head_html',)}),
+        ('Код в начале body', {'fields': ('body_start_html',)}),
+        ('Код в конце body', {'fields': ('body_end_html',)}),
+        ('История', {'fields': ('updated_at', 'versions_link')}),
+    )
+
+    @admin.display(description='Версии')
+    def versions_link(self, obj):
+        if not obj.pk:
+            return 'История появится после сохранения.'
+        return format_html(
+            '<a href="{}?integration__id__exact={}">Открыть историю версий</a>',
+            reverse('admin:sitecontent_integrationrevision_changelist', current_app=self.admin_site.name), obj.pk,
+        )
+
+    def save_model(self, request, obj, form, change):
+        obj.save_with_revision(request.user, 'Изменение' if change else 'Создание')
+
+
+@admin.register(IntegrationRevision)
+class IntegrationRevisionAdmin(SuperuserIntegrationAdminMixin, admin.ModelAdmin):
+    list_display = ['__str__', 'integration', 'created_at', 'author', 'note']
+    list_select_related = ['integration', 'author']
+    list_per_page = 30
+    fields = ['integration', 'created_at', 'author', 'note', 'snapshot_display', 'restore_link']
+    readonly_fields = fields
+    actions = None
+
+    def get_model_perms(self, request):
+        # Версии открываются из интеграции и не создают лишний раздел главного меню.
+        return {}
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def get_urls(self):
+        return [path('<int:object_id>/restore/', self.admin_site.admin_view(self.restore_view),
+                     name='sitecontent_integrationrevision_restore')] + super().get_urls()
+
+    @admin.display(description='Сохранённые настройки')
+    def snapshot_display(self, obj):
+        # format_html_join экранирует значения: HTML/JS из снимка в admin не исполняется.
+        return format_html_join('', '<p><strong>{}</strong></p><pre style="white-space: pre-wrap">{}</pre>', (
+            (Integration._meta.get_field(field).verbose_name, obj.snapshot[field])
+            for field in Integration.SNAPSHOT_FIELDS
+        ))
+
+    @admin.display(description='Восстановление')
+    def restore_link(self, obj):
+        return format_html(
+            '<a href="{}">Восстановить эту версию…</a>',
+            reverse('admin:sitecontent_integrationrevision_restore', args=[obj.pk], current_app=self.admin_site.name),
+        )
+
+    def restore_view(self, request, object_id):
+        if not self.has_module_permission(request):
+            raise PermissionDenied
+        if request.method not in ('GET', 'POST'):
+            return HttpResponseNotAllowed(['GET', 'POST'])
+        revision = get_object_or_404(IntegrationRevision.objects.select_related('integration'), pk=object_id)
+        integration_url = reverse(
+            'admin:sitecontent_integration_change', args=[revision.integration_id], current_app=self.admin_site.name,
+        )
+        if request.method == 'POST':
+            with transaction.atomic():
+                integration = revision.restore(request.user)
+                self.log_change(request, integration, f'Восстановлена версия № {revision.pk}')
+            self.message_user(request, 'Версия восстановлена. Текущее состояние сохранено в новой версии.')
+            return redirect(integration_url)
+        request.current_app = self.admin_site.name
+        return TemplateResponse(request, 'admin/sitecontent/integration/restore.html', {
+            **self.admin_site.each_context(request),
+            'title': f'Восстановить версию № {revision.pk}',
+            'opts': Integration._meta,
+            'revision': revision,
+            'snapshot_display': self.snapshot_display(revision),
+            'integration_url': integration_url,
+        })
