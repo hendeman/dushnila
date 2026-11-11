@@ -16,8 +16,8 @@ from django.urls import reverse
 
 from pict.forms import CONTACT_FORM_TOKEN_SALT
 from leads.models import ContactRequest, ContactRequestDelivery, LeadConnection
-from pict.services import email_delivery, telegram_delivery
-from pict.services.delivery_messages import format_contact_request_message
+from leads.services import email_delivery, telegram_delivery
+from leads.services.delivery_messages import format_contact_request_message
 
 from .models import CalculatorSettings
 from .test_calculation import CalculationFixture
@@ -197,7 +197,7 @@ class CalculatorOrderTests(CalculationFixture, TestCase):
     def test_email_and_telegram_adapters_preserve_calculation_url_without_external_sends(self):
         self.submit()
         delivery = ContactRequestDelivery.objects.get(connection=self.connection)
-        with patch('pict.services.email_delivery.create_backend') as create_backend:
+        with patch('leads.services.email_delivery.create_backend') as create_backend:
             backend = create_backend.return_value.__enter__.return_value
             backend.send_messages.return_value = 1
             email_delivery.send(delivery, {})
@@ -205,7 +205,7 @@ class CalculatorOrderTests(CalculationFixture, TestCase):
             self.assertIn(self.calculation_url, message.body)
             self.assertIn(self.calculation_url, message.alternatives[0].content)
             self.assertIn('Заказ из калькулятора', message.subject)
-        with patch('pict.services.telegram_delivery.requests.Session') as session_class:
+        with patch('leads.services.telegram_delivery.requests.Session') as session_class:
             session = session_class.return_value
             session.post.return_value.json.return_value = {'ok': True, 'result': {'message_id': 1}}
             telegram_delivery.send(delivery, {'token': 'test-token', 'proxy_url': '', 'timeout': (1, 1)})

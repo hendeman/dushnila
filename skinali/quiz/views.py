@@ -4,7 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_POST
 
 from leads.models import ContactRequest
-from pict.services.contact_delivery import enqueue_contact_request
+from leads.services.contact_delivery import enqueue_contact_request
 
 from .forms import QuizContactForm
 from .models import Quiz, QuizSubmission

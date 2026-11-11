@@ -8,15 +8,15 @@
 
 | Модуль | Ответственность |
 |---|---|
-| [models.py](models.md) | `Pict`, `FinishedWork`, `ContactRequest`, `ContactRequestDelivery`, `Category`, `Color`, `TagPict` и связи ORM |
+| [models.py](models.md) | `Pict`, `FinishedWork`, `Category`, `Color`, `TagPict` и связи ORM |
 | [sitemaps.py](sitemaps.md) | XML-карта постоянных страниц, непустых категорий и тегов |
 | [signals.py](signals.md) | синхронизация времени изменения публичных страниц для `lastmod` |
 | [views.py](views.md) | поиск, каталог, готовые работы, избранное, фильтрация, теги, статические страницы и обработчики 404/500 |
 | [urls.py](urls.md) | публичные URL приложения |
 | [forms.py](forms.md) | `PictAdminForm` и публичные контактные формы с валидацией |
 | [context_processors.py](context_processors.md) | глобальная форма обратного звонка для базового шаблона |
-| [services/contact_delivery.py](services.md) | Общая очередь, маршрутизация и повторы; отдельные адаптеры Telegram и email |
-| [management/commands/process_contact_deliveries.py](management.md) | разовый запуск отправителя из cron или systemd timer |
+| [leads/services/contact_delivery.py](services.md) | общая очередь приложения `leads`, маршрутизация, повторы и адаптеры Telegram и email |
+| [leads/management/commands/process_contact_deliveries.py](management.md) | разовый запуск отправителя из cron или systemd timer |
 | [admin.py](admin.md) | таблицы, фильтры, миниатюры и регистрация моделей в admin |
 | [apps.py](apps.md) | конфигурация приложения |
 | [tests.py](tests.md) | автоматические тесты каталога, избранного, готовых работ и контактных заявок |

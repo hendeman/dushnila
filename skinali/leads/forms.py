@@ -3,9 +3,9 @@ import re
 from django import forms
 from django.core.exceptions import ValidationError
 
-from sitecontent.secrets import encrypt_secret
-
 from .models import ContactRequest, LeadConnection
+from .secrets import encrypt_secret
+from .services.telegram_delivery import validate_proxy_url
 
 
 class LeadConnectionForm(forms.ModelForm):
@@ -67,7 +67,6 @@ class LeadConnectionForm(forms.ModelForm):
 
     def clean(self):
         cleaned = super().clean()
-        from pict.services.telegram_delivery import validate_proxy_url
 
         if cleaned.get('all_request_types'):
             cleaned['request_types'] = list(ContactRequest.RequestType.values)

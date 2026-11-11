@@ -91,11 +91,8 @@
 | `skinali/pict/sitemaps.py` | [pict/sitemaps.md](docs/pict/sitemaps.md) |
 | `skinali/pict/signals.py` | [pict/signals.md](docs/pict/signals.md) |
 | `skinali/pict/context_processors.py` | [pict/context_processors.md](docs/pict/context_processors.md) |
-| `skinali/pict/services/contact_delivery.py` | [pict/services.md](docs/pict/services.md) |
 | `skinali/pict/services/favorites.py`, `test_favorites.py` | [pict/favorites.md](docs/pict/favorites.md), [pict/tests.md](docs/pict/tests.md) |
 | `skinali/pict/services/photo_cleanup.py`, `test_photo_cleanup.py` | [pict/photo-cleanup.md](docs/pict/photo-cleanup.md), [pict/tests.md](docs/pict/tests.md) |
-| `skinali/pict/services/telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
-| `skinali/pict/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
 | `skinali/pict/management/commands/rebuild_search_lemmas.py` | [pict/management.md](docs/pict/management.md), [pict/search.md](docs/pict/search.md) |
 | `skinali/pict/management/commands/cleanup_unused_photos.py` | [pict/management.md](docs/pict/management.md), [pict/photo-cleanup.md](docs/pict/photo-cleanup.md) |
 | `skinali/pict/admin.py` | [pict/admin.md](docs/pict/admin.md) |
@@ -112,7 +109,9 @@
 | `skinali/sitecontent/forms.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md), [sitecontent/price-tables.md](docs/sitecontent/price-tables.md), [pict/integrations.md](docs/pict/integrations.md) |
 | `skinali/leads/apps.py`, `models.py`, `admin.py`, `forms.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md), [pict/admin.md](docs/pict/admin.md), [pict/models.md](docs/pict/models.md) |
 | `skinali/leads/migrations/*.py` | [migrations/README.md](docs/migrations/README.md) |
-| `skinali/sitecontent/secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
+| `skinali/leads/services/contact_delivery.py`, `telegram_delivery.py`, `email_delivery.py`, `delivery_messages.py`, `delivery_errors.py` | [pict/services.md](docs/pict/services.md) |
+| `skinali/leads/management/commands/process_contact_deliveries.py` | [pict/management.md](docs/pict/management.md) |
+| `skinali/leads/secrets.py`, `test_lead_processing.py` | [sitecontent/lead-processing.md](docs/sitecontent/lead-processing.md) |
 | `skinali/sitecontent/views.py`, `urls.py`, `sitemaps.py`, `widgets.py`, `rich_text.py`, `article_media.py`, `test_articles.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |
 | `skinali/sitecontent/querysets.py` | [sitecontent/articles.md](docs/sitecontent/articles.md), [pict/models.md](docs/pict/models.md) |
 | `skinali/sitecontent/management/commands/cleanup_article_images.py` | [sitecontent/articles.md](docs/sitecontent/articles.md) |

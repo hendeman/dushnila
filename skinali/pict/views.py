@@ -13,6 +13,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_http_methods, require_POST, require_safe
 from django.views.generic import DetailView, ListView, TemplateView
 from leads.models import ContactRequest
+from leads.services.contact_delivery import enqueue_contact_request
 from sitecontent.models import CatalogSearchSettings, SitePage
 from sorl.thumbnail.shortcuts import get_thumbnail
 
@@ -25,7 +26,6 @@ from .forms import (
     QuestionContactForm,
 )
 from .models import *
-from .services.contact_delivery import enqueue_contact_request
 from .services.favorites import (
     FAVORITES_IMPORT_LIMIT_MESSAGE,
     FAVORITES_LIMIT_MESSAGE,

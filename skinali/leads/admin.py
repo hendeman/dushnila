@@ -7,12 +7,12 @@ from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
 from pict.admin import AdminImagePreviewMixin
-from pict.services.contact_delivery import enqueue_connection_test, enqueue_contact_request, retry_failed_deliveries
-from pict.services.delivery_errors import DeliveryConfigurationError
 from skinali.admin_mixins import SuperuserAdminMixin
 
 from .forms import LeadConnectionForm
 from .models import ContactRequest, ContactRequestDelivery, LeadConnection
+from .services.contact_delivery import enqueue_connection_test, enqueue_contact_request, retry_failed_deliveries
+from .services.delivery_errors import DeliveryConfigurationError
 
 
 class ContactRequestDeliveryInline(admin.TabularInline):

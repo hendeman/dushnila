@@ -11,9 +11,9 @@ from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
 from leads.admin import ContactRequestAdmin
-from pict.forms import CONTACT_FORM_TOKEN_SALT, PhoneContactForm
 from leads.models import ContactRequest, ContactRequestDelivery
-from pict.services.contact_delivery import format_contact_request_message
+from leads.services.delivery_messages import format_contact_request_message
+from pict.forms import CONTACT_FORM_TOKEN_SALT, PhoneContactForm
 
 from .admin import QuizAdmin
 from .context_processors import _load_public_quiz

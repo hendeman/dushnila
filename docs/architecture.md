@@ -95,15 +95,9 @@ skinali/
 │   ├── templatetags/pagination.py # компактный ряд страниц и средние переходы через ...
 │   ├── services/
 │   │   ├── favorites.py        # лимит избранного, сессия и подписанные ссылки
-│   │   ├── photo_cleanup.py    # проверка ссылок и очистка оригиналов/миниатюр
-│   │   ├── contact_delivery.py  # общая очередь и маршрутизация
-│   │   ├── telegram_delivery.py # Telegram API
-│   │   ├── email_delivery.py    # SMTP
-│   │   ├── delivery_messages.py # общий формат сообщения
-│   │   └── delivery_errors.py   # безопасные ошибки сервисов
+│   │   └── photo_cleanup.py    # проверка ссылок и очистка оригиналов/миниатюр
 │   ├── management/commands/
 │   │   ├── cleanup_unused_photos.py # отчёт и явная очистка неиспользуемых фото
-│   │   ├── process_contact_deliveries.py
 │   │   └── rebuild_search_lemmas.py # перестроение индекса тегов/синонимов
 │   ├── admin.py
 │   ├── apps.py
@@ -119,6 +113,15 @@ skinali/
 │   ├── models.py
 │   ├── admin.py
 │   ├── forms.py
+│   ├── secrets.py            # шифрование ключом вне базы
+│   ├── services/
+│   │   ├── contact_delivery.py  # общая очередь и маршрутизация
+│   │   ├── telegram_delivery.py # Telegram API
+│   │   ├── email_delivery.py    # SMTP
+│   │   ├── delivery_messages.py # общий формат сообщения
+│   │   └── delivery_errors.py   # безопасные ошибки сервисов
+│   ├── management/commands/process_contact_deliveries.py
+│   ├── test_lead_processing.py # подключения, общая очередь и SMTP
 │   └── migrations/
 ├── calculator/               # справочники и административные настройки калькулятора
 │   ├── apps.py
@@ -164,11 +167,9 @@ skinali/
 │   ├── static/quiz/
 │   └── __init__.py
 └── sitecontent/              # управляемое содержимое сайта
-    ├── models.py             # меню, SEO, статьи, таблицы «Цены», подключения и интеграции
-    ├── forms.py              # формы статей, таблиц, подключений, секретов и интеграций
+    ├── models.py             # меню, SEO, статьи, таблицы «Цены» и интеграции
+    ├── forms.py              # формы статей, таблиц и интеграций
     ├── test_price_tables.py  # таблицы «Цены», публикация, порядок, права и публичный вывод
-    ├── secrets.py            # шифрование ключом вне базы
-    ├── test_lead_processing.py # подключения, общая очередь и SMTP
     ├── context_processors.py # видимые пункты для публичных шаблонов
     ├── admin.py              # управление содержимым, подключениями и интеграциями
     ├── admin_seo.py          # общие SEO-подсказки, ширина и счётчики admin

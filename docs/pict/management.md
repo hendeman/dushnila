@@ -1,4 +1,4 @@
-# Management-команды приложения `pict`
+# Management-команды `pict` и `leads`
 
 ## `rebuild_search_lemmas.py`
 
@@ -15,7 +15,7 @@ python manage.py rebuild_search_lemmas --database default
 
 ## Назначение и запуск
 
-Единая одноразовая management-команда обрабатывает общую очередь заявок и тестовых сообщений для Telegram и email. Она вызывает `process_pending_deliveries()`, не содержит бесконечного цикла и не требует отдельного постоянного worker-процесса.
+Команда `leads/management/commands/process_contact_deliveries.py` обрабатывает очередь заявок и тестовых сообщений для Telegram и email за один запуск. Она вызывает `process_pending_deliveries()` из `leads.services.contact_delivery`. Планировщик запускает её по имени `process_contact_deliveries`.
 
 ```console
 python manage.py process_contact_deliveries

@@ -36,6 +36,7 @@ from sorl.thumbnail.shortcuts import get_thumbnail
 
 from leads.admin import ContactRequestAdmin, ContactRequestDeliveryInline
 from leads.models import ContactRequest, ContactRequestDelivery, LeadConnection
+from leads.services.delivery_messages import format_contact_request_message
 
 from .admin import (
     CategoryAdmin,
@@ -64,7 +65,6 @@ from .models import (
     TagPict,
 )
 from .search import format_image_count, normalize_search_value, parse_search_query
-from .services.contact_delivery import format_contact_request_message
 from .views import (
     ALL_FINISHED_WORK_TYPES,
     PictTag,
@@ -4360,7 +4360,7 @@ class ContactDeliveryTests(TestCase):
         defaults.update(overrides)
         return ContactRequestDelivery.objects.create(**defaults)
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_management_command_marks_successful_telegram_delivery(self, session_class):
         delivery = self.create_delivery()
         session = session_class.return_value
@@ -4404,7 +4404,7 @@ class ContactDeliveryTests(TestCase):
         self.assertFalse(session.trust_env)
         session.close.assert_called_once_with()
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_temporary_error_schedules_retry_without_losing_request(self, session_class):
         delivery = self.create_delivery()
         post = session_class.return_value.post
@@ -4419,7 +4419,7 @@ class ContactDeliveryTests(TestCase):
         self.assertIn('не ответил', delivery.last_error)
         self.assertNotIn('test-token', delivery.last_error)
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_email_message_contains_email_and_comment_without_empty_phone(self, session_class):
         contact_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.EMAIL_MESSAGE,
@@ -4454,7 +4454,7 @@ class ContactDeliveryTests(TestCase):
         )
         self.assertNotIn('📞', message)
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_image_purchase_message_contains_catalog_image_number(self, session_class):
         contact_request = ContactRequest.objects.create(
             request_type=ContactRequest.RequestType.IMAGE_PURCHASE,
@@ -4523,7 +4523,7 @@ class ContactDeliveryTests(TestCase):
         self.assertIn('Можно &lt;сегодня&gt; &amp; завтра?', message)
         self.assertNotIn('Можно <сегодня>', message)
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_permanent_telegram_error_stops_automatic_retries(self, session_class):
         delivery = self.create_delivery()
         post = session_class.return_value.post
@@ -4542,7 +4542,7 @@ class ContactDeliveryTests(TestCase):
         self.assertIsNone(delivery.next_attempt_at)
         self.assertEqual(delivery.last_error, 'Telegram отклонил запрос (код 400).')
 
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_stale_processing_delivery_is_recovered_and_sent(self, session_class):
         delivery = self.create_delivery(
             status=ContactRequestDelivery.Status.PROCESSING,
@@ -4573,7 +4573,7 @@ class ContactDeliveryTests(TestCase):
     @override_settings(
         TELEGRAM_PROXY_URL='https://proxy-user:proxy-password@proxy.example:8443'
     )
-    @patch('pict.services.telegram_delivery.requests.Session')
+    @patch('leads.services.telegram_delivery.requests.Session')
     def test_configured_proxy_is_used_in_strict_mode(self, session_class):
         self.create_delivery()
         session = session_class.return_value
