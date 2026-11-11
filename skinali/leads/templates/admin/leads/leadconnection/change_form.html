@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block submit_buttons_bottom %}
+{{ block.super }}
+{% if has_change_permission or add %}
+<div class="submit-row">
+    <input type="submit" name="_test_connection" value="Сохранить и отправить тест">
+    {% if original %}<input type="submit" name="_retry_deliveries" value="Сохранить и повторить неотправленные заявки">{% endif %}
+    <p>Тестовое сообщение отправляется всем получателям через общую очередь, даже если подключение выключено.</p>
+</div>
+{% endif %}
+{% endblock %}
