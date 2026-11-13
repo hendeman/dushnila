@@ -156,7 +156,7 @@ def with_published_finished_works(queryset):
     ))
 
 
-def get_similar_picture_queryset(picture, *, limit=8):
+def get_similar_picture_queryset(picture, *, limit=10):
     """Ранжирует опубликованные изображения по общим тегам и справочникам."""
     category_ids = [category.pk for category in picture.cat.all()]
     tag_ids = [tag.pk for tag in picture.tags.all()]
